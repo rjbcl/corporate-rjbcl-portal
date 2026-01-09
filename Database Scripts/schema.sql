@@ -50,4 +50,8 @@ SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public';
 
-Select * from individual;
+
+Select * from company;
+Select * from groups;
+Select * from account;
+select * from individual;
