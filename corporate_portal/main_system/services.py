@@ -7,8 +7,6 @@ class CompanyService:
     """Service layer for company-related operations"""
     
     @staticmethod
-    @transaction.atomic
-    @staticmethod
     def validate_group_availability(group_ids, exclude_company_id=None):
         """
         Validate that groups are not already assigned to other companies.
@@ -33,7 +31,9 @@ class CompanyService:
             return conflicts
         
         return None
-
+    
+    @staticmethod
+    @transaction.atomic
     def create_company(username, password, company_data, group_ids, groups_lookup):
         """
         Create a new company with account and groups
@@ -66,7 +66,6 @@ class CompanyService:
         account = Account.objects.create(
             username=username,
             password=password,
-            type='company'
         )
         
         # Create company
@@ -132,7 +131,7 @@ class CompanyService:
         
         # Update password if provided
         if password:
-            account.password = password
+            account.set_password(password)
             account.save()
         
         # Update company fields
@@ -202,11 +201,13 @@ class IndividualService:
         Returns:
             Individual instance
         """
-        # Create account
-        account = Account.objects.create(
+        if not username or not password:
+            raise ValidationError("Username and password are required")
+        
+        # Create account with hashed password
+        account = Account.objects.create_user(
             username=username,
-            password=password,
-            type='individual'
+            password=password  # set_password is called automatically
         )
         
         # Create individual
@@ -233,21 +234,22 @@ class IndividualService:
             Updated Individual instance
         """
         account = individual.username
-        
+
         # Update username if provided and different
         if username and username != account.username:
             old_account = account
-            account = Account.objects.create(
+            account = Account.objects.create_user(
                 username=username,
-                password=old_account.password,
-                type='individual'
+                password=old_account.password  # Copy hashed password
             )
+            account.password = old_account.password  # Keep the hash
+            account.save()
             individual.username = account
             old_account.delete()
         
         # Update password if provided
         if password:
-            account.password = password
+            account.set_password(password)  # Use set_password for hashing
             account.save()
         
         # Update individual fields
@@ -265,3 +267,5 @@ class IndividualService:
         account = individual.username
         individual.delete()
         account.delete()
+
+

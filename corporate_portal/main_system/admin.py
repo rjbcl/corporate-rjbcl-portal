@@ -1,10 +1,12 @@
 import json
 import os
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib import admin
 from django import forms
 from django.conf import settings
 from django_select2.forms import Select2MultipleWidget
 from django.core.exceptions import ValidationError
+from .services import CompanyService
 from .models import Company, Group, Individual, Account
 from .services import CompanyService, IndividualService
 
@@ -58,11 +60,13 @@ class CompanyAdminForm(forms.ModelForm):
             self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
 
     def save(self, commit=True):
+        from .services import CompanyService
+        from django.core.exceptions import ValidationError
+        
         username = self.cleaned_data.get('username', '').strip()
         password = self.cleaned_data.get('password', '').strip()
         group_ids = self.cleaned_data.get('group_ids', [])
         
-        # Prepare company data
         company_data = {
             'company_name': self.cleaned_data.get('company_name'),
             'nepali_name': self.cleaned_data.get('nepali_name'),
@@ -91,7 +95,6 @@ class CompanyAdminForm(forms.ModelForm):
                     groups_lookup=self.groups_lookup
                 )
         except ValidationError as e:
-            # Re-raise validation errors so they display in the form
             self.add_error(None, e)
             raise
         
@@ -183,30 +186,47 @@ class IndividualAdminForm(forms.ModelForm):
             'user_full_name': self.cleaned_data.get('user_full_name'),
         }
         
-        if self.instance.pk:  # Update
-            individual = IndividualService.update_individual(
-                individual=self.instance,
-                username=username or None,
-                password=password or None,
-                individual_data=individual_data
-            )
-        else:  # Create
-            individual = IndividualService.create_individual(
-                username=username,
-                password=password,
-                individual_data=individual_data
-            )
+        try:
+            if self.instance.pk:  # Update
+                individual = IndividualService.update_individual(
+                    individual=self.instance,
+                    username=username or None,
+                    password=password or None,
+                    individual_data=individual_data
+                )
+            else:  # Create
+                individual = IndividualService.create_individual(
+                    username=username,
+                    password=password,
+                    individual_data=individual_data
+                )
+        except ValidationError as e:
+            self.add_error(None, e)
+            raise
         
         return individual
 
     def clean(self):
         cleaned_data = super().clean()
+        username = cleaned_data.get('username', '').strip()
         
+        # Validate for new individuals
         if not self.instance.pk:
-            if not cleaned_data.get('username'):
+            if not username:
                 raise forms.ValidationError("Username is required for new individuals")
             if not cleaned_data.get('password'):
                 raise forms.ValidationError("Password is required for new individuals")
+            
+            # Check if username already exists
+            if Account.objects.filter(username=username).exists():
+                self.add_error('username', "This username is already in use.")
+        else:
+            # For existing individuals, check if new username conflicts
+            if username:
+                current_username = self.instance.username.username
+                if username != current_username:
+                    if Account.objects.filter(username=username).exists():
+                        self.add_error('username', "This username is already in use.")
         
         return cleaned_data
 
@@ -249,11 +269,17 @@ class IndividualAdmin(admin.ModelAdmin):
     get_group_name.short_description = "Group Name"
     
     def delete_model(self, request, obj):
-        IndividualService.delete_individual(obj)
+        # Delete associated account
+        account = obj.username
+        super().delete_model(request, obj)
+        account.delete()
     
     def delete_queryset(self, request, queryset):
-        for individual in queryset:
-            IndividualService.delete_individual(individual)
+        # Collect accounts before deleting individuals
+        accounts = [individual.username for individual in queryset]
+        super().delete_queryset(request, queryset)
+        for account in accounts:
+            account.delete()
 
 
 @admin.register(Group)
@@ -263,6 +289,31 @@ class GroupAdmin(admin.ModelAdmin):
 
 
 @admin.register(Account)
-class AccountAdmin(admin.ModelAdmin):
-    list_display = ("username", "type")
-    list_filter = ("type",)
+class AccountAdmin(BaseUserAdmin):
+    list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_user_type')
+    list_filter = ('is_staff', 'is_superuser', 'is_active') 
+    
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
+    )
+    
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'password1', 'password2', 'is_staff', 'is_superuser'),
+        }),
+    )
+    
+    search_fields = ('username',)
+    ordering = ('username',)
+    
+    def get_queryset(self, request):
+        """Optimize query to include company and individual relationships"""
+        qs = super().get_queryset(request)
+        # Use the correct related_name from your models
+        return qs.select_related('company_profile', 'individual_profile')
+    
+    def get_user_type(self, obj):
+        return obj.get_user_type() or '-'
+    get_user_type.short_description = 'User Type'
