@@ -92,9 +92,16 @@ class Company(AuditBase):
     telephone_number = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
     isactive = models.BooleanField(default=True)
+    remarks = models.TextField(blank=True, null=True)
+    blank_col1 = models.CharField(max_length=200, blank=True, null=True)
+    blank_col2 = models.CharField(max_length=200, blank=True, null=True)
 
     class Meta:
         db_table = 'company'
+        permissions = [
+            ('approve_company', 'Can approve company'),
+            ('soft_delete_company', 'Can soft delete company'),
+        ]
 
     def __str__(self):
         return self.company_name
@@ -114,6 +121,10 @@ class Group(AuditBase):
     
     class Meta:
         db_table = 'groups'
+        permissions = [
+            ('approve_group', 'Can approve group'),
+            ('soft_delete_group', 'Can soft delete group'),
+        ]
     
     def __str__(self):
         return self.group_name or f"Group {self.group_id}"
@@ -137,6 +148,26 @@ class Individual(AuditBase):
 
     class Meta:
         db_table = 'individual'
+        permissions = [
+            ('approve_individual', 'Can approve individual'),
+            ('soft_delete_individual', 'Can soft delete individual'),
+        ]
 
     def __str__(self):
         return self.user_full_name or self.username.username
+    
+class Policy(models.Model):
+    row_id = models.AutoField(primary_key=True)
+    policy_number = models.CharField(max_length=50, unique=True) 
+    user_id = models.ForeignKey(
+        'Individual',           
+        on_delete=models.CASCADE,  
+        db_column='user_id',    
+        related_name='policies'
+    )
+
+    class Meta:
+        db_table = 'policy'
+
+    def __str__(self):
+        return f"Policy {self.policy_number} for User {self.user_id_id}"

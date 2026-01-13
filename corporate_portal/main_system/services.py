@@ -1,17 +1,41 @@
+# services.py
 from django.db import transaction
-from django.forms import ValidationError
-from .models import Account, Company, Group, Individual
+from django.core.exceptions import ValidationError, PermissionDenied
+from .models import Company, Group, Account, Individual
+
+class PermissionMixin:
+    """Mixin for permission checking"""
+    
+    @staticmethod
+    def check_permission(user, permission_string, raise_exception=True):
+        """
+        Check if user has permission
+        permission_string: e.g., 'main_system.add_company'
+        """
+        if not user:
+            if raise_exception:
+                raise PermissionDenied("User authentication required")
+            return False
+        
+        if user.is_superuser:
+            return True
+        
+        has_perm = user.has_perm(permission_string)
+        
+        if not has_perm and raise_exception:
+            raise PermissionDenied(f"You don't have permission: {permission_string}")
+        
+        return has_perm
 
 
-class CompanyService:
-    """Service layer for company-related operations"""
+class CompanyService(PermissionMixin):
     
     @staticmethod
     def validate_group_availability(group_ids, exclude_company_id=None):
-        """
-        Validate that groups are not already assigned to other companies.
-        Returns a list of conflicts or None if all groups are available.
-        """
+        """Validate that groups are not already assigned to other companies"""
+        if not group_ids:
+            return None
+            
         existing_groups = Group.objects.filter(
             group_id__in=group_ids,
             isdeleted=False
@@ -34,21 +58,12 @@ class CompanyService:
     
     @staticmethod
     @transaction.atomic
-    def create_company(username, password, company_data, group_ids, groups_lookup):
-        """
-        Create a new company with account and groups
+    def create_company(username, password, company_data, group_ids, groups_lookup, user=None):
+        """Create a new company with permission check"""
         
-        Args:
-            username: Account username
-            password: Account password
-            company_data: Dict with company fields (company_name, nepali_name, etc.)
-            group_ids: List of group IDs to assign
-            groups_lookup: Dict mapping group_id to group_name
+        # ENFORCE permission check in service layer
+        CompanyService.check_permission(user, 'main_system.add_company')
         
-        Returns:
-            Company instance
-        """
-
         if not username or not password:
             raise ValidationError("Username and password are required")
         
@@ -62,10 +77,11 @@ class CompanyService:
             raise ValidationError(
                 f"The following groups are already assigned to other companies: {', '.join(conflict_msgs)}"
             )
-        # Create account
-        account = Account.objects.create(
+        
+        # Create account with hashed password
+        account = Account.objects.create_user(
             username=username,
-            password=password,
+            password=password
         )
         
         # Create company
@@ -76,37 +92,26 @@ class CompanyService:
         
         # Create groups
         for gid in group_ids:
-            group_name = groups_lookup.get(gid, '')
             Group.objects.create(
                 company_id=company,
                 group_id=gid,
-                group_name=group_name,
-                isactive=True
+                group_name=groups_lookup.get(gid, ''),
+                isactive=company.isactive
             )
         
         return company
     
     @staticmethod
     @transaction.atomic
-    def update_company(company, username=None, password=None, company_data=None, 
-                    group_ids=None, groups_lookup=None):
-        """
-        Update existing company, optionally updating account and groups
+    def update_company(company, username=None, password=None, company_data=None, group_ids=None, groups_lookup=None, user=None):
+        """Update existing company with permission check"""
         
-        Args:
-            company: Company instance to update
-            username: New username (optional)
-            password: New password (optional)
-            company_data: Dict with company fields to update (optional)
-            group_ids: List of group IDs (optional)
-            groups_lookup: Dict mapping group_id to group_name (optional)
+        # ENFORCE permission check in service layer
+        CompanyService.check_permission(user, 'main_system.change_company')
         
-        Returns:
-            Updated Company instance
-        """
         account = company.username
         
-        # Validate groups (exclude current company's groups)
+        # Validate groups
         if group_ids is not None:
             conflicts = CompanyService.validate_group_availability(group_ids, exclude_company_id=company.company_id)
             if conflicts:
@@ -121,11 +126,12 @@ class CompanyService:
         # Update username if provided and different
         if username and username != account.username:
             old_account = account
-            account = Account.objects.create(
+            account = Account.objects.create_user(
                 username=username,
-                password=old_account.password,
-                type='company'
+                password=old_account.password
             )
+            account.password = old_account.password
+            account.save()
             company.username = account
             old_account.delete()
         
@@ -146,10 +152,8 @@ class CompanyService:
         
         # Update groups if provided
         if group_ids is not None and groups_lookup is not None:
-            # Mark all existing groups as deleted
             Group.objects.filter(company_id=company).update(isdeleted=True)
             
-            # Create/reactivate selected groups
             for gid in group_ids:
                 group_name = groups_lookup.get(gid, '')
                 
@@ -160,7 +164,6 @@ class CompanyService:
                 
                 if existing_group:
                     existing_group.isdeleted = False
-                    # Only set active if company is active
                     existing_group.isactive = company.isactive
                     existing_group.group_name = group_name
                     existing_group.save()
@@ -169,7 +172,6 @@ class CompanyService:
                         company_id=company,
                         group_id=gid,
                         group_name=group_name,
-                        # Use company's active status
                         isactive=company.isactive
                     )
         
@@ -177,37 +179,78 @@ class CompanyService:
     
     @staticmethod
     @transaction.atomic
-    def delete_company(company):
-        """Delete company and its account"""
-        account = company.username
-        company.delete()
-        account.delete()
-
-
-class IndividualService:
-    """Service layer for individual-related operations"""
+    def soft_delete_company(company, user=None):
+        """Soft delete company (set isactive=False)"""
+        
+        # ENFORCE permission check in service layer
+        CompanyService.check_permission(user, 'main_system.soft_delete_company')
+        
+        company.isactive = False
+        company.save()
+        
+        # Cascade soft delete to groups
+        Group.objects.filter(company_id=company).update(isactive=False, isdeleted=True)
+        
+        # Soft delete account
+        company.username.is_active = False
+        company.username.save()
+        
+        return company
     
     @staticmethod
     @transaction.atomic
-    def create_individual(username, password, individual_data):
-        """
-        Create a new individual with account
+    def hard_delete_company(company, user=None):
+        """Hard delete company (Admin only)"""
         
-        Args:
-            username: Account username
-            password: Account password
-            individual_data: Dict with individual fields (group_id, user_full_name)
+        # ENFORCE permission check in service layer - Admin only
+
         
-        Returns:
-            Individual instance
-        """
+        CompanyService.check_permission(user, 'main_system.delete_company')
+        
+        account = company.username
+        company.delete()
+        account.delete()
+        
+        return True
+    
+    @staticmethod
+    @transaction.atomic
+    def approve_company(company, user=None):
+        """Approve company (Approver/Admin only)"""
+        
+        # ENFORCE permission check in service layer
+        CompanyService.check_permission(user, 'main_system.approve_company')
+        
+        company.isactive = True
+        company.save()
+        
+        # Reactivate groups
+        Group.objects.filter(company_id=company).update(isactive=True, isdeleted=False)
+        
+        # Activate account
+        company.username.is_active = True
+        company.username.save()
+        
+        return company
+
+
+class IndividualService(PermissionMixin):
+    
+    @staticmethod
+    @transaction.atomic
+    def create_individual(username, password, individual_data, user=None):
+        """Create individual with permission check"""
+        
+        # ENFORCE permission check in service layer
+        IndividualService.check_permission(user, 'main_system.add_individual')
+        
         if not username or not password:
             raise ValidationError("Username and password are required")
         
         # Create account with hashed password
         account = Account.objects.create_user(
             username=username,
-            password=password  # set_password is called automatically
+            password=password
         )
         
         # Create individual
@@ -220,36 +263,29 @@ class IndividualService:
     
     @staticmethod
     @transaction.atomic
-    def update_individual(individual, username=None, password=None, individual_data=None):
-        """
-        Update existing individual, optionally updating account
+    def update_individual(individual, username=None, password=None, individual_data=None, user=None):
+        """Update individual with permission check"""
         
-        Args:
-            individual: Individual instance to update
-            username: New username (optional)
-            password: New password (optional)
-            individual_data: Dict with individual fields to update (optional)
+        # ENFORCE permission check in service layer
+        IndividualService.check_permission(user, 'main_system.change_individual')
         
-        Returns:
-            Updated Individual instance
-        """
         account = individual.username
-
+        
         # Update username if provided and different
         if username and username != account.username:
             old_account = account
             account = Account.objects.create_user(
                 username=username,
-                password=old_account.password  # Copy hashed password
+                password=old_account.password
             )
-            account.password = old_account.password  # Keep the hash
+            account.password = old_account.password
             account.save()
             individual.username = account
             old_account.delete()
         
         # Update password if provided
         if password:
-            account.set_password(password)  # Use set_password for hashing
+            account.set_password(password)
             account.save()
         
         # Update individual fields
@@ -262,10 +298,42 @@ class IndividualService:
     
     @staticmethod
     @transaction.atomic
-    def delete_individual(individual):
-        """Delete individual and its account"""
+    def soft_delete_individual(individual, user=None):
+        """Soft delete individual"""
+        
+        # ENFORCE permission check in service layer
+        IndividualService.check_permission(user, 'main_system.soft_delete_individual')
+        
+        # Soft delete account
+        individual.username.is_active = False
+        individual.username.save()
+        
+        return individual
+    
+    @staticmethod
+    @transaction.atomic
+    def hard_delete_individual(individual, user=None):
+        """Hard delete individual (Admin only)"""
+        
+        # ENFORCE permission check in service layer - Admin only
+        IndividualService.check_permission(user, 'main_system.delete_individual')
+        
         account = individual.username
         individual.delete()
         account.delete()
-
-
+        
+        return True
+    
+    @staticmethod
+    @transaction.atomic
+    def approve_individual(individual, user=None):
+        """Approve individual (Approver/Admin only)"""
+        
+        # ENFORCE permission check in service layer
+        IndividualService.check_permission(user, 'main_system.approve_individual')
+        
+        # Activate account
+        individual.username.is_active = True
+        individual.username.save()
+        
+        return individual
