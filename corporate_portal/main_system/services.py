@@ -83,6 +83,11 @@ class CompanyService(PermissionMixin):
             username=username,
             password=password
         )
+
+        # Add audit fields
+        if user:
+            company_data['created_by'] = user.username
+            company_data['modified_by'] = user.username
         
         # Create company
         company = Company.objects.create(
@@ -90,14 +95,19 @@ class CompanyService(PermissionMixin):
             **company_data
         )
         
-        # Create groups
+        # Create groups with audit info
         for gid in group_ids:
-            Group.objects.create(
-                company_id=company,
-                group_id=gid,
-                group_name=groups_lookup.get(gid, ''),
-                isactive=company.isactive
-            )
+            group_data = {
+                'company_id': company,
+                'group_id': gid,
+                'group_name': groups_lookup.get(gid, ''),
+                'isactive': company.isactive
+            }
+            if user:
+                group_data['created_by'] = user.username
+                group_data['modified_by'] = user.username
+            
+            Group.objects.create(**group_data)
         
         return company
     
@@ -142,17 +152,26 @@ class CompanyService(PermissionMixin):
         
         # Update company fields
         if company_data:
+            if user:
+                company_data['modified_by'] = user.username
+            
             for field, value in company_data.items():
                 setattr(company, field, value)
             company.save()
         
         # If company is inactive, mark all its groups as inactive
         if not company.isactive:
-            Group.objects.filter(company_id=company).update(isactive=False)
+            Group.objects.filter(company_id=company).update(
+                isactive=False,
+                modified_by=user.username if user else None
+            )
         
         # Update groups if provided
         if group_ids is not None and groups_lookup is not None:
-            Group.objects.filter(company_id=company).update(isdeleted=True)
+            Group.objects.filter(company_id=company).update(
+                isdeleted=True,
+                modified_by=user.username if user else None
+            )
             
             for gid in group_ids:
                 group_name = groups_lookup.get(gid, '')
@@ -166,14 +185,21 @@ class CompanyService(PermissionMixin):
                     existing_group.isdeleted = False
                     existing_group.isactive = company.isactive
                     existing_group.group_name = group_name
+                    if user:
+                        existing_group.modified_by = user.username
                     existing_group.save()
                 else:
-                    Group.objects.create(
-                        company_id=company,
-                        group_id=gid,
-                        group_name=group_name,
-                        isactive=company.isactive
-                    )
+                    group_data = {
+                        'company_id': company,
+                        'group_id': gid,
+                        'group_name': group_name,
+                        'isactive': company.isactive
+                    }
+                    if user:
+                        group_data['created_by'] = user.username
+                        group_data['modified_by'] = user.username
+                    
+                    Group.objects.create(**group_data)
         
         return company
     
@@ -186,11 +212,16 @@ class CompanyService(PermissionMixin):
         CompanyService.check_permission(user, 'main_system.soft_delete_company')
         
         company.isactive = False
+        if user:
+            company.modified_by = user.username
         company.save()
         
         # Cascade soft delete to groups
-        Group.objects.filter(company_id=company).update(isactive=False, isdeleted=True)
-        
+        Group.objects.filter(company_id=company).update(
+                    isactive=False, 
+                    isdeleted=True,
+                    modified_by=user.username if user else None
+                )        
         # Soft delete account
         company.username.is_active = False
         company.username.save()
@@ -222,10 +253,16 @@ class CompanyService(PermissionMixin):
         CompanyService.check_permission(user, 'main_system.approve_company')
         
         company.isactive = True
+        if user:
+            company.modified_by = user.username
         company.save()
         
         # Reactivate groups
-        Group.objects.filter(company_id=company).update(isactive=True, isdeleted=False)
+        Group.objects.filter(company_id=company).update(
+            isactive=True, 
+            isdeleted=False,
+            modified_by=user.username if user else None
+        )
         
         # Activate account
         company.username.is_active = True
@@ -252,6 +289,10 @@ class IndividualService(PermissionMixin):
             username=username,
             password=password
         )
+        # Add audit fields
+        if user:
+            individual_data['created_by'] = user.username
+            individual_data['modified_by'] = user.username
         
         # Create individual
         individual = Individual.objects.create(
@@ -288,8 +329,11 @@ class IndividualService(PermissionMixin):
             account.set_password(password)
             account.save()
         
-        # Update individual fields
+        # Update individual fields with audit info
         if individual_data:
+            if user:
+                individual_data['modified_by'] = user.username
+            
             for field, value in individual_data.items():
                 setattr(individual, field, value)
             individual.save()
@@ -307,6 +351,11 @@ class IndividualService(PermissionMixin):
         # Soft delete account
         individual.username.is_active = False
         individual.username.save()
+        
+        # Update audit
+        if user:
+            individual.modified_by = user.username
+            individual.save()
         
         return individual
     
@@ -335,5 +384,10 @@ class IndividualService(PermissionMixin):
         # Activate account
         individual.username.is_active = True
         individual.username.save()
+        
+        # Update audit
+        if user:
+            individual.modified_by = user.username
+            individual.save()
         
         return individual

@@ -47,7 +47,7 @@ class CompanyAdminForm(forms.ModelForm):
         exclude = ['username']
 
     def __init__(self, *args, **kwargs):
-        self.request = kwargs.pop('request', None) 
+        self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
         # Load groups from JSON
@@ -290,9 +290,14 @@ class CompanyAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         """Pass request to form"""
-        form = super().get_form(request, obj, **kwargs)
-        form.request = request
-        return form
+        FormClass = super().get_form(request, obj, **kwargs)
+        
+        class FormWithRequest(FormClass):
+            def __new__(cls, *args, **kwargs):
+                kwargs['request'] = request
+                return FormClass(*args, **kwargs)
+        
+        return FormWithRequest
 
     def soft_delete_selected(self, request, queryset):
         """Soft delete action"""
@@ -339,8 +344,14 @@ class CompanyAdmin(admin.ModelAdmin):
 @admin.register(Individual)
 class IndividualAdmin(admin.ModelAdmin):
     form = IndividualAdminForm
-    list_display = ("user_id", "user_full_name", "username", "get_group_name", "group_id")
+    list_display = ( "user_full_name", "username", "get_group_name", "get_company_name")
     actions = ['soft_delete_selected', 'approve_selected']
+    
+    def get_company_name(self, obj):
+        if obj.group_id and obj.group_id.company_id:
+            return obj.group_id.company_id.company_name
+        return "-"
+    get_company_name.short_description = "Company Name"
     
     def get_group_name(self, obj):
         if obj.group_id:
@@ -401,8 +412,18 @@ class IndividualAdmin(admin.ModelAdmin):
                 del actions['approve_selected']
         
         return actions
-
-
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Pass request to form"""
+        FormClass = super().get_form(request, obj, **kwargs)
+        
+        class FormWithRequest(FormClass):
+            def __new__(cls, *args, **kwargs):
+                kwargs['request'] = request
+                return FormClass(*args, **kwargs)
+        
+        return FormWithRequest
+    
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = ("row_id", "group_id", "group_name", "company_id", "isactive", "isdeleted")
