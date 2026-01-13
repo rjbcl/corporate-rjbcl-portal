@@ -21,14 +21,26 @@ CREATE TABLE IF NOT EXISTS company (
 );
 
 
-CREATE TABLE IF NOT EXISTS groups (
-    group_id SERIAL PRIMARY KEY,         
-    company_id INT NOT NULL,                          
-    CONSTRAINT fk_group_company
-        FOREIGN KEY (company_id) 
-        REFERENCES company(company_id)
+CREATE TABLE groups (
+    row_id SERIAL PRIMARY KEY,       
+    company_id INTEGER NOT NULL,        
+    group_id VARCHAR(20) UNIQUE,          
+    group_name VARCHAR(200),              
+    isdeleted BOOLEAN NOT NULL DEFAULT FALSE,
+    isactive BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- AuditBase fields
+    created_by VARCHAR(30),
+    modified_by VARCHAR(30),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    modified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_company
+        FOREIGN KEY (company_id)
+        REFERENCES company (company_id)       
         ON DELETE CASCADE
 );
+
 
 
 CREATE TABLE IF NOT EXISTS individual (
@@ -54,4 +66,6 @@ WHERE table_schema = 'public';
 Select * from company;
 Select * from groups;
 Select * from account;
+Select * from account_groups;
 select * from individual;
+select * from policy;
