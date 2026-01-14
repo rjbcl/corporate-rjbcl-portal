@@ -5,10 +5,9 @@ from django.contrib import admin
 from django import forms
 from django.conf import settings
 from django_select2.forms import Select2MultipleWidget
-from django.core.exceptions import ValidationError
-from .services import CompanyService
-from .models import Company, Group, Individual, Account
+from django.core.exceptions import ValidationError, PermissionDenied
 from .services import CompanyService, IndividualService
+from .models import Company, Group, Individual, Account
 
 
 class CompanyAdminForm(forms.ModelForm):
@@ -71,9 +70,6 @@ class CompanyAdminForm(forms.ModelForm):
             self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
 
     def save(self, commit=True):
-        from .services import CompanyService
-        from django.core.exceptions import ValidationError, PermissionDenied
-        
         username = self.cleaned_data.get('username', '').strip()
         password = self.cleaned_data.get('password', '').strip()
         group_ids = self.cleaned_data.get('group_ids', [])
@@ -101,7 +97,7 @@ class CompanyAdminForm(forms.ModelForm):
                     company_data=company_data,
                     group_ids=group_ids,
                     groups_lookup=self.groups_lookup,
-                    user = user
+                    user=user
                 )
             else:  # Create
                 company = CompanyService.create_company(
@@ -110,7 +106,7 @@ class CompanyAdminForm(forms.ModelForm):
                     company_data=company_data,
                     group_ids=group_ids,
                     groups_lookup=self.groups_lookup,
-                    user= user
+                    user=user
                 )
         except (ValidationError, PermissionDenied) as e:
             self.add_error(None, str(e))
@@ -166,6 +162,7 @@ class CompanyAdminForm(forms.ModelForm):
                 )
         
         return selected_group_ids
+    
     def save_m2m(self):
         pass
 
@@ -188,6 +185,7 @@ class IndividualAdminForm(forms.ModelForm):
         exclude = ['username']
 
     def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
         if self.instance and self.instance.pk:
@@ -198,28 +196,31 @@ class IndividualAdminForm(forms.ModelForm):
         username = self.cleaned_data.get('username', '').strip()
         password = self.cleaned_data.get('password', '').strip()
         
-        # Prepare individual data
         individual_data = {
             'group_id': self.cleaned_data.get('group_id'),
             'user_full_name': self.cleaned_data.get('user_full_name'),
         }
         
         try:
+            user = self.request.user if self.request else None
+            
             if self.instance.pk:  # Update
                 individual = IndividualService.update_individual(
                     individual=self.instance,
                     username=username or None,
                     password=password or None,
-                    individual_data=individual_data
+                    individual_data=individual_data,
+                    user=user
                 )
             else:  # Create
                 individual = IndividualService.create_individual(
                     username=username,
                     password=password,
-                    individual_data=individual_data
+                    individual_data=individual_data,
+                    user=user
                 )
-        except ValidationError as e:
-            self.add_error(None, e)
+        except (ValidationError, PermissionDenied) as e:
+            self.add_error(None, str(e))
             raise
         
         return individual
@@ -252,12 +253,171 @@ class IndividualAdminForm(forms.ModelForm):
         pass
 
 
+@admin.register(Account)
+class AccountAdmin(BaseUserAdmin):
+    list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_user_type', 'get_groups')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups')
+    
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
+    )
+    
+    add_fieldsets = (
+        (None, {
+            'classes': ('wide',),
+            'fields': ('username', 'password1', 'password2', 'is_staff', 'groups'),
+        }),
+    )
+    
+    filter_horizontal = ('groups',)
+    search_fields = ('username',)
+    ordering = ('username',)
+    actions = ['reset_password_action']
+    
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.select_related('company_profile', 'individual_profile').prefetch_related('groups')
+        
+        # Viewer and Approver can only see their own account
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                return qs.filter(username=request.user.username)
+        
+        return qs
+    
+    def get_user_type(self, obj):
+        return obj.get_user_type() or '-'
+    get_user_type.short_description = 'User Type'
+    
+    def get_groups(self, obj):
+        return ", ".join([g.name for g in obj.groups.all()]) or '-'
+    get_groups.short_description = 'Staff Roles'
+    
+    def get_fieldsets(self, request, obj=None):
+        """Different fieldsets based on role"""
+        if request.user.is_superuser:
+            return (
+                (None, {'fields': ('username', 'password')}),
+                ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups')}),
+            )
+        else:
+            # Non-superusers never see is_superuser
+            return (
+                (None, {'fields': ('username', 'password')}),
+                ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
+            )
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make fields readonly based on role"""
+        readonly = super().get_readonly_fields(request, obj)
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            
+            # Editor: read-only for staff accounts
+            if 'Editor' in user_groups:
+                if obj and obj.is_staff:
+                    return readonly + ('username', 'is_active', 'is_staff', 'groups')
+            
+            # Viewer/Approver: everything readonly
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                if obj:
+                    return readonly + ('username', 'is_active', 'is_staff', 'groups')
+        
+        return readonly
+    
+    def has_add_permission(self, request):
+        """Only Admin can add staff accounts"""
+        return (request.user.is_superuser or 
+                request.user.groups.filter(name='Admin').exists())
+    
+    def has_change_permission(self, request, obj=None):
+        """Role-based change permissions"""
+        if request.user.is_superuser:
+            return True
+        
+        user_groups = request.user.groups.values_list('name', flat=True)
+        
+        # Admin can change all except superusers
+        if 'Admin' in user_groups:
+            if obj and obj.is_superuser:
+                return False
+            return True
+        
+        # Editor can view accounts but not change staff accounts
+        if 'Editor' in user_groups:
+            return True  # View only for staff (readonly fields handle this)
+        
+        # Viewer/Approver can only view their own
+        if 'Viewer' in user_groups or 'Approver' in user_groups:
+            if obj and obj.username == request.user.username:
+                return True
+        
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only superuser can hard delete accounts"""
+        if request.user.is_superuser:
+            return True
+        return False
+    
+    def reset_password_action(self, request, queryset):
+        """Reset password action"""
+        from django.contrib import messages
+        
+        user_groups = request.user.groups.values_list('name', flat=True)
+        
+        for account in queryset:
+            # Check permissions
+            if account.is_staff:
+                # Only Admin can reset staff passwords
+                if not (request.user.is_superuser or 'Admin' in user_groups):
+                    messages.error(request, f"You don't have permission to reset staff password: {account.username}")
+                    continue
+            else:
+                # Editor and Admin can reset individual passwords
+                if not (request.user.is_superuser or 'Editor' in user_groups or 'Admin' in user_groups):
+                    messages.error(request, f"You don't have permission to reset password: {account.username}")
+                    continue
+            
+            # Generate temporary password
+            temp_password = Account.objects.make_random_password()
+            account.set_password(temp_password)
+            account.save()
+            
+            messages.success(request, f"Password reset for {account.username}. New password: {temp_password}")
+    
+    reset_password_action.short_description = "Reset password for selected accounts"
+    
+    def get_actions(self, request):
+        """Show actions based on permissions"""
+        actions = super().get_actions(request)
+        
+        user_groups = request.user.groups.values_list('name', flat=True)
+        
+        # Only Editor and Admin see reset password action
+        if not (request.user.is_superuser or 'Editor' in user_groups or 'Admin' in user_groups):
+            if 'reset_password_action' in actions:
+                del actions['reset_password_action']
+        
+        return actions
+    
+    def save_model(self, request, obj, form, change):
+        """Prevent privilege escalation"""
+        if not request.user.is_superuser:
+            obj.is_superuser = False
+        
+        super().save_model(request, obj, form, change)
+
+
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
     form = CompanyAdminForm
-    list_display = ( "username", "company_name", "isactive")
+    list_display = ("username", "company_name", "isactive")
     list_filter = ("isactive",)
-    actions = ['soft_delete_selected', 'approve_selected']
+    actions = ['soft_delete_selected']
     
     class Media:
         css = {
@@ -265,29 +425,6 @@ class CompanyAdmin(admin.ModelAdmin):
         }
         js = ('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js',)
     
-    def has_add_permission(self, request):
-        """UI check - service layer enforces"""
-        return request.user.has_perm('main_system.add_company')
-    
-    def has_change_permission(self, request, obj=None):
-        """UI check - service layer enforces"""
-        return request.user.has_perm('main_system.change_company')
-    
-    def has_delete_permission(self, request, obj=None):
-        """UI check - Admin only for hard delete"""
-        return request.user.has_perm('main_system.delete_company')
-    
-    def delete_model(self, request, obj):
-        """Hard delete - Admin only"""
-        from .services import CompanyService
-        CompanyService.hard_delete_company(obj, user=request.user)
-    
-    def delete_queryset(self, request, queryset):
-        """Hard delete - Admin only"""
-        from .services import CompanyService
-        for company in queryset:
-            CompanyService.hard_delete_company(company, user=request.user)
-
     def get_form(self, request, obj=None, **kwargs):
         """Pass request to form"""
         FormClass = super().get_form(request, obj, **kwargs)
@@ -298,12 +435,37 @@ class CompanyAdmin(admin.ModelAdmin):
                 return FormClass(*args, **kwargs)
         
         return FormWithRequest
-
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Viewer and Approver: everything readonly"""
+        readonly = super().get_readonly_fields(request, obj)
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                # Return all fields as readonly except primary key
+                return [field.name for field in self.model._meta.fields if field.name not in ['company_id', 'username']]
+        
+        return readonly
+    
+    def has_add_permission(self, request):
+        """Editor and Admin can add"""
+        return (request.user.is_superuser or 
+                request.user.has_perm('main_system.add_company'))
+    
+    def has_change_permission(self, request, obj=None):
+        """Editor and Admin can change, Viewer can view"""
+        return (request.user.is_superuser or 
+                request.user.has_perm('main_system.change_company') or
+                request.user.has_perm('main_system.view_company'))
+    
+    def has_delete_permission(self, request, obj=None):
+        """Only superuser can hard delete"""
+        return request.user.is_superuser
+    
     def soft_delete_selected(self, request, queryset):
-        """Soft delete action"""
-        from .services import CompanyService
+        """Soft delete action - Editor and Admin only"""
         from django.contrib import messages
-        from django.core.exceptions import PermissionDenied
         
         try:
             for company in queryset:
@@ -311,41 +473,45 @@ class CompanyAdmin(admin.ModelAdmin):
             messages.success(request, f"{queryset.count()} companies soft deleted successfully.")
         except PermissionDenied as e:
             messages.error(request, str(e))
+    
     soft_delete_selected.short_description = "Soft delete selected companies"
-
-    def approve_selected(self, request, queryset):
-        """Approve action"""
-        from .services import CompanyService
-        from django.contrib import messages
-        from django.core.exceptions import PermissionDenied
-        
-        try:
-            for company in queryset:
-                CompanyService.approve_company(company, user=request.user)
-            messages.success(request, f"{queryset.count()} companies approved successfully.")
-        except PermissionDenied as e:
-            messages.error(request, str(e))
-    approve_selected.short_description = "Approve selected companies"
-
+    
+    def delete_model(self, request, obj):
+        """Hard delete - Superuser only"""
+        CompanyService.hard_delete_company(obj, user=request.user)
+    
+    def delete_queryset(self, request, queryset):
+        """Hard delete - Superuser only"""
+        for company in queryset:
+            CompanyService.hard_delete_company(company, user=request.user)
+    
     def get_actions(self, request):
-        """Show actions based on permissions"""
+        """Show soft delete only to Editor and Admin"""
         actions = super().get_actions(request)
         
         if not request.user.has_perm('main_system.soft_delete_company'):
             if 'soft_delete_selected' in actions:
                 del actions['soft_delete_selected']
         
-        if not request.user.has_perm('main_system.approve_company'):
-            if 'approve_selected' in actions:
-                del actions['approve_selected']
-        
         return actions
+
 
 @admin.register(Individual)
 class IndividualAdmin(admin.ModelAdmin):
     form = IndividualAdminForm
-    list_display = ( "user_full_name", "username", "get_group_name", "get_company_name")
-    actions = ['soft_delete_selected', 'approve_selected']
+    list_display = ("user_full_name", "username", "get_group_name", "get_company_name")
+    actions = ['soft_delete_selected', 'reset_password_action']
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Pass request to form"""
+        FormClass = super().get_form(request, obj, **kwargs)
+        
+        class FormWithRequest(FormClass):
+            def __new__(cls, *args, **kwargs):
+                kwargs['request'] = request
+                return FormClass(*args, **kwargs)
+        
+        return FormWithRequest
     
     def get_company_name(self, obj):
         if obj.group_id and obj.group_id.company_id:
@@ -362,13 +528,31 @@ class IndividualAdmin(admin.ModelAdmin):
         return "-"
     get_group_name.short_description = "Group Name"
     
+    def get_readonly_fields(self, request, obj=None):
+        """Viewer and Approver: everything readonly"""
+        readonly = super().get_readonly_fields(request, obj)
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                return [field.name for field in self.model._meta.fields if field.name not in ['user_id', 'username']]
+        
+        return readonly
+    
+    def has_add_permission(self, request):
+        return (request.user.is_superuser or 
+                request.user.has_perm('main_system.add_individual'))
+    
+    def has_change_permission(self, request, obj=None):
+        return (request.user.is_superuser or 
+                request.user.has_perm('main_system.change_individual') or
+                request.user.has_perm('main_system.view_individual'))
+    
     def has_delete_permission(self, request, obj=None):
-        return request.user.has_perm('main_system.delete_individual')
+        return request.user.is_superuser
     
     def soft_delete_selected(self, request, queryset):
-        from .services import IndividualService
         from django.contrib import messages
-        from django.core.exceptions import PermissionDenied
         
         try:
             for individual in queryset:
@@ -376,27 +560,29 @@ class IndividualAdmin(admin.ModelAdmin):
             messages.success(request, f"{queryset.count()} individuals soft deleted successfully.")
         except PermissionDenied as e:
             messages.error(request, str(e))
+    
     soft_delete_selected.short_description = "Soft delete selected individuals"
     
-    def approve_selected(self, request, queryset):
-        from .services import IndividualService
+    def reset_password_action(self, request, queryset):
+        """Reset password for individuals - Editor and Admin only"""
         from django.contrib import messages
-        from django.core.exceptions import PermissionDenied
         
-        try:
-            for individual in queryset:
-                IndividualService.approve_individual(individual, user=request.user)
-            messages.success(request, f"{queryset.count()} individuals approved successfully.")
-        except PermissionDenied as e:
-            messages.error(request, str(e))
-    approve_selected.short_description = "Approve selected individuals"
+        if not (request.user.is_superuser or request.user.has_perm('main_system.reset_individual_password')):
+            messages.error(request, "You don't have permission to reset passwords.")
+            return
+        
+        for individual in queryset:
+            temp_password = Account.objects.make_random_password()
+            individual.username.set_password(temp_password)
+            individual.username.save()
+            messages.success(request, f"Password reset for {individual.user_full_name or individual.username.username}. New password: {temp_password}")
+    
+    reset_password_action.short_description = "Reset password for selected individuals"
     
     def delete_model(self, request, obj):
-        from .services import IndividualService
         IndividualService.hard_delete_individual(obj, user=request.user)
     
     def delete_queryset(self, request, queryset):
-        from .services import IndividualService
         for individual in queryset:
             IndividualService.hard_delete_individual(individual, user=request.user)
     
@@ -407,76 +593,60 @@ class IndividualAdmin(admin.ModelAdmin):
             if 'soft_delete_selected' in actions:
                 del actions['soft_delete_selected']
         
-        if not request.user.has_perm('main_system.approve_individual'):
-            if 'approve_selected' in actions:
-                del actions['approve_selected']
+        if not request.user.has_perm('main_system.reset_individual_password'):
+            if 'reset_password_action' in actions:
+                del actions['reset_password_action']
         
         return actions
-    
-    def get_form(self, request, obj=None, **kwargs):
-        """Pass request to form"""
-        FormClass = super().get_form(request, obj, **kwargs)
-        
-        class FormWithRequest(FormClass):
-            def __new__(cls, *args, **kwargs):
-                kwargs['request'] = request
-                return FormClass(*args, **kwargs)
-        
-        return FormWithRequest
-    
+
+
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
     list_display = ("row_id", "group_id", "group_name", "company_id", "isactive", "isdeleted")
     list_filter = ("isactive", "isdeleted")
-
+    actions = ['soft_delete_selected']
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Viewer and Approver: everything readonly"""
+        readonly = super().get_readonly_fields(request, obj)
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                return [field.name for field in self.model._meta.fields if field.name != 'row_id']
+        
+        return readonly
+    
     def has_add_permission(self, request):
         return (request.user.is_superuser or 
-                request.user.groups.filter(name__in=['Editor', 'Admin']).exists())
+                request.user.has_perm('main_system.add_group'))
     
     def has_change_permission(self, request, obj=None):
         return (request.user.is_superuser or 
-                request.user.groups.filter(name__in=['Editor', 'Approver', 'Admin']).exists())
+                request.user.has_perm('main_system.change_group') or
+                request.user.has_perm('main_system.view_group'))
     
     def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser or request.user.groups.filter(name='Admin').exists()
-
-
-@admin.register(Account)
-class AccountAdmin(BaseUserAdmin):
-    list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_user_type','get_groups')
-    list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups') 
+        return request.user.is_superuser
     
-    fieldsets = (
-        (None, {'fields': ('username', 'password')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser','groups')}),
-    )
+    def soft_delete_selected(self, request, queryset):
+        """Soft delete groups"""
+        from django.contrib import messages
+        
+        if not request.user.has_perm('main_system.soft_delete_group'):
+            messages.error(request, "You don't have permission to soft delete groups.")
+            return
+        
+        queryset.update(isdeleted=True, isactive=False, modified_by=request.user.username)
+        messages.success(request, f"{queryset.count()} groups soft deleted successfully.")
     
-    add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('username', 'password1', 'password2', 'is_staff', 'is_superuser','groups'),
-        }),
-    )
-    filter_horizontal = ('groups',)
-    search_fields = ('username',)
-    ordering = ('username',)
+    soft_delete_selected.short_description = "Soft delete selected groups"
     
-    def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        return qs.select_related('company_profile', 'individual_profile').prefetch_related('groups')
-    
-    def get_user_type(self, obj):
-        return obj.get_user_type() or '-'
-    get_user_type.short_description = 'User Type'
-    
-    def get_groups(self, obj):
-        return ", ".join([g.name for g in obj.groups.all()]) or '-'
-    get_groups.short_description = 'Staff Roles'
-    
-    def has_add_permission(self, request):
-        # Only Admin role can add accounts directly
-        return request.user.is_superuser or request.user.groups.filter(name='Admin').exists()
-    
-    def has_delete_permission(self, request, obj=None):
-        # Only Admin role can delete accounts
-        return request.user.is_superuser or request.user.groups.filter(name='Admin').exists()
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        
+        if not request.user.has_perm('main_system.soft_delete_group'):
+            if 'soft_delete_selected' in actions:
+                del actions['soft_delete_selected']
+        
+        return actions

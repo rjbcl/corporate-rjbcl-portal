@@ -44,6 +44,10 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     
     class Meta:
         db_table = 'account'
+        permissions = [
+            ('view_own_account', 'Can view own account details'),
+            ('reset_staff_password', 'Can reset staff passwords'),
+        ]
     
     def __str__(self):
         return self.username
@@ -99,7 +103,6 @@ class Company(AuditBase):
     class Meta:
         db_table = 'company'
         permissions = [
-            ('approve_company', 'Can approve company'),
             ('soft_delete_company', 'Can soft delete company'),
         ]
 
@@ -122,7 +125,6 @@ class Group(AuditBase):
     class Meta:
         db_table = 'groups'
         permissions = [
-            ('approve_group', 'Can approve group'),
             ('soft_delete_group', 'Can soft delete group'),
         ]
     
@@ -149,8 +151,8 @@ class Individual(AuditBase):
     class Meta:
         db_table = 'individual'
         permissions = [
-            ('approve_individual', 'Can approve individual'),
             ('soft_delete_individual', 'Can soft delete individual'),
+            ('reset_individual_password', 'Can reset individual passwords'),
         ]
 
     def __str__(self):

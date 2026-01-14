@@ -170,6 +170,7 @@ class CompanyService(PermissionMixin):
         if group_ids is not None and groups_lookup is not None:
             Group.objects.filter(company_id=company).update(
                 isdeleted=True,
+                isactive=False,
                 modified_by=user.username if user else None
             )
             
