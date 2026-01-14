@@ -312,9 +312,13 @@ class AccountAdmin(BaseUserAdmin):
     def get_readonly_fields(self, request, obj=None):
         """Make fields readonly based on role"""
         readonly = super().get_readonly_fields(request, obj)
+        # Username is always readonly when editing (it's the primary key)
+        if obj:  # Editing existing account
+            readonly = readonly + ('username',)
         
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
+            
             
             # Editor: read-only for staff accounts
             if 'Editor' in user_groups:
@@ -501,6 +505,8 @@ class IndividualAdmin(admin.ModelAdmin):
     form = IndividualAdminForm
     list_display = ("user_full_name", "username", "get_group_name", "get_company_name")
     actions = ['soft_delete_selected', 'reset_password_action']
+    raw_id_fields = ('group_id',) 
+    autocomplete_fields = ['group_id']
     
     def get_form(self, request, obj=None, **kwargs):
         """Pass request to form"""
@@ -605,6 +611,7 @@ class GroupAdmin(admin.ModelAdmin):
     list_display = ("row_id", "group_id", "group_name", "company_id", "isactive", "isdeleted")
     list_filter = ("isactive", "isdeleted")
     actions = ['soft_delete_selected']
+    search_fields = ['group_id', 'group_name']
     
     def get_readonly_fields(self, request, obj=None):
         """Viewer and Approver: everything readonly"""
