@@ -31,9 +31,17 @@ INSTALLED_APPS = [
     'crispy_forms',
     'crispy_bootstrap5',
     'django_select2',
+    'api_corporate',
 ]
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 100,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ],
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -80,9 +88,19 @@ DATABASES = {
         "OPTIONS": {
             "sslmode": "require",
         },
+    },
+    'company_external': {
+        'ENGINE': 'mssql',
+        'NAME': config('COMPANY_DB_NAME'),
+        'USER': config('COMPANY_DB_USER'),
+        'PASSWORD': config('COMPANY_DB_PASSWORD'),
+        'HOST': config('COMPANY_DB_HOST'),
+        'PORT': config('COMPANY_DB_PORT'),
+        'OPTIONS': {
+            "sslmode": "require",
+        },
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
