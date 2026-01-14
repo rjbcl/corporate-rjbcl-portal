@@ -1,6 +1,6 @@
-from rest_framework import viewsets, filters
-from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import viewsets, filters #type: ignore
+from rest_framework.permissions import IsAuthenticated #type: ignore
+from django_filters.rest_framework import DjangoFilterBackend #type: ignore
 from .models import GroupInformation
 from .serializers import GroupInformationSerializer
 
