@@ -1,13 +1,14 @@
 import json
 import os
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.contrib import admin
-from django import forms
-from django.conf import settings
-from django_select2.forms import Select2MultipleWidget
-from django.core.exceptions import ValidationError, PermissionDenied
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin # type: ignore
+from django.contrib import admin# type: ignore
+from django import forms# type: ignore
+from django.conf import settings# type: ignore
+from django_select2.forms import Select2MultipleWidget# type: ignore
+from django.core.exceptions import ValidationError, PermissionDenied# type: ignore
 from .services import CompanyService, IndividualService
 from .models import Company, Group, Individual, Account
+from django.contrib import messages # type: ignore
 
 
 class CompanyAdminForm(forms.ModelForm):
@@ -369,7 +370,6 @@ class AccountAdmin(BaseUserAdmin):
     
     def reset_password_action(self, request, queryset):
         """Reset password action"""
-        from django.contrib import messages
         
         user_groups = request.user.groups.values_list('name', flat=True)
         
@@ -468,9 +468,7 @@ class CompanyAdmin(admin.ModelAdmin):
         return request.user.is_superuser
     
     def soft_delete_selected(self, request, queryset):
-        """Soft delete action - Editor and Admin only"""
-        from django.contrib import messages
-        
+        """Soft delete action - Editor and Admin only"""        
         try:
             for company in queryset:
                 CompanyService.soft_delete_company(company, user=request.user)
@@ -558,7 +556,6 @@ class IndividualAdmin(admin.ModelAdmin):
         return request.user.is_superuser
     
     def soft_delete_selected(self, request, queryset):
-        from django.contrib import messages
         
         try:
             for individual in queryset:
@@ -571,7 +568,6 @@ class IndividualAdmin(admin.ModelAdmin):
     
     def reset_password_action(self, request, queryset):
         """Reset password for individuals - Editor and Admin only"""
-        from django.contrib import messages
         
         if not (request.user.is_superuser or request.user.has_perm('main_system.reset_individual_password')):
             messages.error(request, "You don't have permission to reset passwords.")
@@ -638,7 +634,7 @@ class GroupAdmin(admin.ModelAdmin):
     
     def soft_delete_selected(self, request, queryset):
         """Soft delete groups"""
-        from django.contrib import messages
+        
         
         if not request.user.has_perm('main_system.soft_delete_group'):
             messages.error(request, "You don't have permission to soft delete groups.")
