@@ -11,6 +11,7 @@ from .models import Company, Group, Individual, Account
 from django.contrib import messages
 from django.contrib.auth.models import Group as AuthGroup
 
+
 class CompanyAdminForm(forms.ModelForm):
     username = forms.CharField(
         max_length=100, 
@@ -55,18 +56,30 @@ class CompanyAdminForm(forms.ModelForm):
         with open(json_path, 'r', encoding='utf-8') as f:
             groups_data = json.load(f)
         
-        # Create choices
-        choices = [(g['groupid'], f"{g['groupname']} ({g['groupid']})") for g in groups_data]
-        self.fields['group_ids'].choices = choices
-        
         # Store groups lookup for later
         self.groups_lookup = {g['groupid']: g['groupname'] for g in groups_data}
         
-        # If editing, pre-populate fields
-        if self.instance and self.instance.pk:
-            existing_groups = Group.objects.filter(company_id=self.instance, isdeleted=False)
-            selected = [g.group_id for g in existing_groups if g.group_id]
-            self.fields['group_ids'].initial = selected
+        # Only set choices if group_ids field exists (not in readonly)
+        if 'group_ids' in self.fields:
+            # Create choices
+            choices = [(g['groupid'], f"{g['groupname']} ({g['groupid']})") for g in groups_data]
+            self.fields['group_ids'].choices = choices
+            
+            # If editing, pre-populate fields
+            if self.instance and self.instance.pk:
+                existing_groups = Group.objects.filter(company_id=self.instance, isdeleted=False)
+                selected = [g.group_id for g in existing_groups if g.group_id]
+                self.fields['group_ids'].initial = selected
+                
+                # Make group_ids readonly for Viewer and Approver
+                if self.request and not self.request.user.is_superuser:
+                    user_groups = self.request.user.groups.values_list('name', flat=True)
+                    if 'Viewer' in user_groups or 'Approver' in user_groups:
+                        self.fields['group_ids'].disabled = True
+                        self.fields['group_ids'].help_text = "You don't have permission to modify groups"
+        
+        # Set username field if it exists
+        if 'username' in self.fields and self.instance and self.instance.pk:
             self.fields['username'].initial = self.instance.username.username
             self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
 
@@ -189,7 +202,8 @@ class IndividualAdminForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        if self.instance and self.instance.pk:
+        # Set username field if it exists
+        if 'username' in self.fields and self.instance and self.instance.pk:
             self.fields['username'].initial = self.instance.username.username
             self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
 
@@ -280,11 +294,16 @@ class AccountAdmin(BaseUserAdmin):
         qs = super().get_queryset(request)
         qs = qs.select_related('company_profile', 'individual_profile').prefetch_related('groups')
         
-        # Viewer and Approver can only see their own account
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
+            
+            # Viewer and Approver can only see their own account
             if 'Viewer' in user_groups or 'Approver' in user_groups:
                 return qs.filter(username=request.user.username)
+            
+            # Editor can only see company and individual accounts (not staff)
+            if 'Editor' in user_groups:
+                return qs.filter(is_staff=False)
         
         return qs
     
@@ -318,20 +337,28 @@ class AccountAdmin(BaseUserAdmin):
                     form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
             else:
                 # For new users - they will choose is_staff first
-                # We'll validate in save_model
                 form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
                 form.base_fields['groups'].help_text = "Only staff accounts can be assigned to these groups."
         
         return form
     
     def get_fieldsets(self, request, obj=None):
-        """Different fieldsets based on role"""
+        """Different fieldsets based on role - hide password for Editor viewing staff"""
         if request.user.is_superuser:
             return (
                 (None, {'fields': ('username', 'password')}),
                 ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups')}),
             )
         else:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            
+            # Editor viewing staff account - hide password field entirely
+            if 'Editor' in user_groups and obj and obj.is_staff:
+                return (
+                    (None, {'fields': ('username',)}),
+                    ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
+                )
+            
             # Non-superusers never see is_superuser
             return (
                 (None, {'fields': ('username', 'password')}),
@@ -444,12 +471,12 @@ class AccountAdmin(BaseUserAdmin):
         for account in queryset:
             # Check permissions
             if account.is_staff:
-                # Only Admin can reset staff passwords
+                # Only Admin and Superuser can reset staff passwords
                 if not (request.user.is_superuser or 'Admin' in user_groups):
                     messages.error(request, f"You don't have permission to reset staff password: {account.username}")
                     continue
             else:
-                # Editor and Admin can reset individual passwords
+                # Editor and Admin can reset individual/company passwords
                 if not (request.user.is_superuser or 'Editor' in user_groups or 'Admin' in user_groups):
                     messages.error(request, f"You don't have permission to reset password: {account.username}")
                     continue
@@ -475,6 +502,19 @@ class AccountAdmin(BaseUserAdmin):
                 del actions['reset_password_action']
         
         return actions
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Customize change view to replace Save button with Back for Viewer/Approver"""
+        extra_context = extra_context or {}
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                extra_context['show_save'] = False
+                extra_context['show_save_and_continue'] = False
+                extra_context['show_save_and_add_another'] = False
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
 
 @admin.register(Company)
@@ -501,15 +541,39 @@ class CompanyAdmin(admin.ModelAdmin):
         
         return FormWithRequest
     
+    def group_ids(self, obj):
+        """Display groups as readonly field"""
+        if obj and obj.pk:
+            groups = Group.objects.filter(company_id=obj, isdeleted=False)
+            if groups.exists():
+                return ", ".join([f"{g.group_name} ({g.group_id})" for g in groups])
+        return "-"
+    group_ids.short_description = "Groups"
+    
+    def username(self, obj):
+        """Display username as readonly field"""
+        if obj and obj.username:
+            return obj.username.username
+        return "-"
+    username.short_description = "Username"
+    
+    def password(self, obj):
+        """Display password field (hidden)"""
+        return "••••••••"
+    password.short_description = "Password"
+    
     def get_readonly_fields(self, request, obj=None):
-        """Viewer and Approver: everything readonly"""
+        """Viewer and Approver: everything readonly including username, password, group_ids"""
         readonly = super().get_readonly_fields(request, obj)
         
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
             if 'Viewer' in user_groups or 'Approver' in user_groups:
                 # Return all fields as readonly except primary key
-                return [field.name for field in self.model._meta.fields if field.name not in ['company_id', 'username']]
+                # Also include username, password, and group_ids from the form
+                model_fields = [field.name for field in self.model._meta.fields if field.name not in ['company_id']]
+                form_fields = ['username', 'password', 'group_ids']
+                return tuple(set(model_fields + form_fields))
         
         return readonly
     
@@ -557,6 +621,19 @@ class CompanyAdmin(admin.ModelAdmin):
                 del actions['soft_delete_selected']
         
         return actions
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Customize change view to replace Save button with Back for Viewer/Approver"""
+        extra_context = extra_context or {}
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                extra_context['show_save'] = False
+                extra_context['show_save_and_continue'] = False
+                extra_context['show_save_and_add_another'] = False
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
 
 @admin.register(Individual)
@@ -593,14 +670,30 @@ class IndividualAdmin(admin.ModelAdmin):
         return "-"
     get_group_name.short_description = "Group Name"
     
+    def username(self, obj):
+        """Display username as readonly field"""
+        if obj and obj.username:
+            return obj.username.username
+        return "-"
+    username.short_description = "Username"
+    
+    def password(self, obj):
+        """Display password field (hidden)"""
+        return "••••••••"
+    password.short_description = "Password"
+    
     def get_readonly_fields(self, request, obj=None):
-        """Viewer and Approver: everything readonly"""
+        """Viewer and Approver: everything readonly including username and password"""
         readonly = super().get_readonly_fields(request, obj)
         
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
             if 'Viewer' in user_groups or 'Approver' in user_groups:
-                return [field.name for field in self.model._meta.fields if field.name not in ['user_id', 'username']]
+                # Return all fields as readonly except primary key
+                # Also include username and password from the form
+                model_fields = [field.name for field in self.model._meta.fields if field.name not in ['user_id']]
+                form_fields = ['username', 'password']
+                return tuple(set(model_fields + form_fields))
         
         return readonly
     
@@ -661,11 +754,24 @@ class IndividualAdmin(admin.ModelAdmin):
                 del actions['reset_password_action']
         
         return actions
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Customize change view to replace Save button with Back for Viewer/Approver"""
+        extra_context = extra_context or {}
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                extra_context['show_save'] = False
+                extra_context['show_save_and_continue'] = False
+                extra_context['show_save_and_add_another'] = False
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
 
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
-    list_display = ("row_id", "group_id", "group_name", "company_id", "isactive", "isdeleted")
+    list_display = ( "group_name", "company_id", "isactive", "isdeleted")
     list_filter = ("isactive", "isdeleted")
     actions = ['soft_delete_selected']
     search_fields = ['group_id', 'group_name']
@@ -713,3 +819,16 @@ class GroupAdmin(admin.ModelAdmin):
                 del actions['soft_delete_selected']
         
         return actions
+    
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Customize change view to replace Save button with Back for Viewer/Approver"""
+        extra_context = extra_context or {}
+        
+        if not request.user.is_superuser:
+            user_groups = request.user.groups.values_list('name', flat=True)
+            if 'Viewer' in user_groups or 'Approver' in user_groups:
+                extra_context['show_save'] = False
+                extra_context['show_save_and_continue'] = False
+                extra_context['show_save_and_add_another'] = False
+        
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
