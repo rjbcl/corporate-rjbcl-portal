@@ -226,3 +226,521 @@ class GroupInformation(models.Model):
 
     def __str__(self):
         return f"{self.group_name or 'Unnamed Group'} ({self.group_id or 'No ID'})"
+    
+class GroupEndowment(models.Model):
+    """
+    Read-only model for tblGroupEndowment from external company database.
+    This represents individual policies under group insurance.
+    """
+    row_id = models.BigAutoField(
+        db_column='RowId',
+        primary_key=True
+    )
+    register_no = models.CharField(
+        db_column='RegisterNo',
+        max_length=10
+    )
+    employee_id = models.CharField(
+        db_column='EmployeeId',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    name = models.CharField(
+        db_column='Name',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_name = models.CharField(
+        db_column='NepName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    gender = models.CharField(
+        db_column='Gender',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    occupation = models.CharField(
+        db_column='Occupation',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    dob = models.DateTimeField(
+        db_column='DOB',
+        null=True,
+        blank=True
+    )
+    age = models.CharField(
+        db_column='Age',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    premium = models.DecimalField(
+        db_column='Premium',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    sum_assured = models.DecimalField(
+        db_column='SumAssured',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    extra_premium = models.DecimalField(
+        db_column='ExtraPremium',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    total_premium = models.DecimalField(
+        db_column='TotalPremium',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    term = models.SmallIntegerField(
+        db_column='Term',
+        null=True,
+        blank=True
+    )
+    id_no = models.CharField(
+        db_column='IdNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    id_type = models.CharField(
+        db_column='IdType',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    appointed_date = models.DateTimeField(
+        db_column='AppointedDate',
+        null=True,
+        blank=True
+    )
+    remarks = models.CharField(
+        db_column='Remarks',
+        max_length=200,
+        null=True,
+        blank=True
+    )
+    address = models.TextField(
+        db_column='Address',
+        null=True,
+        blank=True
+    )
+    email = models.CharField(
+        db_column='Email',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    mobile = models.CharField(
+        db_column='Mobile',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    doc = models.DateField(
+        db_column='DOC',
+        null=True,
+        blank=True
+    )
+    adb = models.DecimalField(
+        db_column='ADB',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    policy_no = models.CharField(
+        db_column='PolicyNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    previous_policy = models.TextField(
+        db_column='PreviousPolicy',
+        null=True,
+        blank=True
+    )
+    occ_extra_amount = models.DecimalField(
+        db_column='OccExtraAmount',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    adb_discount = models.DecimalField(
+        db_column='ADBDiscount',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    maturity_date = models.DateTimeField(
+        db_column='MaturityDate',
+        null=True,
+        blank=True
+    )
+    fup = models.DateField(
+        db_column='FUP',
+        null=True,
+        blank=True
+    )
+    father_name = models.CharField(
+        db_column='FatherName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    mother_name = models.CharField(
+        db_column='MotherName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nominee_name = models.CharField(
+        db_column='NomineeName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nominee_address = models.CharField(
+        db_column='NomineeAddress',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    phone_number_residence = models.CharField(
+        db_column='PhoneNumberResidence',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    policy_status = models.CharField(
+        db_column='PolicyStatus',
+        max_length=10,
+        null=True,
+        blank=True
+    )
+    gp_batch_no = models.BigIntegerField(
+        db_column='GpBatchNo',
+        null=True,
+        blank=True
+    )
+    group_id = models.CharField(
+        db_column='GroupId',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    transfer_date = models.DateTimeField(
+        db_column='TransferDate',
+        null=True,
+        blank=True
+    )
+    duplicate_policy_date = models.DateTimeField(
+        db_column='DuplicatePolicyDate',
+        null=True,
+        blank=True
+    )
+    approved_date = models.DateTimeField(
+        db_column='ApprovedDate',
+        null=True,
+        blank=True
+    )
+    approved_by = models.CharField(
+        db_column='ApprovedBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    created_by = models.CharField(
+        db_column='CreatedBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    created_date = models.DateTimeField(
+        db_column='CreatedDate',
+        null=True,
+        blank=True
+    )
+    lapse_date = models.DateTimeField(
+        db_column='LapseDate',
+        null=True,
+        blank=True
+    )
+    lapse_active_date = models.DateTimeField(
+        db_column='LapseActiveDate',
+        null=True,
+        blank=True
+    )
+    doe = models.DateTimeField(
+        db_column='DOE',
+        null=True,
+        blank=True
+    )
+    late_fine = models.DecimalField(
+        db_column='LateFine',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    approve_remarks = models.TextField(
+        db_column='ApproveRemarks',
+        null=True,
+        blank=True
+    )
+    modified_by = models.CharField(
+        db_column='ModifiedBy',
+        max_length=20,
+        null=True,
+        blank=True
+    )
+    modified_date = models.DateField(
+        db_column='ModifiedDate',
+        null=True,
+        blank=True
+    )
+    basic_premium = models.DecimalField(
+        db_column='BasicPremium',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    is_adb = models.CharField(
+        db_column='IsADB',
+        max_length=1,
+        null=True,
+        blank=True
+    )
+    after_dis_rebate_rate = models.DecimalField(
+        db_column='AfterDisRebateRate',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    fiscal_year = models.CharField(
+        db_column='FiscalYear',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nominee_relationship = models.CharField(
+        db_column='NomineeRelationship',
+        max_length=100,
+        null=True,
+        blank=True
+    )
+    claim_date = models.DateField(
+        db_column='ClaimDate',
+        null=True,
+        blank=True
+    )
+    termination_date = models.DateField(
+        db_column='TerminationDate',
+        null=True,
+        blank=True
+    )
+    is_ind_issue = models.CharField(
+        db_column='IsINDIssue',
+        max_length=10,
+        null=True,
+        blank=True
+    )
+    computer_code = models.BigIntegerField(
+        db_column='ComputerCode',
+        null=True,
+        blank=True
+    )
+    branch = models.CharField(
+        db_column='Branch',
+        max_length=20,
+        null=True,
+        blank=True
+    )
+    province_id = models.CharField(
+        db_column='ProvinceID',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    district_id = models.CharField(
+        db_column='DistrictID',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    municipality_id = models.CharField(
+        db_column='MunicipalityID',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    ward_no = models.CharField(
+        db_column='WardNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    age_proof_doc_type = models.IntegerField(
+        db_column='AgeProofDocType',
+        null=True,
+        blank=True
+    )
+    age_proof_doc_no = models.CharField(
+        db_column='AgeProofDocNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_address = models.CharField(
+        db_column='NepAddress',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_father_name = models.CharField(
+        db_column='NepFatherName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_mother_name = models.CharField(
+        db_column='NepMotherName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_nominee_name = models.CharField(
+        db_column='NepNomineeName',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nep_nominee_address = models.CharField(
+        db_column='NepNomineeAddress',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nom_district_id = models.CharField(
+        db_column='NomDistrictID',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nominee_ward_no = models.CharField(
+        db_column='NomineeWardNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    nominee_phone = models.CharField(
+        db_column='NomineePhone',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    plan_id = models.SmallIntegerField(
+        db_column='PlanId',
+        null=True,
+        blank=True
+    )
+    transfer_by = models.CharField(
+        db_column='TransferBy',
+        max_length=100,
+        null=True,
+        blank=True
+    )
+    policy_type = models.CharField(
+        db_column='PolicyType',
+        max_length=10,
+        null=True,
+        blank=True
+    )
+    is_multiple_policy_issued = models.BooleanField(
+        db_column='IsMultiplePolicyIssued',
+        null=True,
+        blank=True
+    )
+    terminate_by = models.CharField(
+        db_column='TerminateBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    cancel_date = models.DateField(
+        db_column='CancelDate',
+        null=True,
+        blank=True
+    )
+    cancel_by = models.CharField(
+        db_column='CancelBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    active_date = models.DateField(
+        db_column='ActiveDate',
+        null=True,
+        blank=True
+    )
+    active_by = models.CharField(
+        db_column='ActiveBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    terminate_remarks = models.TextField(
+        db_column='TerminateRemarks',
+        null=True,
+        blank=True
+    )
+    cancel_remarks = models.TextField(
+        db_column='CancelRemarks',
+        null=True,
+        blank=True
+    )
+    active_remarks = models.TextField(
+        db_column='ActiveRemarks',
+        null=True,
+        blank=True
+    )
+    lapse_by = models.CharField(
+        db_column='LapseBy',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    lapse_remarks = models.TextField(
+        db_column='LapseRemarks',
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        managed = False
+        db_table = 'tblGroupEndowment'
+        ordering = ['-created_date']
+
+    def __str__(self):
+        return f"{self.name or 'Unnamed'} - {self.policy_no or 'No Policy'}"

@@ -1,5 +1,5 @@
 from rest_framework import serializers #type: ignore
-from .models import GroupInformation
+from .models import GroupEndowment, GroupInformation
 
 
 class GroupInformationSerializer(serializers.ModelSerializer):
@@ -49,3 +49,13 @@ class GroupInformationSerializer(serializers.ModelSerializer):
             'is_adb',
         ]
         read_only_fields = fields  # All fields are read-only
+
+class GroupEndowmentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for GroupEndowment model (tblGroupEndowment table).
+    Represents individual policies under group insurance.
+    """
+    
+    class Meta:
+        model = GroupEndowment
+        fields = '__all__'  # Include all fields
