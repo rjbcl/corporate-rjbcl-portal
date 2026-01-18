@@ -113,6 +113,27 @@ CREATE TABLE [dbo].[tblGroupInformation](
 GO
 
 
+CREATE TABLE audit_log (
+    log_id SERIAL PRIMARY KEY,
+    action VARCHAR(50) NOT NULL CHECK (
+        action IN (
+            'password_reset',
+            'role_change',
+            'soft_delete',
+            'hard_delete',
+            'create',
+            'update'
+        )
+    ),
+    target_username VARCHAR(100) NOT NULL,
+    target_type VARCHAR(50) NOT NULL CHECK (
+        target_type IN ('account', 'company', 'individual')
+    ),
+    performed_by VARCHAR(100) NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    details TEXT
+);
+
 
 SELECT table_name
 FROM information_schema.tables
@@ -125,3 +146,4 @@ Select * from account;
 Select * from account_groups;
 select * from individual;
 select * from policy;
+select * from audit_log;

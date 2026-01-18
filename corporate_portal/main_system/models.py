@@ -1,5 +1,5 @@
-from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.db import models #type: ignore
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager #type: ignore
 
 class AuditBase(models.Model):
     created_by = models.CharField(max_length=30, blank=True, null=True)
@@ -173,3 +173,65 @@ class Policy(models.Model):
 
     def __str__(self):
         return f"Policy {self.policy_number} for User {self.user_id_id}"
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = [
+        ('password_reset', 'Password Reset'),
+        ('role_change', 'Role Change'),
+        ('soft_delete', 'Soft Delete'),
+        ('hard_delete', 'Hard Delete'),
+        ('create', 'Create'),
+        ('update', 'Update'),
+        ('login', 'Login'),
+        ('login_failed', 'Login Failed'),
+        ('logout', 'Logout'),
+        ('permission_change', 'Permission Change'),
+    ]
+    MAX_LOGS = 20
+    log_id = models.AutoField(primary_key=True)
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    target_username = models.CharField(max_length=100)
+    target_type = models.CharField(max_length=50)  # 'account', 'company', 'individual'
+    performed_by = models.CharField(max_length=100)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.TextField(blank=True, null=True) 
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    
+    class Meta:
+        db_table = 'audit_log'
+        ordering = ['-timestamp']
+    
+    def __str__(self):
+        return f"{self.action} on {self.target_username} by {self.performed_by}"
+    
+    @classmethod
+    def create_log(cls, action, target_username, target_type, performed_by, details=None, ip_address=None):
+        """
+        Create a new audit log and maintain the log limit.
+        Automatically deletes oldest logs when limit is exceeded.
+        """
+        print(f"Creating log: action={action}, target_username={target_username}, target_type={target_type}, performed_by={performed_by}, details={details}, ip_address={ip_address}")
+        # Create the new log
+        new_log = cls.objects.create(
+            action=action,
+            target_username=target_username,
+            target_type=target_type,
+            performed_by=performed_by,
+            details=details,
+            ip_address=ip_address
+        )
+        
+        # Check if we've exceeded the limit
+        total_logs = cls.objects.count()
+        if total_logs > cls.MAX_LOGS:
+            # Calculate how many to delete
+            excess = total_logs - cls.MAX_LOGS
+            
+            # Get the oldest logs to delete
+            oldest_logs = cls.objects.order_by('timestamp')[:excess]
+            oldest_log_ids = list(oldest_logs.values_list('log_id', flat=True))
+            
+            # Delete them
+            cls.objects.filter(log_id__in=oldest_log_ids).delete()
+        
+        return new_log

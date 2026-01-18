@@ -1,15 +1,15 @@
 import json
 import os
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.contrib import admin
-from django import forms
-from django.conf import settings
-from django_select2.forms import Select2MultipleWidget
-from django.core.exceptions import ValidationError, PermissionDenied
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  #type: ignore
+from django.contrib import admin #type: ignore
+from django import forms #type: ignore
+from django.conf import settings #type: ignore
+from django_select2.forms import Select2MultipleWidget #type: ignore
+from django.core.exceptions import ValidationError, PermissionDenied #type: ignore
 from .services import CompanyService, IndividualService
-from .models import Company, Group, Individual, Account
-from django.contrib import messages
-from django.contrib.auth.models import Group as AuthGroup
+from .models import AuditLog, Company, Group, Individual, Account
+from django.contrib import messages  #type: ignore
+from django.contrib.auth.models import Group as AuthGroup #type: ignore
 
 
 class CompanyAdminForm(forms.ModelForm):
@@ -104,8 +104,11 @@ class CompanyAdminForm(forms.ModelForm):
             user = self.request.user if self.request else None
 
             if self.instance.pk:  # Update
+                # Fetch fresh instance from DB to get old values
+                fresh_instance = Company.objects.get(pk=self.instance.pk)
+                
                 company = CompanyService.update_company(
-                    company=self.instance,
+                    company=fresh_instance,  # Pass fresh instance from DB
                     username=username or None,
                     password=password or None,
                     company_data=company_data,
@@ -179,7 +182,6 @@ class CompanyAdminForm(forms.ModelForm):
     
     def save_m2m(self):
         pass
-
 
 class IndividualAdminForm(forms.ModelForm):
     username = forms.CharField(
@@ -267,7 +269,6 @@ class IndividualAdminForm(forms.ModelForm):
     def save_m2m(self):
         pass
 
-
 @admin.register(Account)
 class AccountAdmin(BaseUserAdmin):
     list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_user_type', 'get_groups')
@@ -292,10 +293,10 @@ class AccountAdmin(BaseUserAdmin):
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        qs = qs.select_related('company_profile', 'individual_profile').prefetch_related('groups')
+        qs = qs.select_related('company_profile', 'individual_profile')
         
         if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
+            user_groups = list(request.user.groups.values_list('name', flat=True))
             
             # Viewer and Approver can only see their own account
             if 'Viewer' in user_groups or 'Approver' in user_groups:
@@ -306,13 +307,20 @@ class AccountAdmin(BaseUserAdmin):
                 return qs.filter(is_staff=False)
         
         return qs
+
+    def get_groups(self, obj):
+        groups = list(obj.groups.all())
+        return ", ".join([g.name for g in groups]) or '-'
+    get_groups.short_description = 'Staff Roles'
     
     def get_user_type(self, obj):
         return obj.get_user_type() or '-'
     get_user_type.short_description = 'User Type'
     
     def get_groups(self, obj):
-        return ", ".join([g.name for g in obj.groups.all()]) or '-'
+        # Force evaluation to avoid cursor issues
+        groups = list(obj.groups.all())
+        return ", ".join([g.name for g in groups]) or '-'
     get_groups.short_description = 'Staff Roles'
     
     def get_form(self, request, obj=None, **kwargs):
@@ -343,7 +351,12 @@ class AccountAdmin(BaseUserAdmin):
         return form
     
     def get_fieldsets(self, request, obj=None):
-        """Different fieldsets based on role - hide password for Editor viewing staff"""
+        """Different fieldsets based on role and whether adding or editing"""
+        # For new accounts, use add_fieldsets
+        if not obj:
+            return self.add_fieldsets
+        
+        # For existing accounts, customize based on role
         if request.user.is_superuser:
             return (
                 (None, {'fields': ('username', 'password')}),
@@ -429,16 +442,56 @@ class AccountAdmin(BaseUserAdmin):
     
     def save_model(self, request, obj, form, change):
         """Validate and prevent assigning staff roles to non-staff accounts"""
+        
         # Define staff role group names
         STAFF_ROLE_GROUPS = ['Viewer', 'Approver', 'Editor', 'Admin']
+        
+        # Track old values for audit log
+        old_is_staff = None
+        old_is_superuser = None
+        old_is_active = None
+        old_password_hash = None
+
+        if change and obj.pk:
+            old_account = Account.objects.get(pk=obj.pk)
+            # Store old groups on the form for use in save_related
+            form._old_groups = list(old_account.groups.values_list('name', flat=True))
+            old_is_staff = old_account.is_staff
+            old_is_superuser = old_account.is_superuser
+            old_is_active = old_account.is_active
+            old_password_hash = old_account.password  # Store the old password hash
+        else:
+            form._old_groups = []
         
         # If not superuser, prevent privilege escalation
         if not request.user.is_superuser:
             obj.is_superuser = False
         
+        # PREVENT company/individual accounts from becoming superuser or staff
+        user_type = obj.get_user_type()
+        if user_type in ['company', 'individual']:
+            if obj.is_superuser or obj.is_staff:
+                messages.error(
+                    request,
+                    f"Cannot make {user_type} accounts into staff or superuser accounts. "
+                    f"These flags have been reset to False."
+                )
+                obj.is_superuser = False
+                obj.is_staff = False
+        
+        # Set modified_by
+        obj.modified_by = request.user.username
+        
         # Save the object first
         super().save_model(request, obj, form, change)
         
+
+        # Check if password hash changed
+        password_changed = False
+        if change and old_password_hash and old_password_hash != obj.password:
+            password_changed = True
+
+
         # Now validate groups
         if 'groups' in form.cleaned_data:
             selected_groups = form.cleaned_data['groups']
@@ -462,13 +515,80 @@ class AccountAdmin(BaseUserAdmin):
                         request,
                         "Staff roles can only be assigned to accounts with 'is_staff' enabled. Groups have been removed."
                     )
+            
+            # Log permission changes (is_staff, is_superuser, is_active)
+        if change:
+            permission_changes = {}
+            if old_is_staff != obj.is_staff:
+                permission_changes['is_staff'] = {'old': old_is_staff, 'new': obj.is_staff}
+            if old_is_superuser != obj.is_superuser:
+                permission_changes['is_superuser'] = {'old': old_is_superuser, 'new': obj.is_superuser}
+            if old_is_active != obj.is_active:
+                permission_changes['is_active'] = {'old': old_is_active, 'new': obj.is_active}
+            
+            if permission_changes:
+                print("Permission changes detected:", permission_changes)
+                AuditLog.create_log(
+                    action='permission_change',
+                    target_username=obj.username,
+                    target_type=obj.get_user_type() or 'unknown',
+                    performed_by=request.user.username,
+                    details=json.dumps(permission_changes),
+                    ip_address=request.META.get('REMOTE_ADDR')
+                )
+            
+            # Log password change via edit form
+            if password_changed:
+                AuditLog.create_log(
+                    action='password_reset',
+                    target_username=obj.username,
+                    target_type=obj.get_user_type() or 'unknown',
+                    performed_by=request.user.username,
+                    details="Password changed via admin edit form",
+                    ip_address=request.META.get('REMOTE_ADDR')
+                )
+        else:
+            AuditLog.create_log(
+                action='create',
+                target_username=obj.username,
+                target_type=obj.get_user_type() or 'account',
+                performed_by=request.user.username,
+                details=f"Account created via admin interface",
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+        
+    def user_change_password(self, request, id, form_url=''):
+        """Override to log password changes from the password change form"""
+        user = self.get_object(request, id)
+        
+        # Call the parent method to handle the password change
+        response = super().user_change_password(request, id, form_url)
+        
+        # If the response is a redirect (successful password change)
+        if response.status_code == 302:
+            # Log the password change
+            AuditLog.create_log(
+                action='password_reset',
+                target_username=user.username,
+                target_type=user.get_user_type() or 'unknown',
+                performed_by=request.user.username,
+                details="Password changed via admin password change form",
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+        
+        return response    
     
     def reset_password_action(self, request, queryset):
         """Reset password action"""
         
-        user_groups = request.user.groups.values_list('name', flat=True)
+        user_groups = list(request.user.groups.values_list('name', flat=True))
         
         for account in queryset:
+            # Prevent resetting own password
+            if account.username == request.user.username:
+                messages.warning(request, f"You cannot reset your own password: {account.username}")
+                continue
+            
             # Check permissions
             if account.is_staff:
                 # Only Admin and Superuser can reset staff passwords
@@ -484,10 +604,20 @@ class AccountAdmin(BaseUserAdmin):
             # Generate temporary password
             temp_password = Account.objects.make_random_password()
             account.set_password(temp_password)
+            account.modified_by = request.user.username
             account.save()
             
+            # Create audit log
+            AuditLog.create_log(
+                action='password_reset',
+                target_username=account.username,
+                target_type=account.get_user_type() or 'unknown',
+                performed_by=request.user.username,
+                details=f"Password reset via admin action. New temp password generated.",
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            
             messages.success(request, f"Password reset for {account.username}. New password: {temp_password}")
-    
     reset_password_action.short_description = "Reset password for selected accounts"
     
     def get_actions(self, request):
@@ -516,6 +646,29 @@ class AccountAdmin(BaseUserAdmin):
         
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
+    def save_related(self, request, form, formsets, change):
+        """Save related objects (groups) and log changes"""
+        # Save the related objects first
+        super().save_related(request, form, formsets, change)
+        
+        # Now log role changes after groups are actually saved
+        if change:
+            obj = form.instance
+            old_groups = getattr(form, '_old_groups', [])
+            new_groups = list(obj.groups.values_list('name', flat=True))
+            
+            if set(old_groups) != set(new_groups):
+                AuditLog.create_log(
+                    action='role_change',
+                    target_username=obj.username,
+                    target_type=obj.get_user_type() or 'unknown',
+                    performed_by=request.user.username,
+                    details=json.dumps({
+                        'old_groups': old_groups,
+                        'new_groups': new_groups
+                    }),
+                    ip_address=request.META.get('REMOTE_ADDR')
+                )
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
@@ -600,7 +753,6 @@ class CompanyAdmin(admin.ModelAdmin):
             messages.success(request, f"{queryset.count()} companies soft deleted successfully.")
         except PermissionDenied as e:
             messages.error(request, str(e))
-    
     soft_delete_selected.short_description = "Soft delete selected companies"
     
     def delete_model(self, request, obj):
@@ -716,8 +868,7 @@ class IndividualAdmin(admin.ModelAdmin):
                 IndividualService.soft_delete_individual(individual, user=request.user)
             messages.success(request, f"{queryset.count()} individuals soft deleted successfully.")
         except PermissionDenied as e:
-            messages.error(request, str(e))
-    
+            messages.error(request, str(e))    
     soft_delete_selected.short_description = "Soft delete selected individuals"
     
     def reset_password_action(self, request, queryset):
@@ -768,6 +919,59 @@ class IndividualAdmin(admin.ModelAdmin):
         
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'action', 'target_username', 'target_type', 'performed_by')
+    list_filter = ('action', 'target_type', 'timestamp')
+    search_fields = ('target_username', 'performed_by', 'details')
+    readonly_fields = ('log_id', 'action', 'target_username', 'target_type', 'performed_by', 'timestamp', 'details')
+    
+    def get_queryset(self, request):
+        """Filter audit logs based on user role"""
+        qs = super().get_queryset(request)
+        
+        if request.user.is_superuser:
+            return qs
+        
+        user_groups = list(request.user.groups.values_list('name', flat=True))
+        
+        # Admin can see all logs
+        if 'Admin' in user_groups:
+            return qs
+        
+        return qs.none()
+    
+    def has_add_permission(self, request):
+        return False  # Audit logs should not be manually created
+    
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser  # Only superuser can delete audit logs
+    
+    def has_change_permission(self, request, obj=None):
+        # Allow viewing but not changing
+        if request.user.is_superuser:
+            return True
+        
+        user_groups = list(request.user.groups.values_list('name', flat=True))
+        if any(role in user_groups for role in ['Admin', 'Editor', 'Viewer', 'Approver']):
+            return True
+        
+        return False
+    
+    def has_view_permission(self, request, obj=None):
+        """All staff can view audit logs"""
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+        return False
+
+    def has_module_permission(self, request):
+        """Hide from admin index for non-Admin/Superuser"""
+        if request.user.is_superuser:
+            return True
+        
+        user_groups = list(request.user.groups.values_list('name', flat=True))
+        if 'Admin' in user_groups:
+            return True
 
 @admin.register(Group)
 class GroupAdmin(admin.ModelAdmin):
