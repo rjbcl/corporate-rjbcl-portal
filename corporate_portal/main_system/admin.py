@@ -1,15 +1,15 @@
 import json
 import os
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin # type: ignore
-from django.contrib import admin# type: ignore
-from django import forms# type: ignore
-from django.conf import settings# type: ignore
-from django_select2.forms import Select2MultipleWidget# type: ignore
-from django.core.exceptions import ValidationError, PermissionDenied# type: ignore
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib import admin
+from django import forms
+from django.conf import settings
+from django_select2.forms import Select2MultipleWidget
+from django.core.exceptions import ValidationError, PermissionDenied
 from .services import CompanyService, IndividualService
 from .models import Company, Group, Individual, Account
-from django.contrib import messages # type: ignore
-
+from django.contrib import messages
+from django.contrib.auth.models import Group as AuthGroup
 
 class CompanyAdminForm(forms.ModelForm):
     username = forms.CharField(
@@ -296,6 +296,34 @@ class AccountAdmin(BaseUserAdmin):
         return ", ".join([g.name for g in obj.groups.all()]) or '-'
     get_groups.short_description = 'Staff Roles'
     
+    def get_form(self, request, obj=None, **kwargs):
+        """Customize form to filter groups based on user type"""
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Define staff role group names
+        STAFF_ROLE_GROUPS = ['Viewer', 'Approver', 'Editor', 'Admin']
+        
+        if 'groups' in form.base_fields:            
+            if obj:
+                # For existing users
+                user_type = obj.get_user_type()
+                
+                if user_type in ['company', 'individual']:
+                    # Non-staff users should NOT have access to staff role groups
+                    form.base_fields['groups'].queryset = AuthGroup.objects.none()
+                    form.base_fields['groups'].help_text = "Staff roles cannot be assigned to company or individual accounts."
+                    form.base_fields['groups'].disabled = True
+                elif user_type in ['staff', 'admin']:
+                    # Staff users can only have staff role groups
+                    form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
+            else:
+                # For new users - they will choose is_staff first
+                # We'll validate in save_model
+                form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
+                form.base_fields['groups'].help_text = "Only staff accounts can be assigned to these groups."
+        
+        return form
+    
     def get_fieldsets(self, request, obj=None):
         """Different fieldsets based on role"""
         if request.user.is_superuser:
@@ -316,10 +344,14 @@ class AccountAdmin(BaseUserAdmin):
         # Username is always readonly when editing (it's the primary key)
         if obj:  # Editing existing account
             readonly = readonly + ('username',)
+            
+            # Make is_staff readonly for company/individual accounts
+            user_type = obj.get_user_type()
+            if user_type in ['company', 'individual']:
+                readonly = readonly + ('is_staff',)
         
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
-            
             
             # Editor: read-only for staff accounts
             if 'Editor' in user_groups:
@@ -368,6 +400,42 @@ class AccountAdmin(BaseUserAdmin):
             return True
         return False
     
+    def save_model(self, request, obj, form, change):
+        """Validate and prevent assigning staff roles to non-staff accounts"""
+        # Define staff role group names
+        STAFF_ROLE_GROUPS = ['Viewer', 'Approver', 'Editor', 'Admin']
+        
+        # If not superuser, prevent privilege escalation
+        if not request.user.is_superuser:
+            obj.is_superuser = False
+        
+        # Save the object first
+        super().save_model(request, obj, form, change)
+        
+        # Now validate groups
+        if 'groups' in form.cleaned_data:
+            selected_groups = form.cleaned_data['groups']
+            staff_role_groups = [g for g in selected_groups if g.name in STAFF_ROLE_GROUPS]
+            
+            # Check if user is trying to assign staff roles
+            if staff_role_groups:
+                user_type = obj.get_user_type()
+                
+                # If the account is company or individual, remove staff role groups
+                if user_type in ['company', 'individual']:
+                    obj.groups.remove(*staff_role_groups)
+                    messages.warning(
+                        request,
+                        f"Staff roles cannot be assigned to {user_type} accounts. Groups have been removed."
+                    )
+                # If is_staff is False but trying to assign staff roles
+                elif not obj.is_staff:
+                    obj.groups.remove(*staff_role_groups)
+                    messages.warning(
+                        request,
+                        "Staff roles can only be assigned to accounts with 'is_staff' enabled. Groups have been removed."
+                    )
+    
     def reset_password_action(self, request, queryset):
         """Reset password action"""
         
@@ -407,13 +475,6 @@ class AccountAdmin(BaseUserAdmin):
                 del actions['reset_password_action']
         
         return actions
-    
-    def save_model(self, request, obj, form, change):
-        """Prevent privilege escalation"""
-        if not request.user.is_superuser:
-            obj.is_superuser = False
-        
-        super().save_model(request, obj, form, change)
 
 
 @admin.register(Company)
@@ -634,7 +695,6 @@ class GroupAdmin(admin.ModelAdmin):
     
     def soft_delete_selected(self, request, queryset):
         """Soft delete groups"""
-        
         
         if not request.user.has_perm('main_system.soft_delete_group'):
             messages.error(request, "You don't have permission to soft delete groups.")
