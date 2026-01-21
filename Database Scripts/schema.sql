@@ -135,6 +135,93 @@ CREATE TABLE audit_log (
 );
 
 
+--Create tblGroupEndowmentDetails table
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[tblGroupEndowmentDetails](
+	[RowId] [bigint] IDENTITY(1,1) NOT NULL,
+	[PolicyNo] [varchar](50) NOT NULL,
+	[RegisterNo] [varchar](50) NOT NULL,
+	[Branch] [varchar](50) NOT NULL,
+	[GroupId] [varchar](50) NOT NULL,
+	[PaidDate] [datetime] NULL,
+	[DOC] [date] NOT NULL,
+	[Term] [smallint] NOT NULL,
+	[SumAssured] [money] NOT NULL,
+	[Premium] [money] NOT NULL,
+	[FUP] [datetime] NOT NULL,
+	[Instalment] [smallint] NULL,
+	[PaidAmount] [money] NULL,
+	[MaturityDate] [date] NOT NULL,
+	[BatchNo] [varchar](50) NULL,
+	[PostedBy] [varchar](50) NOT NULL,
+	[Remarks] [varchar](50) NULL,
+	[Intrest] [money] NULL,
+	[LateFine] [money] NULL,
+	[PolicyStatus] [varchar](10) NOT NULL,
+	[PolicyType] [varchar](5) NULL,
+	[ClaimStatus] [varchar](20) NULL,
+	[LateFinePercent] [money] NULL,
+	[CreatedBy] [varchar](50) NULL,
+	[CreatedDate] [datetime] NULL,
+	[ReducedInstalment] [int] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[RowId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED 
+(
+	[RegisterNo] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [tblGroupEndowmentDetails_DOC] ON [dbo].[tblGroupEndowmentDetails]
+(
+	[DOC] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+CREATE NONCLUSTERED INDEX [tblGroupEndowmentDetails_FUP] ON [dbo].[tblGroupEndowmentDetails]
+(
+	[FUP] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE   TRIGGER [dbo].[tr_tblGroupEndowmentDetails_AuditLog]
+ON [dbo].[tblGroupEndowmentDetails]
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO tblCustomAuditLog (TableName, Operation, RecordID, PolicyNo, OldData, NewData, ClientIP)
+    SELECT 
+        'tblGroupEndowmentDetails',
+        CASE WHEN i.rowid IS NOT NULL THEN 'UPDATE' ELSE 'DELETE' END,
+        CAST(d.rowid AS NVARCHAR),
+        d.PolicyNo,
+        (SELECT d.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER),
+        CASE 
+            WHEN i.rowid IS NOT NULL THEN (SELECT i.* FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+            ELSE '{}' 
+    END
+        
+    ,ClientIP = dbo.GetClientIP() FROM deleted d
+    LEFT JOIN inserted i ON d.rowid = i.rowid;
+END   
+GO
+ALTER TABLE [dbo].[tblGroupEndowmentDetails] ENABLE TRIGGER [tr_tblGroupEndowmentDetails_AuditLog]
+GO
+
+
+
+
+
+
+
 SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'public';

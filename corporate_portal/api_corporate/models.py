@@ -229,17 +229,139 @@ class GroupInformation(models.Model):
     
 class GroupEndowment(models.Model):
     """
-    Read-only model for tblGroupEndowment from external company database.
-    This represents individual policies under group insurance.
+    Read-only model for view_copo_groupEndowment.
+    This view combines tblGroupEndowment and tblGroupEndowmentDetails,
+    prioritizing more reliable data from tblGroupEndowmentDetails.
     """
-    row_id = models.BigAutoField(
-        db_column='RowId',
-        primary_key=True
-    )
+    # Primary Keys (composite)
     register_no = models.CharField(
         db_column='RegisterNo',
-        max_length=10
+        max_length=50,
+        primary_key=True
     )
+    policy_no = models.CharField(
+        db_column='PolicyNo',
+        max_length=50
+    )
+    
+    # Fields from tblGroupEndowmentDetails (prioritized/reliable data)
+    group_id = models.CharField(
+        db_column='GroupId',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    doc = models.DateField(
+        db_column='DOC',
+        null=True,
+        blank=True
+    )
+    term = models.SmallIntegerField(
+        db_column='Term',
+        null=True,
+        blank=True
+    )
+    sum_assured = models.DecimalField(
+        db_column='SumAssured',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    premium = models.DecimalField(
+        db_column='Premium',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    fup = models.DateTimeField(
+        db_column='FUP',
+        null=True,
+        blank=True
+    )
+    maturity_date = models.DateField(
+        db_column='MaturityDate',
+        null=True,
+        blank=True
+    )
+    policy_status = models.CharField(
+        db_column='PolicyStatus',
+        max_length=10,
+        null=True,
+        blank=True
+    )
+    policy_type = models.CharField(
+        db_column='PolicyType',
+        max_length=5,
+        null=True,
+        blank=True
+    )
+    late_fine = models.DecimalField(
+        db_column='LateFine',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    
+    # Unique fields from tblGroupEndowmentDetails
+    paid_date = models.DateTimeField(
+        db_column='PaidDate',
+        null=True,
+        blank=True
+    )
+    instalment = models.SmallIntegerField(
+        db_column='Instalment',
+        null=True,
+        blank=True
+    )
+    paid_amount = models.DecimalField(
+        db_column='PaidAmount',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    batch_no = models.CharField(
+        db_column='BatchNo',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    details_remarks = models.CharField(
+        db_column='DetailsRemarks',
+        max_length=50,
+        null=True,
+        blank=True
+    )
+    intrest = models.DecimalField(
+        db_column='Intrest',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    claim_status = models.CharField(
+        db_column='ClaimStatus',
+        max_length=20,
+        null=True,
+        blank=True
+    )
+    late_fine_percent = models.DecimalField(
+        db_column='LateFinePercent',
+        max_digits=19,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+    reduced_instalment = models.IntegerField(
+        db_column='ReducedInstalment',
+        null=True,
+        blank=True
+    )
+    
+    # Fields from tblGroupEndowment (personal/policy details)
     employee_id = models.CharField(
         db_column='EmployeeId',
         max_length=50,
@@ -281,20 +403,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    premium = models.DecimalField(
-        db_column='Premium',
-        max_digits=19,
-        decimal_places=4,
-        null=True,
-        blank=True
-    )
-    sum_assured = models.DecimalField(
-        db_column='SumAssured',
-        max_digits=19,
-        decimal_places=4,
-        null=True,
-        blank=True
-    )
     extra_premium = models.DecimalField(
         db_column='ExtraPremium',
         max_digits=19,
@@ -306,11 +414,6 @@ class GroupEndowment(models.Model):
         db_column='TotalPremium',
         max_digits=19,
         decimal_places=4,
-        null=True,
-        blank=True
-    )
-    term = models.SmallIntegerField(
-        db_column='Term',
         null=True,
         blank=True
     )
@@ -331,8 +434,8 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    remarks = models.CharField(
-        db_column='Remarks',
+    endowment_remarks = models.CharField(
+        db_column='EndowmentRemarks',
         max_length=200,
         null=True,
         blank=True
@@ -354,21 +457,10 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    doc = models.DateField(
-        db_column='DOC',
-        null=True,
-        blank=True
-    )
     adb = models.DecimalField(
         db_column='ADB',
         max_digits=19,
         decimal_places=4,
-        null=True,
-        blank=True
-    )
-    policy_no = models.CharField(
-        db_column='PolicyNo',
-        max_length=50,
         null=True,
         blank=True
     )
@@ -388,16 +480,6 @@ class GroupEndowment(models.Model):
         db_column='ADBDiscount',
         max_digits=19,
         decimal_places=4,
-        null=True,
-        blank=True
-    )
-    maturity_date = models.DateTimeField(
-        db_column='MaturityDate',
-        null=True,
-        blank=True
-    )
-    fup = models.DateField(
-        db_column='FUP',
         null=True,
         blank=True
     )
@@ -431,23 +513,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    policy_status = models.CharField(
-        db_column='PolicyStatus',
-        max_length=10,
-        null=True,
-        blank=True
-    )
-    gp_batch_no = models.BigIntegerField(
-        db_column='GpBatchNo',
-        null=True,
-        blank=True
-    )
-    group_id = models.CharField(
-        db_column='GroupId',
-        max_length=50,
-        null=True,
-        blank=True
-    )
     transfer_date = models.DateTimeField(
         db_column='TransferDate',
         null=True,
@@ -469,17 +534,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    created_by = models.CharField(
-        db_column='CreatedBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    created_date = models.DateTimeField(
-        db_column='CreatedDate',
-        null=True,
-        blank=True
-    )
     lapse_date = models.DateTimeField(
         db_column='LapseDate',
         null=True,
@@ -495,21 +549,8 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    late_fine = models.DecimalField(
-        db_column='LateFine',
-        max_digits=19,
-        decimal_places=4,
-        null=True,
-        blank=True
-    )
     approve_remarks = models.TextField(
         db_column='ApproveRemarks',
-        null=True,
-        blank=True
-    )
-    modified_by = models.CharField(
-        db_column='ModifiedBy',
-        max_length=20,
         null=True,
         blank=True
     )
@@ -563,17 +604,6 @@ class GroupEndowment(models.Model):
     is_ind_issue = models.CharField(
         db_column='IsINDIssue',
         max_length=10,
-        null=True,
-        blank=True
-    )
-    computer_code = models.BigIntegerField(
-        db_column='ComputerCode',
-        null=True,
-        blank=True
-    )
-    branch = models.CharField(
-        db_column='Branch',
-        max_length=20,
         null=True,
         blank=True
     )
@@ -665,18 +695,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    transfer_by = models.CharField(
-        db_column='TransferBy',
-        max_length=100,
-        null=True,
-        blank=True
-    )
-    policy_type = models.CharField(
-        db_column='PolicyType',
-        max_length=10,
-        null=True,
-        blank=True
-    )
     is_multiple_policy_issued = models.BooleanField(
         db_column='IsMultiplePolicyIssued',
         null=True,
@@ -739,8 +757,12 @@ class GroupEndowment(models.Model):
 
     class Meta:
         managed = False
-        db_table = 'tblGroupEndowment'
-        ordering = ['-created_date']
+        db_table = 'view_copo_groupEndowment'
+        ordering = ['-maturity_date']
+        unique_together = [['register_no', 'policy_no']]
 
     def __str__(self):
-        return f"{self.name or 'Unnamed'} - {self.policy_no or 'No Policy'}"
+        return f"{self.name or 'Unnamed'} - {self.policy_no}"
+    
+
+
