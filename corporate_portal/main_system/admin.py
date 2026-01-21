@@ -1,5 +1,6 @@
 import json
 import os
+from django.http import JsonResponse #type: ignore
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  #type: ignore
 from django.contrib import admin #type: ignore
 from django import forms #type: ignore
@@ -10,7 +11,28 @@ from .services import CompanyService, IndividualService
 from .models import AuditLog, Company, Group, Individual, Account
 from django.contrib import messages  #type: ignore
 from django.contrib.auth.models import Group as AuthGroup #type: ignore
+from .utils import GroupAPIService
+from django.shortcuts import redirect #type: ignore
+from django.contrib.admin.views.decorators import staff_member_required #type: ignore
 
+@staff_member_required
+def refresh_groups_cache_view(request):
+    """Admin view to manually refresh groups cache - Superuser and Admin only"""
+    
+    # Check permissions
+    if not request.user.is_superuser:
+        user_groups = list(request.user.groups.values_list('name', flat=True))
+        if 'Admin' not in user_groups:
+            messages.error(request, "You don't have permission to refresh groups cache.")
+            return redirect('admin:main_system_group_changelist')
+    
+    try:
+        groups = GroupAPIService.refresh_cache()
+        messages.success(request, f'Successfully refreshed {len(groups)} groups from API')
+    except Exception as e:
+        messages.error(request, f'Failed to refresh cache: {str(e)}')
+    
+    return redirect('admin:main_system_group_changelist')
 
 class CompanyAdminForm(forms.ModelForm):
     username = forms.CharField(
@@ -51,10 +73,17 @@ class CompanyAdminForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        # Load groups from JSON
-        json_path = os.path.join(settings.BASE_DIR, 'main_system', 'data', 'groups.json')
-        with open(json_path, 'r', encoding='utf-8') as f:
-            groups_data = json.load(f)
+        # Load groups from API cache
+        try:
+            groups_data = GroupAPIService.get_groups()
+        except Exception as e:
+            # Fallback to empty list if API fails
+            groups_data = []
+            if self.request:
+                messages.warning(
+                    self.request, 
+                    f"Failed to load groups from API: {str(e)}. Please try again later."
+                )
         
         # Store groups lookup for later
         self.groups_lookup = {g['groupid']: g['groupname'] for g in groups_data}
@@ -980,6 +1009,23 @@ class GroupAdmin(admin.ModelAdmin):
     actions = ['soft_delete_selected']
     search_fields = ['group_id', 'group_name']
     
+    def changelist_view(self, request, extra_context=None):
+        """Add refresh cache button to changelist view"""
+        extra_context = extra_context or {}
+        
+        # Only show button to superuser and Admin
+        show_refresh_button = False
+        if request.user.is_superuser:
+            show_refresh_button = True
+        else:
+            user_groups = list(request.user.groups.values_list('name', flat=True))
+            if 'Admin' in user_groups:
+                show_refresh_button = True
+        
+        extra_context['show_refresh_cache_button'] = show_refresh_button
+        
+        return super().changelist_view(request, extra_context=extra_context)
+
     def get_readonly_fields(self, request, obj=None):
         """Viewer and Approver: everything readonly"""
         readonly = super().get_readonly_fields(request, obj)
@@ -1012,7 +1058,6 @@ class GroupAdmin(admin.ModelAdmin):
         
         queryset.update(isdeleted=True, isactive=False, modified_by=request.user.username)
         messages.success(request, f"{queryset.count()} groups soft deleted successfully.")
-    
     soft_delete_selected.short_description = "Soft delete selected groups"
     
     def get_actions(self, request):

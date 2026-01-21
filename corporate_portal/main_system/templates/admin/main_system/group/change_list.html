@@ -1,0 +1,33 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block content_title %}
+    {{ block.super }}
+    {% if show_refresh_cache_button %}
+        <style>
+            .refresh-cache-btn {
+                float: right;
+                margin-left: 10px;
+                background-color: #417690;
+                color: white;
+                padding: 8px 15px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 13px;
+                text-decoration: none;
+                display: inline-block;
+            }
+            .refresh-cache-btn:hover {
+                background-color: #2e5266;
+                color: white;
+            }
+            .refresh-cache-btn:active {
+                background-color: #1d3a4d;
+            }
+        </style>
+        <a href="{% url 'refresh_groups_cache' %}" class="refresh-cache-btn">
+            🔄 Refresh Groups Cache
+        </a>
+    {% endif %}
+{% endblock %}
