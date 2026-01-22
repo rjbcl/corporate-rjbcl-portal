@@ -1,8 +1,9 @@
 # views.py
-from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
+from django.shortcuts import render, redirect #type: ignore
+from django.contrib.auth import authenticate, login, logout #type: ignore
+from django.contrib.auth.decorators import login_required #type: ignore
+from django.contrib import messages #type: ignore
+from main_system.models import Group
 
 def user_login(request):
     """Single login view for all user types"""
@@ -82,9 +83,16 @@ def company_dashboard(request):
         return redirect('dashboard')
     
     company = request.user.company_profile
+    
+    # Get total groups count
+    total_groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).count()
+    
     context = {
-        'company_name': company.company_name,
         'company': company,
+        'total_groups': total_groups,
     }
     return render(request, 'company_dashboard.html', context)
 
