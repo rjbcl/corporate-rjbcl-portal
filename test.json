@@ -1,0 +1,19 @@
+[{
+    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc2OTQwNTEyNSwiaWF0IjoxNzY5MzE4NzI1LCJqdGkiOiI1NzE1ZGQ2MzVlOGI0YjViODBkMWVhNmE3NDcwYjM5ZSIsInVzZXJfaWQiOiJITyJ9.TSjbrc2cut50_Br4ATjDN-C7sPyYWS97x9W4gOyZoAg",
+    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY5MzIwNTI1LCJpYXQiOjE3NjkzMTg3MjUsImp0aSI6IjdjNWYwZGVhMWRlYTQxOWRiZjQ0OGEyZTRmMTgxMGQ2IiwidXNlcl9pZCI6IkhPIn0.vCvj9FFrqbYJCw1j_C1TgGVVqDcMkHQWN7604vPcsOI",
+    "user_type": "company",
+    "username": "HO",
+    "company_id": 10,
+    "company_name": "Himal Oxygen Pvt Limited",
+    "is_active": true
+},
+{
+    "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc2OTQwNTgzNSwiaWF0IjoxNzY5MzE5NDM1LCJqdGkiOiI3MzdhMTdhYzg5MGQ0ZGQwOTk1ODgyZDAwMmZkYzM3MyIsInVzZXJfaWQiOiJOSUEifQ.CuXHoz0atCOcisCR5HPuJgf3IaIV-58rrbDIpL2cMfY",
+    "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY5MzIxMjM1LCJpYXQiOjE3NjkzMTk0MzUsImp0aSI6IjhmMzdiZTZkMjhlNzQ3MWFhMjhlZWQzMGQwMDBkOTBhIiwidXNlcl9pZCI6Ik5JQSJ9.bXXNVy7A5KoQFECLk-ebwcVtjjUM-MSAAx43st_jTY4",
+    "user_type": "company",
+    "username": "NIA",
+    "company_id": 4,
+    "company_name": "Nepal Insurance Authority",
+    "is_active": true
+}
+]
