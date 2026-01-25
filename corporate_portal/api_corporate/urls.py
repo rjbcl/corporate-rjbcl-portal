@@ -6,7 +6,8 @@ from .views import (
     GroupInformationViewSet,
     GroupEndowmentViewSet,
     CompanyPoliciesViewSet,
-    IndividualPoliciesViewSet
+    IndividualPoliciesViewSet,
+    company_policies_web
 )
 
 router = DefaultRouter()
@@ -20,6 +21,10 @@ urlpatterns = [
     path('auth/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
+
+    # Web dashboard endpoint (Session auth)
+    path('endowments/by_company/', company_policies_web, name='company-policies-web'),
+    
     # API endpoints
     path('', include(router.urls)),
 ]
