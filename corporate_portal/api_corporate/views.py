@@ -43,28 +43,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        # Check if user is company or individual (not staff)
+        # Check if user is company 
         user = serializer.user
         user_type = user.get_user_type()
         
         print(f"User type: {user_type}")
         
-        if user_type not in ['company', 'individual']:
+        if user_type not in ['company']:
             return Response(
-                {'error': 'Only company and individual accounts can access the API'},
+                {'error': 'Only company  accounts can access the API'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check if company/individual account is active
-        if user_type == 'company' and not user.company_profile.isactive:
+        # Check if company account is active
+        if not user.company_profile.isactive:
             return Response(
                 {'error': 'Company account is inactive'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        if user_type == 'individual' and not user.is_active:
-            return Response(
-                {'error': 'Individual account is inactive'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
