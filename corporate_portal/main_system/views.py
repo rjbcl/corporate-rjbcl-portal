@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate, login, logout #type: ignore
 from django.contrib.auth.decorators import login_required #type: ignore
 from django.contrib import messages #type: ignore
 from main_system.models import Group
+from .decorators import company_required, individual_required
 
 def user_login(request):
     """Single login view for all user types"""
@@ -74,14 +75,14 @@ def dashboard(request):
         logout(request)
         return redirect('login')
 
+# ================================
+# COMPANY VIEWS
+# ================================
 
 @login_required
+@company_required
 def company_dashboard(request):
     """Dashboard for company users"""
-    if request.user.get_user_type() != 'company':
-        messages.error(request, 'Access denied.')
-        return redirect('dashboard')
-    
     company = request.user.company_profile
     
     # Get total groups count
@@ -94,7 +95,94 @@ def company_dashboard(request):
         'company': company,
         'total_groups': total_groups,
     }
-    return render(request, 'company_dashboard.html', context)
+    # return render(request, 'Dashboard/Company/company_dashboard.html', context)
+    return render(request, 'Dashboard/Company/dashboard.html', context)
+
+
+@login_required
+def company_policies(request):
+    """Policies page for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    context = {
+        'company': company,
+    }
+    return render(request, 'Dashboard/Company/policies.html', context)
+
+
+# ================================
+# COMPANY REPORTS VIEWS
+# ================================
+
+@login_required
+def maturity_report(request):
+    """Maturity forecasting report for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+    
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/maturity_report.html', context)
+
+
+@login_required
+def premium_report(request):
+    """Premium report for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+    
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/premium_report.html', context)
+
+
+@login_required
+def policy_summary(request):
+    """Policy summary report for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+    
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/policy_summary.html', context)
+
 
 
 @login_required

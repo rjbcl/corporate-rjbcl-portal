@@ -7,7 +7,7 @@ from django_filters.rest_framework import DjangoFilterBackend #type: ignore
 from rest_framework.permissions import AllowAny, IsAuthenticated #type: ignore
 from rest_framework_simplejwt.views import TokenObtainPairView #type: ignore
 from rest_framework_simplejwt.authentication import JWTAuthentication #type: ignore
-from rest_framework.decorators import api_view, permission_classes #type: ignore
+from rest_framework.decorators import api_view, permission_classes, authentication_classes #type: ignore
 from .models import GroupEndowment, GroupInformation
 from .serializers import (
     GroupEndowmentSerializer, 
@@ -15,6 +15,8 @@ from .serializers import (
     CustomTokenObtainPairSerializer
 )
 from .permissions import IsCompanyUser, IsIndividualUser
+from django.db import connections #type: ignore
+
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """
@@ -67,6 +69,78 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         print(f"Login successful for: {user.username}")
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([SessionAuthentication])
+def maturity_forecasting_report(request):
+    """
+    Generate maturity forecasting report by calling stored procedure.
+    POST /api/corporate/reports/maturity-forecasting/
+    """
+    from main_system.models import Group as PortalGroup
+    
+    # Get parameters from request
+    group_id = request.data.get('group_id')
+    from_date = request.data.get('from_date')
+    to_date = request.data.get('to_date')
+    date_type = request.data.get('date_type', 'ad')  # 'ad' or 'bs'
+    
+    # Validate required fields
+    if not all([group_id, from_date, to_date]):
+        return Response({
+            'error': 'group_id, from_date, and to_date are required'
+        }, status=400)
+    
+    # Security: Verify the logged-in user owns this group
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+        
+        if not group_exists:
+            return Response({
+                'error': 'You can only access your own company groups'
+            }, status=403)
+    
+    try:
+        # Call stored procedure
+        with connections['company_external'].cursor() as cursor:
+            # Execute stored procedure
+            cursor.execute(
+                "EXEC proc_GroupReport @flag=%s, @User=%s, @GroupId=%s, @FromDate=%s, @ToDate=%s",
+                ['MaturityForecastingReport', 'report_reader', group_id, from_date, to_date]
+            )
+            
+            # Fetch column names
+            columns = [col[0] for col in cursor.description]
+            
+            # Fetch all rows
+            rows = cursor.fetchall()
+            
+            # Convert to list of dictionaries
+            results = []
+            for row in rows:
+                results.append(dict(zip(columns, row)))
+        
+        return Response({
+            'success': True,
+            'count': len(results),
+            'group_id': group_id,
+            'from_date': from_date,
+            'to_date': to_date,
+            'date_type': date_type,
+            'policies': results
+        })
+        
+    except Exception as e:
+        print(f"Error executing stored procedure: {str(e)}")
+        return Response({
+            'error': f'Failed to generate report: {str(e)}'
+        }, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

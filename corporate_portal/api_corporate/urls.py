@@ -1,13 +1,14 @@
 from django.urls import path, include #type: ignore
 from rest_framework.routers import DefaultRouter #type: ignore
-from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView #type: ignore
 from .views import (
     CustomTokenObtainPairView,
     GroupInformationViewSet,
     GroupEndowmentViewSet,
     CompanyPoliciesViewSet,
     IndividualPoliciesViewSet,
-    company_policies_web
+    company_policies_web,
+    maturity_forecasting_report 
 )
 
 router = DefaultRouter()
@@ -24,6 +25,9 @@ urlpatterns = [
 
     # Web dashboard endpoint (Session auth)
     path('endowments/by_company/', company_policies_web, name='company-policies-web'),
+
+    # Reports endpoint
+    path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
     
     # API endpoints
     path('', include(router.urls)),
