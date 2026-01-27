@@ -1,0 +1,37 @@
+<div class="quixnav">
+    <div class="quixnav-scroll">
+        <ul class="metismenu" id="menu">
+            <li class="nav-label first">Main Menu</li>
+            <li class="{% if request.resolver_match.url_name == 'company_dashboard' %}mm-active{% endif %}">
+                <a href="{% url 'company_dashboard' %}">
+                    <i class="bi bi-border-style"></i>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+            </li>
+            <li class="{% if 'policies' in request.path %}mm-active{% endif %}">
+                <a href="{% url 'company_policies' %}">
+                    <i class="bi bi-piggy-bank-fill"></i>
+                    <span class="nav-text">Policies</span>
+                </a>
+            </li>
+            <li class="{% if 'reports' in request.path %}mm-active{% endif %}">
+                <a class="has-arrow" href="javascript:void(0);"
+                    aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
+                    <i class="bi bi-file-earmark-break-fill"></i>
+                    <span class="nav-text">Reports</span>
+                </a>
+                <ul aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
+                    <li><a href="{% url 'maturity_report' %}"
+                            class="{% if request.resolver_match.url_name == 'maturity_report' %}active{% endif %}">Maturity
+                            Forecasting</a></li>
+                    <li><a href="{% url 'premium_report' %}"
+                            class="{% if request.resolver_match.url_name == 'premium_report' %}active{% endif %}">Premium
+                            Report</a></li>
+                    <li><a href="{% url 'policy_summary' %}"
+                            class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Policy
+                            Summary</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+</div>

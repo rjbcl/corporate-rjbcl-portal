@@ -1,0 +1,110 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>{% block title %}{{ company.company_name }} - Dashboard{% endblock %}</title>
+
+    <!-- Favicon icon -->
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-logo.png' %}">
+    <link href="{% static 'vendor/pg-calendar/css/pignose.calendar.min.css' %}" rel="stylesheet">
+    <link href="{% static 'vendor/chartist/css/chartist.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap-icons.min.css' %}">
+    <link href="{% static 'css/stylenew.css' %}" rel="stylesheet">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+    <!--*******************
+        Preloader start
+    ********************-->
+    <div id="preloader">
+        <div class="sk-three-bounce">
+            <div class="sk-child sk-bounce1"></div>
+            <div class="sk-child sk-bounce2"></div>
+            <div class="sk-child sk-bounce3"></div>
+        </div>
+    </div>
+
+    <!--**********************************
+        Main wrapper start
+    ***********************************-->
+    <div id="main-wrapper" data-company-id="{{ company.company_id }}">
+        <!--**********************************
+            Nav header start
+        ***********************************-->
+        <div class="nav-header">
+            <a href="{% url 'company_dashboard' %}" class="brand-logo">
+                <img class="logo-abbr long-logo" src="{% static 'images/favicon-logo.png' %}" alt="">
+                <img class="logo-abbr short-logo" src="{% static 'images/rjbclogo.png' %}" alt=""
+                    style="max-width: 225px">
+            </a>
+
+            <div class="nav-control">
+                <div class="hamburger">
+                    <span class="line"></span><span class="line"></span><span class="line"></span>
+                </div>
+            </div>
+        </div>
+        <!--**********************************
+            Nav header end
+        ***********************************-->
+
+        <!--**********************************
+            Header start
+        ***********************************-->
+        {% include 'Dashboard/Company/components/header.html' %}
+        <!--**********************************
+            Header end
+        ***********************************-->
+
+        <!--**********************************
+            Sidebar start
+        ***********************************-->
+        {% include 'Dashboard/Company/components/sidebar.html' %}
+        <!--**********************************
+            Sidebar end
+        ***********************************-->
+
+        <!--**********************************
+            Content body start
+        ***********************************-->
+        <div class="content-body">
+            <div class="container-fluid">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+        <!--**********************************
+            Content body end
+        ***********************************-->
+
+        <!--**********************************
+            Footer start
+        ***********************************-->
+        {% include 'Dashboard/Company/components/footer.html' %}
+        <!--**********************************
+            Footer end
+        ***********************************-->
+    </div>
+    <!--**********************************
+        Main wrapper end
+    ***********************************-->
+
+    <!--**********************************
+        Scripts
+    ***********************************-->
+    <script src="{% static 'vendor/global/global.min.js' %}"></script>
+    <script src="{% static 'js/quixnav-init.js' %}"></script>
+    <script src="{% static 'js/custom.min.js' %}"></script>
+    <script src="{% static 'vendor/chartist/js/chartist.min.js' %}"></script>
+    <script src="{% static 'vendor/moment/moment.min.js' %}"></script>
+    <script src="{% static 'vendor/pg-calendar/js/pignose.calendar.min.js' %}"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,118 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}{{ company.company_name }} - Dashboard{% endblock %}
+
+{% block extra_css %}
+
+{% endblock %}
+
+{% block content %}
+<!-- Page titles -->
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Welcome back, {{ company.company_name }}!</h4>
+            <p class="mb-0">Your insurance dashboard</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item active"><a href="javascript:void(0)">Dashboard</a></li>
+        </ol>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row">
+    <div class="col-lg-3 col-sm-6">
+        <div class="card">
+            <div class="stat-widget-one card-body">
+                <div class="stat-icon d-inline-block">
+                    <i class="bi bi-cash-stack text-success border-success"></i>
+                </div>
+                <div class="stat-content d-inline-block">
+                    <div class="stat-text">Total Premium</div>
+                    <div class="stat-digit" id="total-premium">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card">
+            <div class="stat-widget-one card-body">
+                <div class="stat-icon d-inline-block">
+                    <i class="bi bi-people-fill text-primary border-primary"></i>
+                </div>
+                <div class="stat-content d-inline-block">
+                    <div class="stat-text">Total Policies</div>
+                    <div class="stat-digit" id="total-policies">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card">
+            <div class="stat-widget-one card-body">
+                <div class="stat-icon d-inline-block">
+                    <i class="bi bi-shield-check text-pink border-pink"></i>
+                </div>
+                <div class="stat-content d-inline-block">
+                    <div class="stat-text">Active Policies</div>
+                    <div class="stat-digit" id="active-policies">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-sm-6">
+        <div class="card">
+            <div class="stat-widget-one card-body">
+                <div class="stat-icon d-inline-block">
+                    <i class="bi bi-collection-fill text-danger border-danger"></i>
+                </div>
+                <div class="stat-content d-inline-block">
+                    <div class="stat-text">Groups</div>
+                    <div class="stat-digit" id="total-groups">{{ total_groups }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Policies Table -->
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">Recent Policies</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="policies-table">
+                        <thead>
+                            <tr>
+                                <th>Policy No</th>
+                                <th>Employee Name</th>
+                                <th>Sum Assured</th>
+                                <th>Premium</th>
+                                <th>Maturity Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policies-tbody">
+                            <tr>
+                                <td colspan="6" class="text-center">Loading policies...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard/dashboard-2.js' %}"></script>
+{% endblock %}
