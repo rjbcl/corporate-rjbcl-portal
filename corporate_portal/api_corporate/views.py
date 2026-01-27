@@ -2,10 +2,12 @@ from rest_framework import viewsets, filters, status, serializers  #type: ignore
 from rest_framework.permissions import IsAuthenticated #type: ignore
 from rest_framework.decorators import action #type: ignore
 from rest_framework.response import Response #type: ignore
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication #type: ignore
 from django_filters.rest_framework import DjangoFilterBackend #type: ignore
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated #type: ignore
+from rest_framework_simplejwt.views import TokenObtainPairView #type: ignore
+from rest_framework_simplejwt.authentication import JWTAuthentication #type: ignore
+from rest_framework.decorators import api_view, permission_classes #type: ignore
 from .models import GroupEndowment, GroupInformation
 from .serializers import (
     GroupEndowmentSerializer, 
@@ -135,9 +137,11 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for company users to access their policies.
     Automatically filters by authenticated company.
+    JWT authentication only.
     """
     serializer_class = GroupEndowmentSerializer
     permission_classes = [IsAuthenticated, IsCompanyUser]
+    authentication_classes = [JWTAuthentication]  # JWT only for external API
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
@@ -251,13 +255,15 @@ class IndividualPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
 class GroupInformationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Read-only API endpoint for Group Information.
-    
+    Supports both JWT and Session authentication.
     Provides list and retrieve actions only (GET requests).
     Supports filtering, searching, and ordering.
     """
     queryset = GroupInformation.objects.using('company_external').all()
     serializer_class = GroupInformationSerializer
-    
+    permission_classes = [AllowAny]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
+
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     
     filterset_fields = [

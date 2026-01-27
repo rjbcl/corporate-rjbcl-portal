@@ -1,16 +1,18 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{{ company.company_name }} - Dashboard</title>
-    
+
     <!-- Favicon icon -->
-    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-logo.png' %}">
     <link href="{% static 'vendor/pg-calendar/css/pignose.calendar.min.css' %}" rel="stylesheet">
     <link href="{% static 'vendor/chartist/css/chartist.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap-icons.min.css' %}">
     <link href="{% static 'css/stylenew.css' %}" rel="stylesheet">
 </head>
 
@@ -25,9 +27,6 @@
             <div class="sk-child sk-bounce3"></div>
         </div>
     </div>
-    <!--*******************
-        Preloader end
-    ********************-->
 
     <!--**********************************
         Main wrapper start
@@ -38,9 +37,9 @@
         ***********************************-->
         <div class="nav-header">
             <a href="{% url 'company_dashboard' %}" class="brand-logo">
-                <img class="logo-abbr" src="{% static 'images/logo.png' %}" alt="">
-                <img class="logo-compact" src="{% static 'images/logo-text.png' %}" alt="">
-                <img class="brand-title" src="{% static 'images/logo-text.png' %}" alt="">
+                <img class="logo-abbr long-logo" src="{% static 'images/favicon-logo.png' %}" alt="">
+                <img class="logo-abbr short-logo" src="{% static 'images/rjbclogo.png' %}" alt=""
+                    style="max-width: 225px">
             </a>
 
             <div class="nav-control">
@@ -63,11 +62,12 @@
                         <div class="header-left">
                             <div class="search_bar dropdown">
                                 <span class="search_icon p-3 c-pointer" data-toggle="dropdown">
-                                    <i class="mdi mdi-magnify"></i>
+                                    <i class="bi bi-search"></i>
                                 </span>
                                 <div class="dropdown-menu p-0 m-0">
                                     <form>
-                                        <input class="form-control" type="search" placeholder="Search policies..." aria-label="Search">
+                                        <input class="form-control" type="search" placeholder="Search policies..."
+                                            aria-label="Search">
                                     </form>
                                 </div>
                             </div>
@@ -76,16 +76,16 @@
                         <ul class="navbar-nav header-right">
                             <li class="nav-item dropdown header-profile">
                                 <a class="nav-link" href="#" role="button" data-toggle="dropdown">
-                                    <i class="mdi mdi-account"></i>
+                                    <i class="bi bi-building"></i>
                                     <span class="ml-2">{{ company.company_name }}</span>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-right">
                                     <a href="{% url 'company_dashboard' %}" class="dropdown-item">
-                                        <i class="icon-user"></i>
+                                        <i class="bi bi-person-fill"></i>
                                         <span class="ml-2">Profile</span>
                                     </a>
                                     <a href="{% url 'logout' %}" class="dropdown-item">
-                                        <i class="icon-key"></i>
+                                        <i class="bi bi-box-arrow-right"></i>
                                         <span class="ml-2">Logout</span>
                                     </a>
                                 </div>
@@ -108,19 +108,19 @@
                     <li class="nav-label first">Main Menu</li>
                     <li>
                         <a href="{% url 'company_dashboard' %}" aria-expanded="false">
-                            <i class="icon icon-single-04"></i>
+                            <i class="bi bi-border-style"></i>
                             <span class="nav-text">Dashboard</span>
                         </a>
                     </li>
                     <li>
                         <a href="#" aria-expanded="false">
-                            <i class="icon icon-app-store"></i>
+                            <i class="bi bi-piggy-bank-fill"></i>
                             <span class="nav-text">Policies</span>
                         </a>
                     </li>
                     <li>
                         <a href="#" aria-expanded="false">
-                            <i class="icon icon-chart-bar-33"></i>
+                            <i class="bi bi-file-earmark-break-fill"></i>
                             <span class="nav-text">Reports</span>
                         </a>
                     </li>
@@ -157,7 +157,7 @@
                         <div class="card">
                             <div class="stat-widget-one card-body">
                                 <div class="stat-icon d-inline-block">
-                                    <i class="ti-money text-success border-success"></i>
+                                    <i class="bi bi-cash-stack text-success border-success"></i>
                                 </div>
                                 <div class="stat-content d-inline-block">
                                     <div class="stat-text">Total Premium</div>
@@ -170,7 +170,7 @@
                         <div class="card">
                             <div class="stat-widget-one card-body">
                                 <div class="stat-icon d-inline-block">
-                                    <i class="ti-user text-primary border-primary"></i>
+                                    <i class="bi bi-people-fill text-primary border-primary"></i>
                                 </div>
                                 <div class="stat-content d-inline-block">
                                     <div class="stat-text">Total Policies</div>
@@ -183,7 +183,7 @@
                         <div class="card">
                             <div class="stat-widget-one card-body">
                                 <div class="stat-icon d-inline-block">
-                                    <i class="ti-layout-grid2 text-pink border-pink"></i>
+                                    <i class="bi bi-shield-check text-pink border-pink"></i>
                                 </div>
                                 <div class="stat-content d-inline-block">
                                     <div class="stat-text">Active Policies</div>
@@ -196,7 +196,7 @@
                         <div class="card">
                             <div class="stat-widget-one card-body">
                                 <div class="stat-icon d-inline-block">
-                                    <i class="ti-link text-danger border-danger"></i>
+                                    <i class="bi bi-collection-fill text-danger border-danger"></i>
                                 </div>
                                 <div class="stat-content d-inline-block">
                                     <div class="stat-text">Groups</div>
@@ -273,38 +273,38 @@
     <script>
         // Fetch and display policies
         const companyId = "{{ company.company_id }}";
-        
+
         fetch(`/api/corporate/endowments/by_company/?company_id=${companyId}`)
             .then(response => response.json())
             .then(data => {
                 console.log('API Response:', data);
-                
+
                 // Update statistics
                 document.getElementById('total-policies').textContent = data.count;
-                
+
                 const activePolicies = data.endowments.filter(p => p.policy_status === 'A').length;
                 document.getElementById('active-policies').textContent = activePolicies;
-                
+
                 const totalPremium = data.endowments.reduce((sum, p) => sum + parseFloat(p.premium || 0), 0);
-                document.getElementById('total-premium').textContent = 'Rs. ' + totalPremium.toLocaleString('en-NP', {maximumFractionDigits: 2});
-                
+                document.getElementById('total-premium').textContent = 'Rs. ' + totalPremium.toLocaleString('en-NP', { maximumFractionDigits: 2 });
+
                 // Populate table
                 const tbody = document.getElementById('policies-tbody');
                 tbody.innerHTML = '';
-                
+
                 if (data.endowments.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="6" class="text-center">No policies found</td></tr>';
                     return;
                 }
-                
+
                 // Show first 10 policies
                 data.endowments.slice(0, 10).forEach(policy => {
-                    const statusBadge = policy.policy_status === 'A' 
+                    const statusBadge = policy.policy_status === 'A'
                         ? '<span class="badge badge-success">Active</span>'
                         : policy.policy_status === 'L'
-                        ? '<span class="badge badge-warning">Lapsed</span>'
-                        : '<span class="badge badge-secondary">Inactive</span>';
-                    
+                            ? '<span class="badge badge-warning">Lapsed</span>'
+                            : '<span class="badge badge-secondary">Inactive</span>';
+
                     const row = `
                         <tr>
                             <td>${policy.policy_no || '-'}</td>
@@ -320,9 +320,10 @@
             })
             .catch(error => {
                 console.error('Error fetching policies:', error);
-                document.getElementById('policies-tbody').innerHTML = 
+                document.getElementById('policies-tbody').innerHTML =
                     '<tr><td colspan="6" class="text-center text-danger">Error loading policies</td></tr>';
             });
     </script>
 </body>
+
 </html>
