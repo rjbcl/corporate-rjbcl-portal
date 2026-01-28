@@ -137,7 +137,7 @@ def maturity_report(request):
         'company': company,
         'groups': groups,
     }
-    return render(request, 'Dashboard/Company/reports/maturity_report.html', context)
+    return render(request, 'Dashboard/Company/reports/maturity_forecasting_report.html', context)
 
 
 @login_required

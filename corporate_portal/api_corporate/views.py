@@ -84,7 +84,9 @@ def maturity_forecasting_report(request):
     group_id = request.data.get('group_id')
     from_date = request.data.get('from_date')
     to_date = request.data.get('to_date')
-    date_type = request.data.get('date_type', 'ad')  # 'ad' or 'bs'
+    date_type = request.data.get('date_type', 'ad')
+    
+    print(f"Report request - Group: {group_id}, From: {from_date}, To: {to_date}, Type: {date_type}")
     
     # Validate required fields
     if not all([group_id, from_date, to_date]):
@@ -107,24 +109,74 @@ def maturity_forecasting_report(request):
             }, status=403)
     
     try:
-        # Call stored procedure
+        results = []
+        
         with connections['company_external'].cursor() as cursor:
-            # Execute stored procedure
-            cursor.execute(
-                "EXEC proc_GroupReport @flag=%s, @User=%s, @GroupId=%s, @FromDate=%s, @ToDate=%s",
-                ['MaturityForecastingReport', 'report_reader', group_id, from_date, to_date]
-            )
+            # Method 1: Try using raw SQL with SET NOCOUNT ON
+            sql = """
+                SET NOCOUNT ON;
+                EXEC proc_copo_GroupReport 
+                    @flag = 'MaturityForecastingReport',
+                    @User = 'report_reader',
+                    @GroupId = %s,
+                    @FromDate = %s,
+                    @ToDate = %s;
+            """
             
-            # Fetch column names
-            columns = [col[0] for col in cursor.description]
+            print(f"Executing: {sql}")
+            print(f"Parameters: group_id={group_id}, from_date={from_date}, to_date={to_date}")
             
-            # Fetch all rows
-            rows = cursor.fetchall()
+            cursor.execute(sql, [group_id, from_date, to_date])
             
-            # Convert to list of dictionaries
-            results = []
-            for row in rows:
-                results.append(dict(zip(columns, row)))
+            # Process all result sets
+            result_set_count = 0
+            while True:
+                result_set_count += 1
+                print(f"Processing result set {result_set_count}")
+                
+                if cursor.description:
+                    columns = [col[0] for col in cursor.description]
+                    print(f"Columns in result set {result_set_count}: {columns}")
+                    
+                    rows = cursor.fetchall()
+                    print(f"Rows in result set {result_set_count}: {len(rows)}")
+                    
+                    for row in rows:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            col_name = columns[i]
+                            # Handle different data types
+                            if value is None:
+                                row_dict[col_name] = None
+                            elif hasattr(value, 'isoformat'):  # datetime
+                                row_dict[col_name] = value.isoformat()
+                            elif isinstance(value, (int, float)):
+                                row_dict[col_name] = value
+                            else:
+                                row_dict[col_name] = str(value)
+                        results.append(row_dict)
+                else:
+                    print(f"Result set {result_set_count} has no description (no columns)")
+                
+                # Try to move to next result set
+                if not cursor.nextset():
+                    print("No more result sets")
+                    break
+            
+            print(f"Total results collected: {len(results)}")
+        
+        if not results:
+            print("WARNING: No results returned from stored procedure")
+            return Response({
+                'success': True,
+                'count': 0,
+                'group_id': group_id,
+                'from_date': from_date,
+                'to_date': to_date,
+                'date_type': date_type,
+                'policies': [],
+                'message': 'No policies found for the given criteria. The stored procedure executed successfully but returned no data.'
+            })
         
         return Response({
             'success': True,
@@ -137,9 +189,13 @@ def maturity_forecasting_report(request):
         })
         
     except Exception as e:
-        print(f"Error executing stored procedure: {str(e)}")
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
         return Response({
-            'error': f'Failed to generate report: {str(e)}'
+            'error': f'Failed to generate report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
         }, status=500)
 
 @api_view(['GET'])

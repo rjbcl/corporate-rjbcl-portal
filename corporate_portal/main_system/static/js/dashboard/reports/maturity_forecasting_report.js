@@ -49,8 +49,45 @@ function calculateMonthsDifference(dateString) {
  */
 function formatDate(dateString) {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-NP', { year: 'numeric', month: 'short', day: 'numeric' });
+
+    // Check if it's already in a valid format
+    // Handle formats like "YYYY-MM-DD" or "DD/MM/YYYY"
+    let date;
+
+    // If the date contains slashes, it might be DD/MM/YYYY format
+    if (dateString.includes('/')) {
+        const parts = dateString.split('/');
+        if (parts.length === 3) {
+            // Assume DD/MM/YYYY format
+            date = new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+    } else if (dateString.includes('-')) {
+        // Check if it's YYYY-MM-DD or DD-MM-YYYY
+        const parts = dateString.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                // YYYY-MM-DD format
+                date = new Date(dateString);
+            } else {
+                // DD-MM-YYYY format
+                date = new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+        }
+    } else {
+        // Try default parsing
+        date = new Date(dateString);
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+        return '-';
+    }
+
+    return date.toLocaleDateString('en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
 }
 
 /**
@@ -60,7 +97,7 @@ function setButtonLoading(button, isLoading) {
     if (isLoading) {
         button.disabled = true;
         button.dataset.originalText = button.innerHTML;
-        button.innerHTML = '<span class="spinner"></span> Generating...';
+        button.innerHTML = '<span class="spinner-border spinner-border-sm mr-2"></span> Generating...';
     } else {
         button.disabled = false;
         button.innerHTML = button.dataset.originalText || button.innerHTML;
@@ -77,66 +114,6 @@ function showNotification(message, type = 'error') {
         alert('Error: ' + message);
     } else {
         alert(message);
-    }
-}
-
-// ================================
-// DATE TYPE SWITCHING
-// ================================
-
-/**
- * Initialize date type tabs
- */
-function initializeDateTypeTabs() {
-    const tabs = document.querySelectorAll('.date-type-tab');
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function () {
-            const dateType = this.dataset.dateType;
-            switchDateType(dateType);
-        });
-    });
-}
-
-/**
- * Switch between AD and BS date types
- */
-function switchDateType(dateType) {
-    currentDateType = dateType;
-
-    // Update active tab
-    document.querySelectorAll('.date-type-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    document.querySelector(`[data-date-type="${dateType}"]`).classList.add('active');
-
-    // Show/hide date fields
-    document.querySelectorAll('.date-fields').forEach(field => {
-        field.classList.remove('active');
-    });
-    document.getElementById(`${dateType}-date-fields`).classList.add('active');
-
-    // Update required fields
-    updateRequiredFields(dateType);
-}
-
-/**
- * Update which fields are required based on date type
- */
-function updateRequiredFields(dateType) {
-    // Remove all required attributes first
-    document.getElementById('from-date-ad').removeAttribute('required');
-    document.getElementById('to-date-ad').removeAttribute('required');
-    document.getElementById('from-date-bs').removeAttribute('required');
-    document.getElementById('to-date-bs').removeAttribute('required');
-
-    // Add required to active date type
-    if (dateType === 'ad') {
-        document.getElementById('from-date-ad').setAttribute('required', 'required');
-        document.getElementById('to-date-ad').setAttribute('required', 'required');
-    } else {
-        document.getElementById('from-date-bs').setAttribute('required', 'required');
-        document.getElementById('to-date-bs').setAttribute('required', 'required');
     }
 }
 
@@ -191,20 +168,30 @@ function validateBSDate(dateString) {
 }
 
 /**
- * Get form data based on current date type
+ * Get form data
  */
 function getFormData() {
     const formData = {
-        dateType: currentDateType,
         groupId: document.getElementById('group-id').value
     };
 
-    if (currentDateType === 'ad') {
-        formData.fromDate = document.getElementById('from-date-ad').value;
-        formData.toDate = document.getElementById('to-date-ad').value;
-    } else {
-        formData.fromDate = document.getElementById('from-date-bs').value;
-        formData.toDate = document.getElementById('to-date-bs').value;
+    // Get AD dates
+    const fromDateAD = document.getElementById('from-date-ad').value;
+    const toDateAD = document.getElementById('to-date-ad').value;
+
+    // Get BS dates
+    const fromDateBS = document.getElementById('from-date-bs').value;
+    const toDateBS = document.getElementById('to-date-bs').value;
+
+    // Determine which date type to use (prefer AD if both are filled)
+    if (fromDateAD && toDateAD) {
+        formData.dateType = 'ad';
+        formData.fromDate = fromDateAD;
+        formData.toDate = toDateAD;
+    } else if (fromDateBS && toDateBS) {
+        formData.dateType = 'bs';
+        formData.fromDate = fromDateBS;
+        formData.toDate = toDateBS;
     }
 
     return formData;
@@ -219,13 +206,13 @@ function validateForm(formData) {
         return { valid: false, message: 'Please select a group' };
     }
 
-    // Check dates
+    // Check if at least one date type is filled
     if (!formData.fromDate || !formData.toDate) {
-        return { valid: false, message: 'Please enter both from and to dates' };
+        return { valid: false, message: 'Please enter dates in either AD or BS format' };
     }
 
     // Validate based on date type
-    if (currentDateType === 'ad') {
+    if (formData.dateType === 'ad') {
         return validateDateRange(formData.fromDate, formData.toDate);
     } else {
         // Validate BS dates
@@ -244,67 +231,18 @@ function validateForm(formData) {
 // ================================
 
 /**
- * Generate sample report data (replace with actual API call)
- */
-function generateSampleData(formData) {
-    // This is sample data - replace with actual API call
-    const samplePolicies = [
-        {
-            policy_no: 'POL-001',
-            name: 'John Doe',
-            maturity_date: '2025-06-15',
-            sum_assured: 500000,
-            premium: 25000,
-            policy_status: 'A'
-        },
-        {
-            policy_no: 'POL-002',
-            name: 'Jane Smith',
-            maturity_date: '2025-07-20',
-            sum_assured: 750000,
-            premium: 37500,
-            policy_status: 'A'
-        },
-        {
-            policy_no: 'POL-003',
-            name: 'Robert Wilson',
-            maturity_date: '2025-08-10',
-            sum_assured: 600000,
-            premium: 30000,
-            policy_status: 'A'
-        },
-        {
-            policy_no: 'POL-004',
-            name: 'Maria Garcia',
-            maturity_date: '2025-09-05',
-            sum_assured: 800000,
-            premium: 40000,
-            policy_status: 'L'
-        },
-        {
-            policy_no: 'POL-005',
-            name: 'Ahmed Khan',
-            maturity_date: '2025-10-12',
-            sum_assured: 550000,
-            premium: 27500,
-            policy_status: 'A'
-        }
-    ];
-
-    return {
-        policies: samplePolicies,
-        count: samplePolicies.length,
-        formData: formData
-    };
-}
-
-/**
- * Fetch report data from API
+ * Fetch report data from server
  */
 async function fetchReportData(formData) {
     try {
-        // Get CSRF token
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        const requestData = {
+            date_type: formData.dateType,
+            from_date: formData.fromDate,
+            to_date: formData.toDate,
+            group_id: formData.groupId
+        };
 
         const response = await fetch('/api/corporate/reports/maturity-forecasting/', {
             method: 'POST',
@@ -312,13 +250,7 @@ async function fetchReportData(formData) {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrfToken
             },
-            credentials: 'same-origin',  // Include cookies for session auth
-            body: JSON.stringify({
-                group_id: formData.groupId,
-                from_date: formData.fromDate,
-                to_date: formData.toDate,
-                date_type: formData.dateType
-            })
+            body: JSON.stringify(requestData)
         });
 
         if (!response.ok) {
@@ -338,32 +270,33 @@ async function fetchReportData(formData) {
         throw error;
     }
 }
+
 /**
  * Calculate report statistics
  */
 function calculateStatistics(policies) {
     const totalPolicies = policies.length;
-    
+
     // Handle different field names
     const activePolicies = policies.filter(p => {
         const status = p.PolicyStatus || p.policy_status;
         return status === 'A';
     }).length;
-    
+
     const totalSum = policies.reduce((sum, p) => {
         const sumAssured = p.SumAssured || p.sum_assured || 0;
         return sum + parseFloat(sumAssured);
     }, 0);
-    
+
     // Calculate average months to maturity
     const monthsArray = policies.map(p => {
         const maturityDate = p.MaturityDate || p.maturity_date;
         return calculateMonthsDifference(maturityDate);
     });
-    const avgMonths = monthsArray.length > 0 
+    const avgMonths = monthsArray.length > 0
         ? Math.round(monthsArray.reduce((a, b) => a + b, 0) / monthsArray.length)
         : 0;
-    
+
     return {
         totalPolicies,
         activePolicies,
@@ -391,20 +324,28 @@ function populateReportTable(policies) {
 
     if (!policies || policies.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="text-center">No policies found for the selected criteria</td></tr>';
-        return;
+        return false; // Return false to indicate no data
     }
+
+    let hasValidData = false;
 
     policies.forEach(policy => {
         // Handle different field names from stored procedure
-        // Adjust these field names based on your stored procedure output
-        const policyNo = policy.PolicyNo || policy.policy_no || '-';
+        const policyNo = policy.PolicyNo || policy.policy_no || '';
+
+        // Skip rows without a valid policy number
+        if (!policyNo || policyNo === '-' || policyNo.trim() === '') {
+            return; // Skip this iteration
+        }
+
+        hasValidData = true;
+
         const name = policy.Name || policy.name || policy.EmployeeName || '-';
-        const maturityDate = policy.MaturityDate || policy.maturity_date || '-';
+        const maturityDate = policy.MaturityDate || policy.maturity_date || '';
         const sumAssured = policy.SumAssured || policy.sum_assured || 0;
         const premium = policy.Premium || policy.premium || 0;
         const policyStatus = policy.PolicyStatus || policy.policy_status || 'A';
-
-        const monthsToMaturity = calculateMonthsDifference(maturityDate);
+        const daysToMaturity = policy.RemainingDayToMature || NULL;
         const row = document.createElement('tr');
 
         row.innerHTML = `
@@ -413,12 +354,20 @@ function populateReportTable(policies) {
             <td>${formatDate(maturityDate)}</td>
             <td>${formatCurrency(sumAssured)}</td>
             <td>${formatCurrency(premium)}</td>
-            <td>${monthsToMaturity > 0 ? monthsToMaturity + ' months' : 'Matured'}</td>
+            <td>${daysToMaturity}</td>
             <td>${getStatusBadge(policyStatus)}</td>
         `;
 
         tbody.appendChild(row);
     });
+
+    // If no valid data was found, show message
+    if (!hasValidData) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No policies found for the selected criteria</td></tr>';
+        return false;
+    }
+
+    return true; // Return true to indicate data exists
 }
 /**
  * Update report summary
@@ -427,7 +376,7 @@ function updateReportSummary(data) {
     const groupSelect = document.getElementById('group-id');
     const groupName = groupSelect.options[groupSelect.selectedIndex].text;
 
-    const dateTypeText = currentDateType === 'ad' ? 'AD' : 'BS';
+    const dateTypeText = data.formData.dateType === 'ad' ? 'AD' : 'BS';
 
     const summaryText = `Showing ${data.count} policies maturing between ${data.formData.fromDate} and ${data.formData.toDate} (${dateTypeText}) for Group: ${groupName}`;
 
@@ -435,34 +384,54 @@ function updateReportSummary(data) {
 }
 
 /**
- * Show report results
+ * Show report results below the form
  */
 function showReportResults(data) {
-    // Calculate statistics
-    const stats = calculateStatistics(data.policies);
+    // Destroy existing DataTable safely
+    if ($.fn.DataTable.isDataTable('#report-table')) {
+        $('#report-table').DataTable().clear().destroy();
+    }
 
-    // Update UI
-    updateStatistics(stats);
-    updateReportSummary(data);
-    populateReportTable(data.policies);
+    // Populate table and check if data exists
+    const hasData = populateReportTable(data.policies);
 
-    // Hide form, show results
-    document.querySelector('.report-container').style.display = 'none';
-    document.getElementById('report-results').classList.add('active');
+    // Show results section
+    const resultsSection = document.getElementById('report-results');
+    resultsSection.style.display = 'block';
 
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+    // Enable download button only if data exists
+    const downloadBtn = document.getElementById('download-btn');
+    if (downloadBtn) {
+        downloadBtn.disabled = !hasData;
+    }
 
-/**
- * Hide report results and show form
- */
-function hideReportResults() {
-    document.getElementById('report-results').classList.remove('active');
-    document.querySelector('.report-container').style.display = 'block';
+    // Do not initialize DataTable if no data
+    if (!hasData) return;
 
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Initialize DataTable
+    $('#report-table').DataTable({
+        pageLength: 10,
+        ordering: true,
+        searching: true,
+        info: true,
+        responsive: true,
+        language: {
+            search: "Search:",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ entries",
+            paginate: {
+                first: "First",
+                last: "Last",
+                next: "Next",
+                previous: "Previous"
+            }
+        }
+    });
+
+    // Scroll to results
+    setTimeout(() => {
+        resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
 }
 
 // ================================
@@ -495,42 +464,26 @@ async function handleFormSubmit(event) {
     try {
         // Fetch report data
         const reportData = await fetchReportData(formData);
-        console.log('Report data:', reportData);
+        console.log('Report data received:', reportData);
+        console.log('Policies:', reportData.policies);
+        console.log('Count:', reportData.count);
+
+        // Check if we have valid data
+        if (!reportData.policies) {
+            throw new Error('No policies data received from server');
+        }
 
         // Show results
         showReportResults(reportData);
     } catch (error) {
         console.error('Error generating report:', error);
-        showNotification('Failed to generate report. Please try again.', 'error');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        showNotification('Failed to generate report: ' + error.message, 'error');
     } finally {
         setButtonLoading(submitButton, false);
     }
 }
-
-/**
- * Handle form reset
- */
-function handleFormReset() {
-    // Reset to AD date type
-    switchDateType('ad');
-
-    // Clear all fields
-    document.getElementById('from-date-ad').value = '';
-    document.getElementById('to-date-ad').value = '';
-    document.getElementById('from-date-bs').value = '';
-    document.getElementById('to-date-bs').value = '';
-    document.getElementById('group-id').value = '';
-}
-
-/**
- * Handle export report
- */
-function handleExportReport() {
-    // TODO: Implement export functionality (Excel, PDF, etc.)
-    console.log('Exporting report...');
-    showNotification('Export functionality coming soon!', 'info');
-}
-
 // ================================
 // EVENT LISTENERS
 // ================================
@@ -543,22 +496,14 @@ function initializeEventListeners() {
     const form = document.getElementById('maturity-report-form');
     if (form) {
         form.addEventListener('submit', handleFormSubmit);
-        form.addEventListener('reset', handleFormReset);
     }
 
-    // Back to form button
-    const backButton = document.getElementById('back-to-form-btn');
-    if (backButton) {
-        backButton.addEventListener('click', hideReportResults);
-    }
-
-    // Export report button
-    const exportButton = document.getElementById('export-report-btn');
-    if (exportButton) {
-        exportButton.addEventListener('click', handleExportReport);
+    // Download report button
+    const downloadButton = document.getElementById('download-btn');
+    if (downloadButton) {
+        downloadButton.addEventListener('click', handleDownloadReport);
     }
 }
-
 // ================================
 // INITIALIZATION
 // ================================
@@ -569,14 +514,8 @@ function initializeEventListeners() {
 function initialize() {
     console.log('Maturity report script loaded');
 
-    // Initialize date type tabs
-    initializeDateTypeTabs();
-
     // Initialize event listeners
     initializeEventListeners();
-
-    // Set default date type
-    switchDateType('ad');
 
     console.log('Maturity report initialized');
 }
@@ -586,4 +525,50 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize);
 } else {
     initialize();
+}
+
+
+
+/**
+ * Handle download report
+ */
+function handleDownloadReport() {
+    // Get current table data
+    const table = document.getElementById('report-table');
+    const rows = table.querySelectorAll('tbody tr');
+
+    if (rows.length === 0) {
+        showNotification('No data to download', 'error');
+        return;
+    }
+
+    // Create CSV content
+    let csvContent = "Policy No,Employee Name,Maturity Date,Sum Assured,Premium,Months to Maturity,Status\n";
+
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const rowData = Array.from(cells).map(cell => {
+            // Remove HTML tags and clean the text
+            let text = cell.textContent.trim();
+            // Escape commas and quotes
+            if (text.includes(',') || text.includes('"')) {
+                text = '"' + text.replace(/"/g, '""') + '"';
+            }
+            return text;
+        });
+        csvContent += rowData.join(',') + "\n";
+    });
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'maturity_report_' + new Date().toISOString().slice(0, 10) + '.csv');
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 }
