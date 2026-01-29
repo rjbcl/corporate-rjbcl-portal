@@ -30,6 +30,9 @@
 
 {% block content %}
 <!-- Page Header -->
+
+<div id="user-info" data-username="{{ user.username }}" class="d-none"></div>
+
 {% csrf_token %}
 <div class="row page-titles mx-0">
     <div class="col-sm-6 p-md-0">
@@ -63,12 +66,12 @@
                             <div class="form-group col-md-6">
                                 <label>From Date <span class="text-danger">*</span></label>
                                 <div class="row">
-                                    <div class="col-md-6 mb-3 mb-md-0">
+                                    <div class="col-md-6 mb-6 pe-4 mb-md-0">
                                         <small class="form-text text-muted mb-1 d-block">BS</small>
                                         <input type="text" class="form-control" id="from-date-bs" name="from_date_bs"
                                             placeholder="YYYY-MM-DD">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-6 px-4 ">
                                         <small class="form-text text-muted mb-1 d-block">AD</small>
                                         <input type="date" class="form-control" id="from-date-ad" name="from_date_ad"
                                             required>
@@ -80,12 +83,12 @@
                             <div class="form-group col-md-6">
                                 <label>To Date <span class="text-danger">*</span></label>
                                 <div class="row">
-                                    <div class="col-md-6 mb-3 mb-md-0">
+                                    <div class="col-md-6 px-4  mb-3 mb-md-0">
                                         <small class="form-text text-muted mb-1 d-block">BS</small>
                                         <input type="text" class="form-control" id="to-date-bs" name="to_date_bs"
                                             placeholder="YYYY-MM-DD">
                                     </div>
-                                    <div class="col-md-6">
+                                    <div class="col-md-6 ps-4 ">
                                         <small class="form-text text-muted mb-1 d-block">AD</small>
                                         <input type="date" class="form-control" id="to-date-ad" name="to_date_ad"
                                             required>
@@ -98,7 +101,7 @@
                         <div class="form-row">
                             <div class="form-group col-md-12">
                                 <label>Select Group <span class="text-danger">*</span></label>
-                                <select id="group-id" name="group_id" class="form-control p-2" required>
+                                <select id="group-id" name="group_id" class="form-control py-2 " required>
                                     <option value="">-- Select a Group --</option>
                                     {% for group in groups %}
                                     <option value="{{ group.group_id }}">{{ group.group_name }}</option>
@@ -126,9 +129,6 @@
 <div class="row report-results" id="report-results" style="display: none;">
     <div class="col-lg-12">
         <div class="card">
-            <div class="card-header">
-                <h4 class="card-title">Details</h4>
-            </div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table id="report-table" class="display table table-striped" style="min-width: 845px">
@@ -136,11 +136,13 @@
                             <tr>
                                 <th>Policy No</th>
                                 <th>Employee Name</th>
-                                <th>Maturity Date</th>
                                 <th>Sum Assured</th>
                                 <th>Premium</th>
+                                <th>Maturity Date</th>
                                 <th>Days to Maturity</th>
+                                <th>Term</th>
                                 <th>Status</th>
+
                             </tr>
                         </thead>
                         <tbody id="report-tbody">
@@ -155,5 +157,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/date-conversion.js' %}"></script>
+<script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
 <script src="{% static 'js/dashboard/reports/maturity_forecasting_report.js' %}"></script>
 {% endblock %}

@@ -124,7 +124,6 @@ def maturity_forecasting_report(request):
             """
             
             print(f"Executing: {sql}")
-            print(f"Parameters: group_id={group_id}, from_date={from_date}, to_date={to_date}")
             
             cursor.execute(sql, [group_id, from_date, to_date])
             
@@ -135,9 +134,7 @@ def maturity_forecasting_report(request):
                 print(f"Processing result set {result_set_count}")
                 
                 if cursor.description:
-                    columns = [col[0] for col in cursor.description]
-                    print(f"Columns in result set {result_set_count}: {columns}")
-                    
+                    columns = [col[0] for col in cursor.description]                    
                     rows = cursor.fetchall()
                     print(f"Rows in result set {result_set_count}: {len(rows)}")
                     
@@ -284,6 +281,7 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
         'register_no',
         'employee_id',
         'claim_status',
+        'branch'
     ]
     
     search_fields = [

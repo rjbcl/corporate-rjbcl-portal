@@ -1,7 +1,11 @@
-/**
- * Maturity Forecasting Report JavaScript
- * Handles form submission, date validation, and report generation
- */
+const dateInputs = document.querySelectorAll("#to-date-ad, #from-date-ad");
+  // Or trigger when input gains focus
+  dateInputs.forEach(input => {
+    input.addEventListener("focus", function() {
+      this.showPicker();
+    });
+  });
+
 
 // ================================
 // GLOBAL STATE
@@ -340,21 +344,25 @@ function populateReportTable(policies) {
 
         hasValidData = true;
 
-        const name = policy.Name || policy.name || policy.EmployeeName || '-';
-        const maturityDate = policy.MaturityDate || policy.maturity_date || '';
-        const sumAssured = policy.SumAssured || policy.sum_assured || 0;
-        const premium = policy.Premium || policy.premium || 0;
-        const policyStatus = policy.PolicyStatus || policy.policy_status || 'A';
-        const daysToMaturity = policy.RemainingDayToMature || NULL;
+        const name = policy.Name ||   '-';
+        const maturityDate = policy.MaturityDate ||  '';
+        const sumAssured = policy.SumAssured ||  0;
+        const premium = policy.Premium ||  0;
+        const policyStatus = policy.PolicyStatus ||  'A';
+        const daysToMaturity = policy.RemainingDayToMature || 'NULL';
+        const term = policy.Term || 'NULL';
+
         const row = document.createElement('tr');
 
         row.innerHTML = `
             <td>${policyNo}</td>
             <td>${name}</td>
-            <td>${formatDate(maturityDate)}</td>
             <td>${formatCurrency(sumAssured)}</td>
             <td>${formatCurrency(premium)}</td>
+            <td>${formatDate(maturityDate)}</td>
             <td>${daysToMaturity}</td>
+            <td>${term}</td>
+
             <td>${getStatusBadge(policyStatus)}</td>
         `;
 
@@ -363,7 +371,7 @@ function populateReportTable(policies) {
 
     // If no valid data was found, show message
     if (!hasValidData) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center">No policies found for the selected criteria</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No policies found. </td></tr>';
         return false;
     }
 
@@ -387,28 +395,47 @@ function updateReportSummary(data) {
  * Show report results below the form
  */
 function showReportResults(data) {
-    // Destroy existing DataTable safely
+    // Store the data globally for download
+    maturityForcastingData = data;
+    
+    // Destroy existing DataTable first if it exists
     if ($.fn.DataTable.isDataTable('#report-table')) {
-        $('#report-table').DataTable().clear().destroy();
+        $('#report-table').DataTable().destroy();
     }
-
-    // Populate table and check if data exists
+    
+    // Clear and populate the table with new data
     const hasData = populateReportTable(data.policies);
 
     // Show results section
     const resultsSection = document.getElementById('report-results');
     resultsSection.style.display = 'block';
-
+    
+    // If no data, don't initialize DataTables, just show the message
+    if (!hasData) {
+        // Disable download button
+        const downloadBtn = document.getElementById('download-btn');
+        if (downloadBtn) {
+            downloadBtn.disabled = true;
+        }
+        
+        // Show notification
+        showNotification('No policies found for the selected criteria', 'info');
+        
+        // Scroll to results
+        setTimeout(() => {
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+        
+        return; // Exit early
+    }
+    
     // Enable download button only if data exists
     const downloadBtn = document.getElementById('download-btn');
     if (downloadBtn) {
-        downloadBtn.disabled = !hasData;
+        downloadBtn.disabled = false;
     }
-
-    // Do not initialize DataTable if no data
-    if (!hasData) return;
-
-    // Initialize DataTable
+    
+    // Initialize DataTable with fresh data
     $('#report-table').DataTable({
         pageLength: 10,
         ordering: true,
@@ -427,13 +454,12 @@ function showReportResults(data) {
             }
         }
     });
-
+    
     // Scroll to results
     setTimeout(() => {
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
 }
-
 // ================================
 // FORM HANDLING
 // ================================
@@ -441,6 +467,7 @@ function showReportResults(data) {
 /**
  * Handle form submission
  */
+var maturityForcastingData; // Global variable to store report data
 async function handleFormSubmit(event) {
     event.preventDefault();
 
@@ -533,42 +560,72 @@ if (document.readyState === 'loading') {
  * Handle download report
  */
 function handleDownloadReport() {
-    // Get current table data
-    const table = document.getElementById('report-table');
-    const rows = table.querySelectorAll('tbody tr');
-
-    if (rows.length === 0) {
+    if (!maturityForcastingData || !maturityForcastingData.policies || maturityForcastingData.policies.length === 0) {
         showNotification('No data to download', 'error');
         return;
     }
-
-    // Create CSV content
-    let csvContent = "Policy No,Employee Name,Maturity Date,Sum Assured,Premium,Months to Maturity,Status\n";
-
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const rowData = Array.from(cells).map(cell => {
-            // Remove HTML tags and clean the text
-            let text = cell.textContent.trim();
-            // Escape commas and quotes
-            if (text.includes(',') || text.includes('"')) {
-                text = '"' + text.replace(/"/g, '""') + '"';
+    
+    const policies = maturityForcastingData.policies;
+    
+    // Get all keys from the first policy object (column names)
+    const headers = Object.keys(policies[0]);
+    
+    // Create CSV header row
+    let csvContent = headers.join(',') + '\n';
+    
+    // Add data rows
+    policies.forEach(policy => {
+        const row = headers.map(header => {
+            let value = policy[header];
+            
+            // Handle null/undefined
+            if (value === null || value === undefined) {
+                value = '';
             }
-            return text;
+            
+            // Convert to string
+            value = String(value).trim();
+            
+            // Escape commas, quotes, and newlines for CSV
+            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                value = '"' + value.replace(/"/g, '""') + '"';
+            }
+            
+            return value;
         });
-        csvContent += rowData.join(',') + "\n";
+        
+        csvContent += row.join(',') + '\n';
     });
-
-    // Create download link
+    
+    // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-
+    
+    // Get group ID from select dropdown value
+    const groupSelect = document.getElementById('group-id');
+    const groupId = groupSelect.value;
+    
+    // Get user from data attribute
+    const userInfoDiv = document.getElementById('user-info');
+    const userName = userInfoDiv ? userInfoDiv.dataset.username : 'user';
+    
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().slice(0, 10);
+    
+    // Create filename
+    const filename = `maturity_forecasting_report_${groupId}_${userName}_${today}.csv`;
+    
     link.setAttribute('href', url);
-    link.setAttribute('download', 'maturity_report_' + new Date().toISOString().slice(0, 10) + '.csv');
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
-
+    
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // Clean up
+    URL.revokeObjectURL(url);
 }
+
+
