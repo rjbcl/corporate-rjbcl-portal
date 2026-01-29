@@ -1901,10 +1901,12 @@ BEGIN
 
 SELECT ROW_NUMBER() OVER (ORDER BY PolicyNo) AS SN, PolicyNo,Branch,Name,NepName,GroupId,DOB=CONVERT(VARCHAR(10),DOB,103),DOC=CONVERT(VARCHAR(10),MIN(DOC),103),
 SumAssured=SUM(SumAssured),
-Term=MAX(Term),Premium=SUM(Premium),MaturityDate=CONVERT(VARCHAR(10),MaturityDate,103),
+Term=MAX(Term),Instalment =MAX(Instalment),Premium=SUM(Premium),MaturityDate=CONVERT(VARCHAR(10),MaturityDate,103),
 TotalPolicy=COUNT(PolicyNo),RemainingDayToMature=DATEDIFF(DAY,GETDATE(),MaturityDate),PolicyStatus 
 ---INTO #temMaturityForecast
-FROM dbo.tblGroupEndowment 
+-- FROM dbo.tblGroupEndowment 
+FROM dbo.view_copo_GroupEndowment 
+
 WHERE GroupId=@GroupId
 AND PolicyStatus='A' 
 AND policyNo IS NOT NULL
