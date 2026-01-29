@@ -3,6 +3,7 @@ WITH SCHEMABINDING
 AS
 SELECT 
     -- Join Keys
+    ge.Branch,
     ged.RegisterNo,
     ged.PolicyNo,
     
