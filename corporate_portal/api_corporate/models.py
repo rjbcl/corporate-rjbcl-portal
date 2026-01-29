@@ -245,6 +245,12 @@ class GroupEndowment(models.Model):
     )
     
     # Fields from tblGroupEndowmentDetails (prioritized/reliable data)
+    branch = models.CharField(
+        db_column='Branch',
+        max_length=50,
+        null=True,
+        blank=True
+    )
     group_id = models.CharField(
         db_column='GroupId',
         max_length=50,
