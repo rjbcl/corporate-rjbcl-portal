@@ -1,12 +1,3 @@
-const dateInputs = document.querySelectorAll("#to-date-ad, #from-date-ad");
-  // Or trigger when input gains focus
-  dateInputs.forEach(input => {
-    input.addEventListener("focus", function() {
-      this.showPicker();
-    });
-  });
-
-
 // ================================
 // GLOBAL STATE
 // ================================
@@ -309,15 +300,6 @@ function calculateStatistics(policies) {
     };
 }
 
-/**
- * Update statistics cards
- */
-function updateStatistics(stats) {
-    document.getElementById('stat-total-policies').textContent = stats.totalPolicies;
-    document.getElementById('stat-active-policies').textContent = stats.activePolicies;
-    document.getElementById('stat-total-sum').textContent = formatCurrency(stats.totalSum);
-    document.getElementById('stat-avg-months').textContent = stats.avgMonths + ' months';
-}
 
 /**
  * Populate report table

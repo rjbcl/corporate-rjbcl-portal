@@ -2,6 +2,13 @@
  * INTEGRATED DATE CONVERSION SCRIPT
  * With bindBsAdSync logic for prefill
  **************************************************/
+const dateInputs = document.querySelectorAll("#to-date-ad, #from-date-ad, #maturity-from-date-ad, #maturity-to-date-ad, #surrender-from-date-ad, #surrender-to-date-ad, #death-from-date-ad, #death-to-date-ad");
+// Or trigger when input gains focus
+dateInputs.forEach(input => {
+    input.addEventListener("focus", function () {
+        this.showPicker();
+    });
+});
 
 $(document).ready(function () {
 
@@ -40,26 +47,26 @@ $(document).ready(function () {
      **************************************************/
     function isValidAdDate(adRaw) {
         if (!adRaw || typeof adRaw !== 'string') return false;
-        
+
         // Check format YYYY-MM-DD
         if (!/^\d{4}-\d{2}-\d{2}$/.test(adRaw)) return false;
-        
+
         const parts = adRaw.split("-");
         if (parts.length !== 3) return false;
-        
+
         const [y, m, d] = parts.map(Number);
-        
+
         // Basic range validation
         if (y < 1900 || y > 2100) return false;
         if (m < 1 || m > 12) return false;
         if (d < 1 || d > 31) return false;
-        
+
         // Check if it's a valid date
         const date = new Date(y, m - 1, d);
         if (date.getFullYear() !== y || date.getMonth() !== (m - 1) || date.getDate() !== d) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -96,7 +103,7 @@ $(document).ready(function () {
     function adToBs(adRaw) {
         try {
             if (!adRaw) return "";
-            
+
             // Validate AD date format before processing
             if (!isValidAdDate(adRaw)) {
                 console.warn("Invalid AD date format:", adRaw);
@@ -104,13 +111,13 @@ $(document).ready(function () {
             }
 
             const [y, m, d] = adRaw.split("-").map(Number);
-            
+
             // Additional validation after parsing
             if (isNaN(y) || isNaN(m) || isNaN(d)) {
                 console.warn("Invalid AD date values:", { y, m, d });
                 return "";
             }
-            
+
             const bs = NepaliFunctions.AD2BS({ year: y, month: m, day: d });
 
             return `${bs.year}-${String(bs.month).padStart(2, "0")}-${String(bs.day).padStart(2, "0")}`;
@@ -129,32 +136,15 @@ $(document).ready(function () {
     /**************************************************
      * Datepicker Binding
      **************************************************/
-    const bsFields = "#from-date-bs,#to-date-bs";
+    const bsFields = "#from-date-bs,#to-date-bs,#maturity-from-date-bs,#maturity-to-date-bs,#surrender-from-date-bs,#surrender-to-date-bs,#death-from-date-bs,#death-to-date-bs";
 
     $(bsFields).each(function () {
         const input = this;
-
         $(input).nepaliDatePicker({
             ndpYear: true,
             ndpMonth: true,
             ndpYearCount: 120,
             language: 'english',
-
-            onSelect: function (bsObj) {
-                const id = input.id;
-                const ad = bsToAd(bsObj.value);
-
-                if (id === "from-date-bs") $("#from-date-ad").val(ad);
-                if (id === "to-date-bs") $("#to-date-ad").val(ad);
-            },
-
-            onChange: function () {
-                const id = input.id;
-                const ad = bsToAd(input.value);
-
-                if (id === "from-date-bs") $("#from-date-ad").val(ad);
-                if (id === "to-date-bs") $("#to-date-ad").val(ad);
-            }
         });
     });
 
@@ -164,47 +154,41 @@ $(document).ready(function () {
     function bindBsAdSync(bsSelector, adSelector) {
         const today = new Date();
         today.setHours(23, 59, 59, 999); // End of today
-        
+
         // BS input changes → update AD
         $(bsSelector).on('input change blur', function () {
             const bsVal = $(this).val();
             if (!bsVal) return;
-            
+
             const ad = bsToAd(bsVal);
             if (!ad) {
                 console.warn("Failed to convert BS to AD:", bsVal);
                 return;
             }
-            
-            const adDate = new Date(ad);
-            if (adDate <= today) {
-                $(adSelector).val(ad);
-                $(adSelector).removeClass('is-invalid');
-            } else {
-                swalFire("Wrong Date", "Future Date Selected");
-                $(bsSelector + ', ' + adSelector).val('');
-            }
+            $(adSelector).val(ad);
+            $(adSelector).removeClass('is-invalid');
+
         });
-        
+
         // AD input changes → update BS
         $(adSelector).on('input change blur', function () {
             const ad = $(this).val();
             if (!ad) return;
-            
+
             // Validate before processing
             if (!isValidAdDate(ad)) {
                 console.warn("Invalid AD date format in input:", ad);
                 return;
             }
-            
+
             const adDate = new Date(ad);
             const bs = adToBs(ad);
-            
+
             if (!bs) {
                 console.warn("Failed to convert AD to BS:", ad);
                 return;
             }
-            
+
             if (adDate <= today) {
                 $(bsSelector).val(bs);
                 $(bsSelector).removeClass('is-invalid');
@@ -218,7 +202,13 @@ $(document).ready(function () {
     // Apply binding to all date field pairs
     bindBsAdSync('#from-date-bs', '#from-date-ad');
     bindBsAdSync('#to-date-bs', '#to-date-ad');
-   
+    bindBsAdSync('#maturity-from-date-bs', '#maturity-from-date-ad');
+    bindBsAdSync('#maturity-to-date-bs', '#maturity-to-date-ad');
+    bindBsAdSync('#surrender-from-date-bs', '#surrender-from-date-ad');
+    bindBsAdSync('#surrender-to-date-bs', '#surrender-to-date-ad');
+    bindBsAdSync('#death-from-date-bs', '#death-from-date-ad');
+    bindBsAdSync('#death-to-date-bs', '#death-to-date-ad');
+
 
     /**************************************************
      * READY EVENT DISPATCH

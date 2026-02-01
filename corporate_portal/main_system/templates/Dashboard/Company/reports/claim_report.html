@@ -1,0 +1,408 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}Claim Report - {{ company.company_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .table-striped tbody tr:hover {
+        background-color: #f5f8fa;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Tab Styling */
+    .nav-tabs {
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .nav-tabs .nav-link {
+        border: none;
+        color: #6c757d;
+        padding: 12px 24px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #007bff;
+        background-color: #f8f9fa;
+        border-bottom: 1px solid #007bff;
+    }
+
+    .tab-content {
+        padding-top: 20px;
+    }
+
+    /* Add spacing between form and table */
+    .report-results-inline {
+        margin-top: 30px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div id="user-info" data-username="{{ user.username }}" class="d-none"></div>
+
+{% csrf_token %}
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Claim Report</h4>
+            <p class="mb-0">Generate surrender, maturity and death claim reports</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="javascript:void(0)">Reports</a></li>
+            <li class="breadcrumb-item active"><a href="javascript:void(0)">Claim Report</a></li>
+        </ol>
+    </div>
+</div>
+
+<!-- Report Form Container -->
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-body">
+                <!-- Tab Navigation -->
+                <ul class="nav nav-tabs" id="claimTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="maturity-tab" data-bs-toggle="tab" data-bs-target="#maturity" type="button" role="tab" aria-controls="maturity" aria-selected="true">
+                            <i class="bi bi-calendar-check"></i> Maturity Claims
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="surrender-tab" data-bs-toggle="tab" data-bs-target="#surrender" type="button" role="tab" aria-controls="surrender" aria-selected="false">
+                            <i class="bi bi-file-earmark-x"></i> Surrender Claims
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="death-tab" data-bs-toggle="tab" data-bs-target="#death" type="button" role="tab" aria-controls="death" aria-selected="false">
+                            <i class="bi bi-heart-pulse"></i> Death Claims
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="claimTabsContent">
+                    <!-- Maturity Claims Tab -->
+                    <div class="tab-pane show active" id="maturity" role="tabpanel" aria-labelledby="maturity-tab">
+                        <div class="basic-form">
+                            <form id="maturity-report-form" class="claim-form" data-claim-type="maturity">
+                                <!-- Date Range Selection -->
+                                <div class="form-row">
+                                    <!-- From Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>From Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3 pe-4 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="maturity-from-date-bs" name="from_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 px-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="maturity-from-date-ad" name="from_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- To Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>To Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 px-4 mb-3 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="maturity-to-date-bs" name="to_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 ps-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="maturity-to-date-ad" name="to_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Group Selection -->
+                                <div class="form-row">
+                                    <div class="form-group col-md-12">
+                                        <label>Select Group <span class="text-danger">*</span></label>
+                                        <select id="maturity-group-id" name="group_id" class="form-control py-2" required>
+                                            <option value="">-- Select a Group --</option>
+                                            {% for group in groups %}
+                                            <option value="{{ group.group_id }}">{{ group.group_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary" id="maturity-generate-btn">
+                                        <i class="bi bi-file-earmark-bar-graph"></i> Generate Maturity Report
+                                    </button>
+                                    <button type="button" class="btn btn-success ml-2" id="maturity-download-btn" disabled>
+                                        <i class="bi bi-download"></i> Download Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Surrender Claims Tab -->
+                    <div class="tab-pane" id="surrender" role="tabpanel" aria-labelledby="surrender-tab">
+                        <div class="basic-form">
+                            <form id="surrender-report-form" class="claim-form" data-claim-type="surrender">
+                                <!-- Date Range Selection -->
+                                <div class="form-row">
+                                    <!-- From Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>From Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3 pe-4 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="surrender-from-date-bs" name="from_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 px-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="surrender-from-date-ad" name="from_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- To Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>To Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 px-4 mb-3 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="surrender-to-date-bs" name="to_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 ps-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="surrender-to-date-ad" name="to_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Group Selection -->
+                                <div class="form-row">
+                                    <div class="form-group col-md-12">
+                                        <label>Select Group <span class="text-danger">*</span></label>
+                                        <select id="surrender-group-id" name="group_id" class="form-control py-2" required>
+                                            <option value="">-- Select a Group --</option>
+                                            {% for group in groups %}
+                                            <option value="{{ group.group_id }}">{{ group.group_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary" id="surrender-generate-btn">
+                                        <i class="bi bi-file-earmark-bar-graph"></i> Generate Surrender Report
+                                    </button>
+                                    <button type="button" class="btn btn-success ml-2" id="surrender-download-btn" disabled>
+                                        <i class="bi bi-download"></i> Download Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Death Claims Tab -->
+                    <div class="tab-pane" id="death" role="tabpanel" aria-labelledby="death-tab">
+                        <div class="basic-form">
+                            <form id="death-report-form" class="claim-form" data-claim-type="death">
+                                <!-- Date Range Selection -->
+                                <div class="form-row">
+                                    <!-- From Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>From Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3 pe-4 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="death-from-date-bs" name="from_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 px-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="death-from-date-ad" name="from_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- To Date Column -->
+                                    <div class="form-group col-md-6">
+                                        <label>To Date <span class="text-danger">*</span></label>
+                                        <div class="row">
+                                            <div class="col-md-6 px-4 mb-3 mb-md-0">
+                                                <small class="form-text text-muted mb-1 d-block">BS</small>
+                                                <input type="text" class="form-control" id="death-to-date-bs" name="to_date_bs" placeholder="YYYY-MM-DD">
+                                            </div>
+                                            <div class="col-md-6 ps-4">
+                                                <small class="form-text text-muted mb-1 d-block">AD</small>
+                                                <input type="date" class="form-control" id="death-to-date-ad" name="to_date_ad" required>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Group Selection -->
+                                <div class="form-row">
+                                    <div class="form-group col-md-12">
+                                        <label>Select Group <span class="text-danger">*</span></label>
+                                        <select id="death-group-id" name="group_id" class="form-control py-2" required>
+                                            <option value="">-- Select a Group --</option>
+                                            {% for group in groups %}
+                                            <option value="{{ group.group_id }}">{{ group.group_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Form Actions -->
+                                <div class="form-group">
+                                    <button type="submit" class="btn btn-primary" id="death-generate-btn">
+                                        <i class="bi bi-file-earmark-bar-graph"></i> Generate Death Report
+                                    </button>
+                                    <button type="button" class="btn btn-success ml-2" id="death-download-btn" disabled>
+                                        <i class="bi bi-download"></i> Download Report
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Maturity Report Results Section (Outside main card, inside row) -->
+<div class="row" id="maturity-report-results" style="display: none;">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Maturity Claim Report Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="maturity-report-table" class="display table table-striped" style="min-width: 845px">
+                        <thead>
+                            <tr>
+                                <th>Policy No</th>
+                                <th>Employee Name</th>
+                                <th>Sum Assured</th>
+                                <th>Premium</th>
+                                <th>Maturity Date</th>
+                                <th>Days to Maturity</th>
+                                <th>Term</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="maturity-report-tbody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Surrender Report Results Section (Outside main card, inside row) -->
+<div class="row" id="surrender-report-results" style="display: none;">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Surrender Claim Report Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="surrender-report-table" class="display table table-striped" style="min-width: 845px">
+                        <thead>
+                            <tr>
+                                <th>Policy No</th>
+                                <th>Employee Name</th>
+                                <th>Sum Assured</th>
+                                <th>Premium</th>
+                                <th>Surrender Date</th>
+                                <th>Surrender Value</th>
+                                <th>Term</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="surrender-report-tbody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Death Report Results Section (Outside main card, inside row) -->
+<div class="row" id="death-report-results" style="display: none;">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Death Claim Report Results</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="death-report-table" class="display table table-striped" style="min-width: 845px">
+                        <thead>
+                            <tr>
+                                <th>Policy No</th>
+                                <th>Employee Name</th>
+                                <th>Sum Assured</th>
+                                <th>Premium</th>
+                                <th>Death Date</th>
+                                <th>Claim Amount</th>
+                                <th>Term</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="death-report-tbody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/date-conversion.js' %}"></script>
+<script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
+<script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/dashboard/reports/claim-report.js' %}"></script>
+{% endblock %}
