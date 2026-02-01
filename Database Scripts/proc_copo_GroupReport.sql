@@ -1,9 +1,11 @@
--- EXEC proc_GroupReport @flag='MaturityForecastingReport' ,@User = 'rayal.khatri',@GroupId  = '052',
+-- EXEC proc_GroupReport @flag='GroupAllClaimReport' ,@User = 'rayal.khatri',@GroupId  = '052',
 -- @FromDate= '2026-01-15',@ToDate = '2027-03-17'
 
 
-EXEC proc_copo_GroupReport @flag='MaturityForecastingReport' ,@User = 'rayal',@GroupId  = '052',
-@FromDate= '2026-01-15',@ToDate = '2027-03-17'
+EXEC proc_copo_GroupReport @flag='GroupDeathReport'
+,@User = 'manoj.gautam',@GroupType  = 'Group',@DateOption  = 'DeathPaid'
+,@FromDate= '2022-01-15',@ToDate = '2030-03-17',@DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId='052'
+
  
 SET ANSI_NULLS ON
 GO
@@ -1828,7 +1830,7 @@ select * from  #tempSearchDeath
 END
 IF @GroupType='Group'
 BEGIN
-SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
+SELECT  a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
 b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount
 --,NetClaimAmount=a.TotalClaimAmount-a.LoanAmount,
 ,InterestOnLoanAmount = a.CalculatedInterest
@@ -1848,14 +1850,11 @@ ELSE b.DOC END
 AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
 
 
-Select * From #TempGroupDeath UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(Bonus),SUM(ClaimAmount),SUM(LoanAmount)
-	,SUM(InterestOnLoanAmount),SUM(TotalClaimAmount)
-	,SUM(NetClaimAmount),'','','','','',''
-	FROM #TempGroupDeath Order By SNo
-
-select * from  #tempSearchDeath
+Select * From #TempGroupDeath 
+Where GroupId = '052'
 END
+
+
 ELSE
 BEGIN
 SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
@@ -1924,16 +1923,9 @@ END
 ELSE IF @Flag='GroupAllClaimReport'
 BEGIN
 
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn',@GroupId As [Group Id],
-
-CONVERT(VARCHAR(10),@FromDate,105) AS [ Date From:],
-CONVERT(VARCHAR(10),@ToDate,105) AS [ Date To:]
-INTO  #tempGroupAllClaimReport
-
-
 SELECT PolicyNo,GroupId,Name,DOB,DOC=MIN(DOC),Term=MAX(Term),SA=SUM(SumAssured),Premium=SUM(Premium),PolicyStatus,TotalPolicy=COUNT(PolicyNo) 
 INTO #temptblGroupEndowment 
-FROM dbo.tblGroupEndowment WHERE GroupId=ISNULL(@GroupId,GroupId)
+FROM dbo.tblGroupEndowment WHERE GroupId=@GroupId
 GROUP BY PolicyNo,GroupId,Name,DOB,PolicyStatus
 
 ------------------Terminate Policy-----------------------------
@@ -1998,8 +1990,6 @@ Name VARCHAR(100),
 GroupId VARCHAR(100),
 SA MONEY,
 Premium MONEY,
-CreatedDate DATE,
-CreatedBy VARCHAR(100),
 PolicyStatus VARCHAR(100),
 TotalPolicy VARCHAR(100)
 )
@@ -2015,28 +2005,27 @@ INSERT INTO #ClaimAllReport
 	Term,
     SA,
     Premium,
-    CreatedDate,
-    CreatedBy,
     PolicyStatus,
 	TotalPolicy
 )
 
-SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #tempTerminateData
-UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #tempTransferData
-UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #temptblGroupDeathClaim
-UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #temptblGroupMaturity
-UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #temptblGroupSurrender
+SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,PolicyStatus,TotalPolicy FROM #tempTerminateData
+UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,PolicyStatus,TotalPolicy FROM #tempTransferData
+UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,PolicyStatus,TotalPolicy FROM #temptblGroupDeathClaim
+UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,PolicyStatus,TotalPolicy FROM #temptblGroupMaturity
+UNION ALL SELECT PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,PolicyStatus,TotalPolicy FROM #temptblGroupSurrender
 
 
-SELECT ROW_NUMBER() OVER (ORDER BY PolicyNo) AS SN,GroupId,DOC=CONVERT(VARCHAR(10),DOC,103),Term,PolicyNo,DOB=CONVERT(VARCHAR(10),DOB,103),Name,SA,Premium,CreatedDate=CONVERT(VARCHAR(10),CreatedDate,103),CreatedBy,PolicyStatus,TotalPolicy 
+SELECT ROW_NUMBER() OVER (ORDER BY PolicyNo) AS SN,GroupId,DOC=CONVERT(VARCHAR(10),DOC,103),Term,PolicyNo,DOB=CONVERT(VARCHAR(10),DOB,103),Name,SA,Premium,PolicyStatus,TotalPolicy 
 INTO #ClaimAllReport1
 FROM #ClaimAllReport
 
 
-SELECT SN,PolicyNo,DOB,Name,GroupId,DOC,Term,SA,Premium,CreatedDate,CreatedBy,PolicyStatus,TotalPolicy FROM #ClaimAllReport1 UNION ALL
-SELECT MAX(SN)+1,'Total','','','','','',SUM(SA),SUM(Premium),'','','','' FROM #ClaimAllReport1 ORDER BY SN
+SELECT SN, PolicyNo, DOB, Name, GroupId, DOC, Term, SA, Premium, PolicyStatus, TotalPolicy
+FROM #ClaimAllReport1
+WHERE PolicyStatus = @PolicyStatus
+ORDER BY SN;
 
-SELECT * FROM #tempGroupAllClaimReport
 
 DROP TABLE #temptblGroupEndowment
 DROP TABLE #tempTerminateData
@@ -2046,7 +2035,7 @@ DROP TABLE #temptblGroupMaturity
 DROP TABLE #temptblGroupSurrender
 DROP TABLE #ClaimAllReport
 DROP TABLE #ClaimAllReport1
-DROP TABLE #tempGroupAllClaimReport
+
 
 RETURN
 END
