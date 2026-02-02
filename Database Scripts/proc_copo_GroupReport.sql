@@ -2,11 +2,15 @@
 -- @FromDate= '2026-01-15',@ToDate = '2027-03-17'
 
 
-EXEC proc_copo_GroupReport @flag='GroupDeathReport'
-,@User = 'manoj.gautam',@GroupType  = 'Group',@DateOption  = 'DeathPaid'
-,@FromDate= '2022-01-15',@ToDate = '2030-03-17',@DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId='052'
+-- EXEC proc_copo_GroupReport @flag='GroupDeathReport'
+-- ,@User = 'manoj.gautam',@GroupType  = 'Group',@DateOption  = 'DeathPaid'
+-- ,@FromDate= '2022-01-15',@ToDate = '2030-03-17',@DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId='052'
 
- 
+-- EXEC proc_copo_GroupReport @flag='GroupMaturityReport' ,@User = 'anush.adhikari',
+-- @GroupType  = 'Group', @FromDate= '04/13/2017' ,@ToDate = '04/13/2025',
+-- @DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId = '197'
+
+
 SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
@@ -1771,121 +1775,42 @@ select * from  #tempSearchSurrender
 
 END
 
+
 END
 
 
 ELSE IF @Flag='GroupDeathReport'
 BEGIN
 
+	WITH tempGroupEndowmentDeath AS(
+		SELECT PolicyNo,EmployeeId,GroupId,Name,NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate 
+		FROM dbo.tblGroupEndowment
+		WHERE PolicyStatus='D' AND groupId=@GroupId
+		GROUP BY EmployeeId,PolicyNo,GroupId,Name,NepName,DOB,MaturityDate
+	),
+	tempGroupEndowmentDetails AS(
+		SELECT PolicyNo ,Instalment =max(Instalment) 
+		FROM tblGroupEndowmentDetails 
+		WHERE PolicyStatus='D' AND groupId=@GroupId
+		GROUP BY PolicyNo
+	),
+	groupDeathReport as (
+		SELECT  a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
+		b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount
+		--,NetClaimAmount=a.TotalClaimAmount-a.LoanAmount,
+		,InterestOnLoanAmount = a.CalculatedInterest
+		,TotalClaimAmount = b.SA +a.TotalBonus
+		,NetClaimAmount=b.SA+a.TotalBonus-ISNULL(a.LoanAmount, 0)-ISNULL(a.CalculatedInterest,0),
+		CONVERT(VARCHAR(10),a.DeathDate,103) AS DeathDate,CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,CONVERT(VARCHAR(10),a.TerminationDate,103) AS TerminationDate,a.VoucherNo,a.ClaimId,c.Instalment
+		FROM tblGroupDeathClaim a 
+		inner join tempGroupEndowmentDeath b 
+		on a.PolicyNo=b.PolicyNo 
+		inner join tempGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
+		WHERE  convert(date,a.PaidDate, 103) BETWEEN ISNULL(@FromDate,a.PaidDate) AND ISNULL(@ToDate,a.PaidDate) AND b.GroupId=@GroupId
+				AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
+	)
 
-SELECT @GroupName=GroupName FROM tblGroupInformation WHERE GroupId=@GroupId
-SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-
-IF @GroupType='Select Group Type'
-SET @GroupType='All Group Report'
-
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn',@GroupName As [Group Name], @FiscalYear AS [Fiscal Year],@GroupType AS GroupType,
-CONVERT(VARCHAR(10),@GroupId,105) AS [Group Master Policy:],
-CONVERT(VARCHAR(10),@FromDate,105) AS [Death From:],
-CONVERT(VARCHAR(10),@ToDate,105) AS [Death Date To:]
-INTO  #tempSearchDeath
-
-
-SELECT PolicyNo,EmployeeId,GroupId,Name,NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate INTO #tempGroupEndowmentDeath
-FROM dbo.tblGroupEndowment
-WHERE PolicyStatus='D'
-GROUP BY EmployeeId,PolicyNo,GroupId,Name,NepName,DOB,MaturityDate
-
-select PolicyNo ,Instalment =max(Instalment) into #tempGroupEndowmentDetails  from tblGroupEndowmentDetails group by PolicyNo
-
-IF @GroupType='Rastasawak'
-BEGIN
-SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
-b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount
---,NetClaimAmount=a.TotalClaimAmount-a.LoanAmount,
-,InterestOnLoanAmount = a.CalculatedInterest
-,TotalClaimAmount = b.SA +a.TotalBonus
-,NetClaimAmount=b.SA+a.TotalBonus-ISNULL(a.LoanAmount, 0)-ISNULL(a.CalculatedInterest,0),
-CONVERT(VARCHAR(10),a.DeathDate,103) AS DeathDate,CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,CONVERT(VARCHAR(10),a.TerminationDate,103) AS TerminationDate,a.VoucherNo,a.ClaimId,c.Instalment
-INTO #TempRastasawakDeath FROM tblGroupDeathClaim a 
-inner join #tempGroupEndowmentDeath b 
-on a.PolicyNo=b.PolicyNo 
-inner join #tempGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-WHERE a.GroupId  IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-AND CASE WHEN @DateOption='DeathDate' THEN CAST(a.DeathDate AS DATE)
-WHEN @DateOption='DeathRegister' THEN CAST(a.CreatedDate AS DATE) 
-WHEN @Dateoption='DeathPaid' THEN CAST(a.PaidDate AS DATE)
-ELSE b.DOC END
- BETWEEN ISNULL(@FromDate,a.DeathDate) AND ISNULL(@ToDate,a.DeathDate)
---AND a.PolicyStatus = '1'
-
-Select * From #TempRastasawakDeath UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(Bonus),SUM(ClaimAmount),SUM(LoanAmount)
-	,SUM(InterestOnLoanAmount),SUM(TotalClaimAmount)
-	,SUM(NetClaimAmount),'','','','','',''
-	FROM #TempRastasawakDeath Order By SNo
-
-select * from  #tempSearchDeath
-END
-IF @GroupType='Group'
-BEGIN
-SELECT  a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
-b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount
---,NetClaimAmount=a.TotalClaimAmount-a.LoanAmount,
-,InterestOnLoanAmount = a.CalculatedInterest
-,TotalClaimAmount = b.SA +a.TotalBonus
-,NetClaimAmount=b.SA+a.TotalBonus-ISNULL(a.LoanAmount, 0)-ISNULL(a.CalculatedInterest,0),
-CONVERT(VARCHAR(10),a.DeathDate,103) AS DeathDate,CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,CONVERT(VARCHAR(10),a.TerminationDate,103) AS TerminationDate,a.VoucherNo,a.ClaimId,c.Instalment
-INTO #TempGroupDeath FROM tblGroupDeathClaim a 
-inner join #tempGroupEndowmentDeath b 
-on a.PolicyNo=b.PolicyNo 
-inner join #tempGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-WHERE a.GroupId  NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-AND  CASE WHEN @DateOption='DeathDate' THEN CAST(a.DeathDate AS DATE)
-WHEN @DateOption='DeathRegister' THEN CAST(a.CreatedDate AS DATE) 
-WHEN @Dateoption='DeathPaid' THEN CAST(a.PaidDate AS DATE)
-ELSE b.DOC END
- BETWEEN ISNULL(@FromDate,a.DeathDate) AND ISNULL(@ToDate,a.DeathDate)
-AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-
-
-Select * From #TempGroupDeath 
-Where GroupId = '052'
-END
-
-
-ELSE
-BEGIN
-SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,a.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
-b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount
---,NetClaimAmount=a.TotalClaimAmount-a.LoanAmount,
-,InterestOnLoanAmount = a.CalculatedInterest
-,TotalClaimAmount = b.SA +a.TotalBonus
-,NetClaimAmount=b.SA+a.TotalBonus-ISNULL(a.LoanAmount, 0)-ISNULL(a.CalculatedInterest,0),
-CONVERT(VARCHAR(10),a.DeathDate,103) AS DeathDate,CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,CONVERT(VARCHAR(10),a.TerminationDate,103) AS TerminationDate,a.VoucherNo,a.ClaimId,c.Instalment
-INTO #TempGroupAllDeath FROM tblGroupDeathClaim a 
-inner join #tempGroupEndowmentDeath b 
-on a.PolicyNo=b.PolicyNo 
-inner join #tempGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-WHERE CASE WHEN @DateOption='DeathDate' THEN CAST(a.DeathDate AS DATE)
-WHEN @DateOption='DeathRegister' THEN CAST(a.CreatedDate AS DATE) 
-WHEN @Dateoption='DeathPaid' THEN CAST(a.PaidDate AS DATE)
-ELSE b.DOC END
- BETWEEN ISNULL(@FromDate,a.DeathDate) AND ISNULL(@ToDate,a.DeathDate)
-AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
---AND a.PolicyStatus = '1'
-
-Select * From #TempGroupAllDeath UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(Bonus),SUM(ClaimAmount),SUM(LoanAmount)
-	,SUM(InterestOnLoanAmount),SUM(TotalClaimAmount)
-	,SUM(NetClaimAmount),'','','','','',''
-	FROM #TempGroupAllDeath Order By SNo
-
-select * from  #tempSearchDeath
-END 
-
-
+	SELECT * FROM groupDeathReport;
 
 END
 
@@ -2044,76 +1969,24 @@ END
 ELSE IF @Flag='GroupMaturityReport'
 BEGIN
 
-
-SELECT @GroupName=GroupName FROM tblGroupInformation WHERE GroupId=@GroupId
-SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn',@GroupName As [Group Name], @FiscalYear AS [Fiscal Year],@GroupType AS GroupType,
-CONVERT(VARCHAR(10),@GroupId,105) AS [Group Master Policy:],
-CONVERT(VARCHAR(10),@FromDate,105) AS [Maturity Date From:],
-CONVERT(VARCHAR(10),@ToDate,105) AS [Maturity Date To:]
-INTO  #tempSearchMaturity
-
-
-SELECT a.PolicyNo,EmployeeId,a.GroupId,Name,NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate INTO #tempGroupEndowmentMaturity
-FROM dbo.tblGroupEndowment a
---left join tblGroupPolicyLoanDetail b on a.PolicyNo=b.PolicyNo
---WHERE PolicyStatus='M'
-GROUP BY EmployeeId,a.PolicyNo,a.GroupId,Name,NepName,DOB,MaturityDate
-
-
-IF @GroupType='Rastasawak'
-BEGIN
-SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
-b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalTax,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount,a.CalculatedInterest,NetClaimAmount=a.TotalClaimAmount-a.TotalTax-a.LoanAmount-a.CalculatedInterest,
-CONVERT(VARCHAR(10),a.ClaimDate,103) AS ClaimDate,a.VoucherNo,a.ClaimId 
-INTO #TempRastasawakMaturity FROM dbo.tblGroupMaturity a 
-inner join #tempGroupEndowmentMaturity b 
-on a.PolicyNo=b.PolicyNo 
-WHERE a.GroupId  IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
- AND CASE WHEN @DateOption='MaturityDate' THEN CAST(b.MaturityDate AS DATE)
-WHEN @DateOption='MaturityRegister' THEN CAST(a.CreatedDate AS DATE) 
-WHEN @Dateoption='MaturityPaid' THEN CAST(a.PaidDate AS DATE)
-ELSE b.DOC END
- BETWEEN ISNULL(@FromDate,b.MaturityDate) AND ISNULL(@ToDate,b.MaturityDate)
-AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-
---AND a.PolicyStatus = '1'
-
-Select * From #TempRastasawakMaturity UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','',SUM(SA),SUM(Premium),'','',SUM(Bonus),SUM(TotalTax),SUM(ClaimAmount),SUM(LoanAmount),SUM(CalculatedInterest),SUM(NetClaimAmount),'','',''
-	FROM #TempRastasawakMaturity Order By SNo
-
-select * from  #tempSearchMaturity
-
-END
-ELSE
-BEGIN
-
-
-SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
-b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalTax,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount,a.CalculatedInterest,NetClaimAmount=a.TotalClaimAmount-a.TotalTax-a.LoanAmount-a.CalculatedInterest,
-CONVERT(VARCHAR(10),a.ClaimDate,103) AS ClaimDate,a.VoucherNo,a.ClaimId 
-INTO #TempGroupMaturity FROM dbo.tblGroupMaturity a 
-left join #tempGroupEndowmentMaturity b 
-on a.PolicyNo=b.PolicyNo 
-WHERE a.GroupId NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-AND CASE WHEN @DateOption='MaturityDate' THEN CAST(b.MaturityDate AS DATE)
-WHEN @DateOption='MaturityRegister' THEN CAST(a.CreatedDate AS DATE) 
-WHEN @Dateoption='MaturityPaid' THEN CAST(a.PaidDate AS DATE)
-ELSE b.DOC END
- BETWEEN ISNULL(@FromDate,b.MaturityDate) AND ISNULL(@ToDate,b.MaturityDate)
-AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
---AND a.PolicyStatus = '1'
-
-Select * From #TempGroupMaturity UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(Bonus),SUM(TotalTax),SUM(ClaimAmount),SUM(LoanAmount),SUM(CalculatedInterest),SUM(NetClaimAmount),'','',''
-	FROM #TempGroupMaturity Order By SNo
-
-select * from  #tempSearchMaturity
-
-END
-
-
+WITH tempGroupEndowmentMaturity AS(
+	SELECT PolicyNo,EmployeeId,GroupId,Name,NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate 
+	FROM dbo.tblGroupEndowment
+	WHERE PolicyStatus='M' AND groupId=@GroupId
+	GROUP BY EmployeeId,PolicyNo,GroupId,Name,NepName,DOB,MaturityDate
+), 
+TempGroupMaturity AS(
+	SELECT A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,b.SA AS SA,
+	b.Premium,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.TotalBonus AS Bonus,a.TotalTax,a.TotalClaimAmount AS ClaimAmount,a.LoanAmount,a.CalculatedInterest,NetClaimAmount=a.TotalClaimAmount-a.TotalTax-a.LoanAmount-a.CalculatedInterest,
+	CONVERT(VARCHAR(10),a.ClaimDate,103) AS ClaimDate,a.VoucherNo,a.ClaimId 
+	FROM dbo.tblGroupMaturity a 
+	left join tempGroupEndowmentMaturity b 
+	on a.PolicyNo=b.PolicyNo 
+	WHERE a.GroupId = @GroupId
+	AND CONVERT (DATE, a.PaidDate, 103) BETWEEN @FromDate AND @ToDate
+	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
+)
+Select * From TempGroupMaturity
 
 END
 
