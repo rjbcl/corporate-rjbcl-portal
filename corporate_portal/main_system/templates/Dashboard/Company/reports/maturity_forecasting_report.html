@@ -4,28 +4,6 @@
 {% block title %}Maturity Forecasting Report - {{ company.company_name }}{% endblock %}
 
 {% block extra_css %}
-<style>
-    .table-striped tbody tr:hover {
-        background-color: #f5f8fa;
-    }
-
-    /* Loading Spinner */
-    .spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: #fff;
-        animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -157,7 +135,9 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/dashboard/utilities.js' %}"></script>
 <script src="{% static 'js/date-conversion.js' %}"></script>
 <script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
+<script src="{% static 'js/dashboard/reports/report.js' %}"></script>
 <script src="{% static 'js/dashboard/reports/maturity_forecasting_report.js' %}"></script>
 {% endblock %}

@@ -3,29 +3,6 @@
  * Handles data loading, statistics display, and chart rendering
  */
 
-// ================================
-// UTILITY FUNCTIONS
-// ================================
-
-/**
- * Format number as Nepali Rupees
- */
-function formatCurrency(amount) {
-  const num = parseFloat(amount || 0);
-
-  if (num >= 1000000000) {
-    return 'Rs. ' + (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + 'B';
-  }
-  if (num >= 1000000) {
-    return 'Rs. ' + (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-  }
-  if (num >= 1000) {
-    return 'Rs. ' + (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'k';
-  }
-
-  // For smaller numbers, show with locale formatting
-  return 'Rs. ' + num.toLocaleString('en-NP', { maximumFractionDigits: 2 });
-}
 /**
  * Get status badge HTML based on policy status
  */
@@ -200,122 +177,6 @@ async function initializeDashboard() {
     }
 }
 
-// ================================
-// CHARTS INITIALIZATION
-// ================================
-
-/**
- * Initialize Chartist Pie Chart
- */
-function initializePieChart() {
-    if (typeof Chartist === 'undefined') {
-        console.warn('Chartist library not loaded, skipping pie chart');
-        return;
-    }
-    
-    const pieChartElement = document.querySelector('.ct-pie-chart');
-    if (!pieChartElement) {
-        console.log('Pie chart element not found, skipping');
-        return;
-    }
-    
-    const data = {
-        labels: ['facebook', 'twitter', 'youtube', 'google plus'],
-        series: [
-            { value: 20, className: "bg-facebook" },
-            { value: 10, className: "bg-twitter" },
-            { value: 30, className: "bg-youtube" },
-            { value: 40, className: "bg-google-plus" }
-        ]
-    };
-
-    const options = {
-        labelInterpolationFnc: function(value) {
-            return value[0];
-        }
-    };
-
-    const responsiveOptions = [
-        ['screen and (min-width: 640px)', {
-            chartPadding: 30,
-            labelOffset: 100,
-            labelDirection: 'explode',
-            labelInterpolationFnc: function(value) {
-                return value;
-            }
-        }],
-        ['screen and (min-width: 1024px)', {
-            labelOffset: 80,
-            chartPadding: 20
-        }]
-    ];
-
-    new Chartist.Pie('.ct-pie-chart', data, options, responsiveOptions);
-    console.log('Pie chart initialized');
-}
-
-/**
- * Initialize Chartist Bar Chart
- */
-function initializeBarChart() {
-    if (typeof Chartist === 'undefined') {
-        console.warn('Chartist library not loaded, skipping bar chart');
-        return;
-    }
-    
-    const barChartElement = document.querySelector('.ct-bar-chart');
-    if (!barChartElement) {
-        console.log('Bar chart element not found, skipping');
-        return;
-    }
-    
-    const data = {
-        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-        series: [
-            [5, 4, 3, 7, 5, 10, 3, 4, 8, 10, 6, 8],
-            [3, 2, 9, 5, 4, 6, 4, 6, 7, 8, 7, 4],
-            [4, 6, 3, 9, 6, 5, 2, 8, 3, 5, 5, 4]
-        ]
-    };
-
-    const options = {
-        seriesBarDistance: 10
-    };
-
-    const responsiveOptions = [
-        ['screen and (max-width: 640px)', {
-            seriesBarDistance: 5,
-            axisX: {
-                labelInterpolationFnc: function(value) {
-                    return value[0];
-                }
-            }
-        }]
-    ];
-
-    new Chartist.Bar('.ct-bar-chart', data, options, responsiveOptions);
-    console.log('Bar chart initialized');
-}
-
-/**
- * Initialize calendar widget
- */
-function initializeCalendar() {
-    const calendarElement = document.querySelector('.year-calendar');
-    if (!calendarElement) {
-        console.log('Calendar element not found, skipping');
-        return;
-    }
-    
-    if (typeof $ !== 'undefined' && $.fn.pignoseCalendar) {
-        $('.year-calendar').pignoseCalendar({
-            theme: 'blue' // light, dark, blue
-        });
-        console.log('Calendar initialized');
-    } else {
-        console.warn('PignoseCalendar library not loaded, skipping calendar');
-    }
-}
 
 /**
  * Initialize perfect scrollbar for todo widget
@@ -349,9 +210,9 @@ function initializeAll() {
     initializeDashboard();
     
     // Initialize charts and widgets (secondary)
-    initializePieChart();
-    initializeBarChart();
-    initializeCalendar();
+    // initializePieChart();
+    // initializeBarChart();
+    // initializeCalendar();
     initializeTodoScrollbar();
 }
 
@@ -359,6 +220,5 @@ function initializeAll() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeAll);
 } else {
-    // DOM is already ready
     initializeAll();
 }

@@ -6,14 +6,6 @@ let currentDateType = 'ad'; // 'ad' or 'bs'
 // ================================
 // UTILITY FUNCTIONS
 // ================================
-
-/**
- * Format currency as Nepali Rupees
- */
-function formatCurrency(amount) {
-    return 'Rs. ' + parseFloat(amount || 0).toLocaleString('en-NP', { maximumFractionDigits: 2 });
-}
-
 /**
  * Get status badge HTML
  */
@@ -376,10 +368,7 @@ function updateReportSummary(data) {
 /**
  * Show report results below the form
  */
-function showReportResults(data) {
-    // Store the data globally for download
-    maturityForcastingData = data;
-    
+function showReportResults(data) {    
     // Destroy existing DataTable first if it exists
     if ($.fn.DataTable.isDataTable('#report-table')) {
         $('#report-table').DataTable().destroy();
@@ -481,7 +470,7 @@ async function handleFormSubmit(event) {
         if (!reportData.policies) {
             throw new Error('No policies data received from server');
         }
-
+        maturityForcastingData = reportData.policies; // Store globally for download
         // Show results
         showReportResults(reportData);
     } catch (error) {
@@ -510,6 +499,7 @@ function initializeEventListeners() {
     // Download report button
     const downloadButton = document.getElementById('download-btn');
     if (downloadButton) {
+        debugger
         downloadButton.addEventListener('click', handleDownloadReport);
     }
 }
@@ -541,50 +531,18 @@ if (document.readyState === 'loading') {
 /**
  * Handle download report
  */
+/**
+ * Handle download report
+ */
 function handleDownloadReport() {
-    if (!maturityForcastingData || !maturityForcastingData.policies || maturityForcastingData.policies.length === 0) {
-        showNotification('No data to download', 'error');
+    console.log("Global data:", maturityForcastingData);
+    
+    if (!maturityForcastingData || maturityForcastingData.length === 0) {
+        showNotification('No data to download. Please generate a report first.', 'error');
         return;
     }
     
-    const policies = maturityForcastingData.policies;
-    
-    // Get all keys from the first policy object (column names)
-    const headers = Object.keys(policies[0]);
-    
-    // Create CSV header row
-    let csvContent = headers.join(',') + '\n';
-    
-    // Add data rows
-    policies.forEach(policy => {
-        const row = headers.map(header => {
-            let value = policy[header];
-            
-            // Handle null/undefined
-            if (value === null || value === undefined) {
-                value = '';
-            }
-            
-            // Convert to string
-            value = String(value).trim();
-            
-            // Escape commas, quotes, and newlines for CSV
-            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                value = '"' + value.replace(/"/g, '""') + '"';
-            }
-            
-            return value;
-        });
-        
-        csvContent += row.join(',') + '\n';
-    });
-    
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    // Get group ID from select dropdown value
+    // Get group ID from select dropdown
     const groupSelect = document.getElementById('group-id');
     const groupId = groupSelect.value;
     
@@ -598,16 +556,8 @@ function handleDownloadReport() {
     // Create filename
     const filename = `maturity_forecasting_report_${groupId}_${userName}_${today}.csv`;
     
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Clean up
-    URL.revokeObjectURL(url);
+    // Download CSV
+    downloadCSV(maturityForcastingData, filename);
 }
 
 

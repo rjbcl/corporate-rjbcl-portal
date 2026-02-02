@@ -4,61 +4,6 @@
 {% block title %}Claim Report - {{ company.company_name }}{% endblock %}
 
 {% block extra_css %}
-<style>
-    .table-striped tbody tr:hover {
-        background-color: #f5f8fa;
-    }
-
-    /* Loading Spinner */
-    .spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: #fff;
-        animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* Tab Styling */
-    .nav-tabs {
-        border-bottom: 1px solid #dee2e6;
-    }
-
-    .nav-tabs .nav-link {
-        border: none;
-        color: #6c757d;
-        padding: 12px 24px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-
-    .nav-tabs .nav-link:hover {
-        color: #495057;
-        background-color: #f8f9fa;
-    }
-
-    .nav-tabs .nav-link.active {
-        color: #007bff;
-        background-color: #f8f9fa;
-        border-bottom: 1px solid #007bff;
-    }
-
-    .tab-content {
-        padding-top: 20px;
-    }
-
-    /* Add spacing between form and table */
-    .report-results-inline {
-        margin-top: 30px;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -319,9 +264,9 @@
                                 <th>Sum Assured</th>
                                 <th>Premium</th>
                                 <th>Maturity Date</th>
-                                <th>Days to Maturity</th>
-                                <th>Term</th>
-                                <th>Status</th>
+                                <th>Claim Amount</th>
+                                <th>Claim Date</th>
+                                <th>Bonus</th>
                             </tr>
                         </thead>
                         <tbody id="maturity-report-tbody">
@@ -385,7 +330,7 @@
                                 <th>Death Date</th>
                                 <th>Claim Amount</th>
                                 <th>Term</th>
-                                <th>Status</th>
+                                <th>Bonus</th>
                             </tr>
                         </thead>
                         <tbody id="death-report-tbody">
@@ -401,8 +346,10 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/dashboard/utilities.js' %}"></script>
 <script src="{% static 'js/date-conversion.js' %}"></script>
 <script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
 <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/dashboard/reports/report.js' %}"></script>
 <script src="{% static 'js/dashboard/reports/claim-report.js' %}"></script>
 {% endblock %}

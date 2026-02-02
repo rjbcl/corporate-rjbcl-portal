@@ -21,8 +21,8 @@
                     <span class="nav-text">Reports</span>
                 </a>
                 <ul aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
-                    <li><a href="{% url 'maturity_report' %}"
-                            class="{% if request.resolver_match.url_name == 'maturity_report' %}active{% endif %}">Maturity
+                    <li><a href="{% url 'maturity_forecasting_report' %}"
+                            class="{% if request.resolver_match.url_name == 'maturity_forecasting_report' %}active{% endif %}">Maturity
                             Forecasting</a></li>
                     <li><a href="{% url 'claim_report' %}"
                             class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Claim

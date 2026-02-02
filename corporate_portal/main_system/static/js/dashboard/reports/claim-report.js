@@ -1,3 +1,12 @@
+let deathReportData = [];
+let deathMetaData = {};
+
+
+let maturityReportData = [];
+let maturityMetaData = {};
+
+
+
 // Handle form submissions for all three claim types
 document.addEventListener('DOMContentLoaded', function () {
     // Track which reports have been generated
@@ -35,61 +44,123 @@ document.addEventListener('DOMContentLoaded', function () {
         // Get the report results div for this specific claim type
         const reportResults = document.getElementById(`${claimType}-report-results`);
 
-        // Make your API call here
-        // Example:
-        fetch(`/api/claims/${claimType}/report/`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Populate the specific table for this claim type
-            populateTable(claimType, data);
-            
-            // Show the specific report table
-            reportResults.style.display = 'block';
-            
-            // Mark this report as generated
-            generatedReports[claimType] = true;
-            
-            // Enable download button for this claim type
-            document.getElementById(`${claimType}-download-btn`).disabled = false;
+        // Only death claim is implemented
+        const requestData = {
+            group_id: formData.get('group_id'),
+            from_date: formData.get('from_date_ad'),
+            to_date: formData.get('to_date_ad')
+        };
+        if (claimType === 'death') {
+            fetch('/api/corporate/reports/death-claim/', {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Death claim data received:', data);
 
-            // Scroll to the report
-            setTimeout(() => {
-                reportResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert(`Error generating ${claimType} report`);
-        })
-        .finally(() => {
+                    deathReportData = data;
+                    deathMetaData = {
+                        from_date: requestData.from_date,
+                        to_date: requestData.to_date,
+                        group_id: requestData.group_id
+                    };
+
+                    // Populate the table
+                    populateTable(claimType, data);
+
+                    // Show the report table
+                    reportResults.style.display = 'block';
+
+                    // Mark this report as generated
+                    generatedReports[claimType] = true;
+
+                    // Enable download button
+                    document.getElementById(`${claimType}-download-btn`).disabled = false;
+
+                    // Scroll to the report
+                    setTimeout(() => {
+                        reportResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`Error generating ${claimType} report: ${error.message}`);
+                })
+                .finally(() => {
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = originalText;
+                });
+        }
+
+        if (claimType === 'maturity') {
+            fetch('/api/corporate/reports/maturity-claim/', {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Maturity claim data received:', data);
+
+                    maturityReportData = data;
+                    maturityMetaData = {
+                        from_date: requestData.from_date,
+                        to_date: requestData.to_date,
+                        group_id: requestData.group_id
+                    };
+
+                    // Populate the table
+                    populateTable(claimType, data);
+
+                    // Show the report table
+                    reportResults.style.display = 'block';
+
+                    // Mark this report as generated
+                    generatedReports[claimType] = true;
+
+                    // Enable download button
+                    document.getElementById(`${claimType}-download-btn`).disabled = false;
+
+                    // Scroll to the report
+                    setTimeout(() => {
+                        reportResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`Error generating ${claimType} report: ${error.message}`);
+                })
+                .finally(() => {
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = originalText;
+                });
+        }
+
+        if (claimType === 'surrender') {
+            // Maturity and Surrender not implemented yet
+            alert(`${claimType} claim report is not yet implemented`);
             generateBtn.disabled = false;
             generateBtn.innerHTML = originalText;
-        });
-
-        // For now, just simulate the process with dummy data
-        // Remove this setTimeout when you have real API
-        setTimeout(() => {
-            const dummyData = generateDummyData(claimType);
-            populateTable(claimType, dummyData);
-            reportResults.style.display = 'block';
-            generatedReports[claimType] = true;
-            document.getElementById(`${claimType}-download-btn`).disabled = false;
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = originalText;
-
-            // Scroll to the report
-            setTimeout(() => {
-                reportResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }, 100);
-        }, 1500);
+        }
     }
-
     // Populate table with data for specific claim type
     function populateTable(claimType, data) {
         const tbody = document.getElementById(`${claimType}-report-tbody`);
@@ -102,42 +173,43 @@ document.addEventListener('DOMContentLoaded', function () {
 
         data.forEach(item => {
             const row = document.createElement('tr');
-            
+
             if (claimType === 'maturity') {
+                console.log('Populating maturity row:', item);
                 row.innerHTML = `
-                    <td>${item.policy_no || '-'}</td>
-                    <td>${item.employee_name || '-'}</td>
-                    <td>${item.sum_assured || '-'}</td>
-                    <td>${item.premium || '-'}</td>
-                    <td>${item.maturity_date || '-'}</td>
-                    <td>${item.days_to_maturity || '-'}</td>
-                    <td>${item.term || '-'}</td>
-                    <td>${item.status || '-'}</td>
+                    <td>${item.PolicyNo || '-'}</td>
+                    <td>${item.Name || '-'}</td>
+                    <td>${formatCurrency(item.SA || 0)}</td>
+                    <td>${formatCurrency(item.Premium || 0)}</td>
+                    <td>${item.MaturityDate || '-'}</td>
+                    <td>${item.ClaimAmount || '-'}</td>
+                    <td>${item.ClaimDate || '-'}</td>
+                    <td>${item.Bonus || '-'}</td>
                 `;
             } else if (claimType === 'surrender') {
                 row.innerHTML = `
                     <td>${item.policy_no || '-'}</td>
                     <td>${item.employee_name || '-'}</td>
-                    <td>${item.sum_assured || '-'}</td>
-                    <td>${item.premium || '-'}</td>
+                    <td>${formatCurrency(item.sum_assured || 0)}</td>
+                    <td>${formatCurrency(item.premium || 0)}</td>
                     <td>${item.surrender_date || '-'}</td>
-                    <td>${item.surrender_value || '-'}</td>
+                    <td>${formatCurrency(item.surrender_value || 0)}</td>
                     <td>${item.term || '-'}</td>
-                    <td>${item.status || '-'}</td>
+                    <td>${item.Bonus || '-'}</td>
                 `;
             } else if (claimType === 'death') {
                 row.innerHTML = `
-                    <td>${item.policy_no || '-'}</td>
-                    <td>${item.employee_name || '-'}</td>
-                    <td>${item.sum_assured || '-'}</td>
-                    <td>${item.premium || '-'}</td>
-                    <td>${item.death_date || '-'}</td>
-                    <td>${item.claim_amount || '-'}</td>
-                    <td>${item.term || '-'}</td>
-                    <td>${item.status || '-'}</td>
+                    <td>${item.PolicyNo || '-'}</td>
+                    <td>${item.Name || item.NepName || '-'}</td>
+                    <td>${formatCurrency(item.SA || 0)}</td>
+                    <td>${formatCurrency(item.Premium || 0)}</td>
+                    <td>${item.DeathDate || '-'}</td>
+                    <td>${formatCurrency(item.NetClaimAmount || 0)}</td>
+                    <td>${item.Instalment || '-'}</td>
+                    <td>${item.Bonus || '-'}</td>
                 `;
             }
-            
+
             tbody.appendChild(row);
         });
 
@@ -148,18 +220,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize DataTable (if using DataTables library)
     function initializeDataTable(claimType) {
         const tableId = `${claimType}-report-table`;
-        
+
         // Check if jQuery and DataTables are available
         if (typeof $ === 'undefined' || typeof $.fn.DataTable === 'undefined') {
             console.log('DataTables library not loaded');
             return;
         }
-        
+
         // Destroy existing DataTable if it exists
         if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
             $(`#${tableId}`).DataTable().destroy();
         }
-        
+
         // Initialize new DataTable
         $(`#${tableId}`).DataTable({
             responsive: true,
@@ -167,8 +239,8 @@ document.addEventListener('DOMContentLoaded', function () {
             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
             // DOM layout: l = length, f = filter, r = processing, t = table, i = info, p = pagination, B = buttons
             dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
-                 '<"row"<"col-sm-12"tr>>' +
-                 '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+                '<"row"<"col-sm-12"tr>>' +
+                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
             buttons: [
                 'copy', 'csv', 'excel', 'pdf', 'print'
             ],
@@ -187,38 +259,46 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Handle download button clicks
-    document.getElementById('maturity-download-btn').addEventListener('click', function() {
-        downloadReport('maturity');
+    document.getElementById('maturity-download-btn').addEventListener('click', function () {
+        downloadReport('maturity_claim_report', maturityReportData);
     });
 
-    document.getElementById('surrender-download-btn').addEventListener('click', function() {
-        downloadReport('surrender');
+    document.getElementById('surrender-download-btn').addEventListener('click', function () {
+        downloadReport('surrender_claim_report', surrenderReportData);
     });
 
-    document.getElementById('death-download-btn').addEventListener('click', function() {
-        downloadReport('death');
+    document.getElementById('death-download-btn').addEventListener('click', function () {
+        downloadReport('death_claim_report', deathReportData);
     });
 
-    function downloadReport(claimType) {
-        // Implement download functionality
-        console.log(`Downloading ${claimType} report...`);
-        
-        // Example: Trigger download via API
-        // window.location.href = `/api/claims/${claimType}/download/`;
-        
-        // Or use the DataTable export functionality
-        if (typeof $ !== 'undefined' && typeof $.fn.DataTable !== 'undefined') {
-            const table = $(`#${claimType}-report-table`).DataTable();
-            if (table.button) {
-                table.button('.buttons-excel').trigger();
-            }
+    function downloadReport(claimType, data) {
+
+        if (!claimType) {
+            alert('No data to download. Please generate a report first.');
+            return;
         }
+
+        // Get group name from the select dropdown
+        const groupSelect = document.querySelector(`#${claimType} select[name="group_id"]`);
+        const groupId = groupSelect ? groupSelect.value : deathMetaData.group_id;
+
+        // Get user from data attribute (if available)
+        const userInfoDiv = document.getElementById('user-info');
+        const userName = userInfoDiv ? userInfoDiv.dataset.username : 'user';
+
+        // Create filename with group ID and user
+        const filename = `${claimType}_${groupId}_${userName}_${deathMetaData.from_date}_to_${deathMetaData.to_date}.csv`;
+
+        // Call the downloadCSV function from report.js
+        // downloadCSV(deathReportData, filename);
+        downloadCSV(data, filename);
+
     }
 
     // Generate dummy data for testing (REMOVE THIS WHEN YOU HAVE REAL API)
     function generateDummyData(claimType) {
         const dummyData = [];
-        
+
         for (let i = 1; i <= 20; i++) {
             if (claimType === 'maturity') {
                 dummyData.push({
@@ -255,24 +335,24 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
         }
-        
+
         return dummyData;
     }
 
     // No tab switching logic needed - tables persist within their own tab panes!
     // Each table is now part of its tab content, so Bootstrap handles the visibility automatically
-    
+
     // However, since tables are now outside the main card, we need to show/hide them based on active tab
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
     tabButtons.forEach(button => {
-        button.addEventListener('shown.bs.tab', function(event) {
+        button.addEventListener('shown.bs.tab', function (event) {
             // Get the claim type from the tab target
             const targetId = event.target.getAttribute('data-bs-target');
             const claimType = targetId.replace('#', ''); // e.g., 'maturity', 'surrender', 'death'
-            
+
             // Hide all report tables first
             hideAllReportTables();
-            
+
             // Show the report table for the active tab if it was generated
             if (generatedReports[claimType]) {
                 document.getElementById(`${claimType}-report-results`).style.display = 'block';

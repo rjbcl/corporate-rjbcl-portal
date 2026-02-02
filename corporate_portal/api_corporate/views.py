@@ -195,6 +195,191 @@ def maturity_forecasting_report(request):
             'details': error_details if request.user.is_superuser else None
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def death_claim_report(request):
+    """
+    Generate death claim report by calling stored procedure.
+    POST /api/corporate/reports/death-claim/
+    """
+    from main_system.models import Group as PortalGroup
+    
+    group_id = request.data.get('group_id')
+    from_date = request.data.get('from_date')
+    to_date = request.data.get('to_date')
+    
+    print(f"Death Claim Report - Group: {group_id}, From: {from_date}, To: {to_date}")
+    
+    if not all([group_id, from_date, to_date]):
+        return Response({
+            'error': 'group_id, from_date, and to_date are required'
+        }, status=400)
+    
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+        
+        if not group_exists:
+            return Response({
+                'error': 'You can only access your own company groups'
+            }, status=403)
+    
+    try:
+        results = []
+        
+        with connections['company_external'].cursor() as cursor:
+            sql = """
+                SET NOCOUNT ON;
+                EXEC proc_copo_GroupReport 
+                    @flag = 'GroupDeathReport',
+                    @User = 'report_reader',
+                    @GroupType = 'Group',
+                    @DateOption = 'DeathPaid',
+                    @FromDate = %s,
+                    @ToDate = %s,
+                    @DOCDateFrom = NULL,
+                    @DOCDateTo = NULL,
+                    @PolicyNo = NULL,
+                    @GroupId = %s;
+            """
+            
+            cursor.execute(sql, [from_date, to_date, group_id])
+            
+            result_set_count = 0
+            while True:
+                result_set_count += 1
+                
+                if cursor.description:
+                    columns = [col[0] for col in cursor.description]                    
+                    rows = cursor.fetchall()
+                    
+                    for row in rows:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            col_name = columns[i]
+                            if value is None:
+                                row_dict[col_name] = None
+                            elif hasattr(value, 'isoformat'):
+                                row_dict[col_name] = value.isoformat()
+                            elif isinstance(value, (int, float)):
+                                row_dict[col_name] = value
+                            else:
+                                row_dict[col_name] = str(value)
+                        results.append(row_dict)
+                
+                if not cursor.nextset():
+                    break
+        
+        # Return only the data array
+        return Response(results)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}\n{error_details}")
+        return Response({
+            'error': f'Failed to generate death claim report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+    
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def maturity_claim_report(request):
+    """
+    Generate maturity claim report by calling stored procedure.
+    POST /api/corporate/reports/maturity-claim/
+    """
+    from main_system.models import Group as PortalGroup
+    
+    group_id = request.data.get('group_id')
+    from_date = request.data.get('from_date')
+    to_date = request.data.get('to_date')
+    
+    print(f"Maturity Claim Report - Group: {group_id}, From: {from_date}, To: {to_date}")
+    
+    if not all([group_id, from_date, to_date]):
+        return Response({
+            'error': 'group_id, from_date, and to_date are required'
+        }, status=400)
+    
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+        
+        if not group_exists:
+            return Response({
+                'error': 'You can only access your own company groups'
+            }, status=403)
+    
+    try:
+        results = []
+        
+        with connections['company_external'].cursor() as cursor:
+            sql = """
+                SET NOCOUNT ON;
+                EXEC proc_copo_GroupReport 
+                    @flag = 'GroupMaturityReport',
+                    @User = 'report_reader',
+                    @GroupType = 'Group',
+                    @FromDate = %s,
+                    @ToDate = %s,
+                    @DOCDateFrom = NULL,
+                    @DOCDateTo = NULL,
+                    @PolicyNo = NULL,
+                    @GroupId = %s;
+            """
+            
+            cursor.execute(sql, [from_date, to_date, group_id])
+            
+            result_set_count = 0
+            while True:
+                result_set_count += 1
+                
+                if cursor.description:
+                    columns = [col[0] for col in cursor.description]                    
+                    rows = cursor.fetchall()
+                    
+                    for row in rows:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            col_name = columns[i]
+                            if value is None:
+                                row_dict[col_name] = None
+                            elif hasattr(value, 'isoformat'):
+                                row_dict[col_name] = value.isoformat()
+                            elif isinstance(value, (int, float)):
+                                row_dict[col_name] = value
+                            else:
+                                row_dict[col_name] = str(value)
+                        results.append(row_dict)
+                
+                if not cursor.nextset():
+                    break
+        
+        # Return only the data array
+        return Response(results)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}\n{error_details}")
+        return Response({
+            'error': f'Failed to generate maturity claim report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def company_policies_web(request):

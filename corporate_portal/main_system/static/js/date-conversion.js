@@ -188,14 +188,9 @@ $(document).ready(function () {
                 console.warn("Failed to convert AD to BS:", ad);
                 return;
             }
-
-            if (adDate <= today) {
-                $(bsSelector).val(bs);
-                $(bsSelector).removeClass('is-invalid');
-            } else {
-                swalFire("Wrong Date", "Future Date Selected");
-                $(bsSelector + ', ' + adSelector).val('');
-            }
+            $(bsSelector).val(bs);
+            $(bsSelector).removeClass('is-invalid');
+            
         });
     }
 

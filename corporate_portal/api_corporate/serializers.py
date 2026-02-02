@@ -1,7 +1,7 @@
 from rest_framework import serializers #type: ignore
 from .models import GroupEndowment, GroupInformation
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth import authenticate
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer #type: ignore
+from django.contrib.auth import authenticate #type: ignore
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
