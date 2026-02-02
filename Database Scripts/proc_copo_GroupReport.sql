@@ -1,14 +1,8 @@
--- EXEC proc_GroupReport @flag='GroupAllClaimReport' ,@User = 'rayal.khatri',@GroupId  = '052',
--- @FromDate= '2026-01-15',@ToDate = '2027-03-17'
 
-
--- EXEC proc_copo_GroupReport @flag='GroupDeathReport'
--- ,@User = 'manoj.gautam',@GroupType  = 'Group',@DateOption  = 'DeathPaid'
--- ,@FromDate= '2022-01-15',@ToDate = '2030-03-17',@DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId='052'
-
--- EXEC proc_copo_GroupReport @flag='GroupMaturityReport' ,@User = 'anush.adhikari',
--- @GroupType  = 'Group', @FromDate= '04/13/2017' ,@ToDate = '04/13/2025',
--- @DOCDateFrom= null,@DOCDateTo = null,@PolicyNo = null, @GroupId = '197'
+-- EXEC proc_copo_GroupReport @flag='GroupSurrenderReport' ,@User = 'anush.adhikari',
+-- @GroupType  = 'Group',@DateOption  = 'SurrenderDate',@Age = null,
+-- @FromDate= '04/13/2020',@ToDate = '04/13/2025',@DOCDateFrom= null,@DOCDateTo = null,
+-- @IntiDateFrom= null,@IntiDateTo = null,@PolicyNo = null, @GroupId = '052'
 
 
 SET ANSI_NULLS ON
@@ -1594,187 +1588,31 @@ END
 ELSE IF @Flag='GroupSurrenderReport'
 BEGIN
 
-SELECT @GroupName=GroupName FROM tblGroupInformation WHERE GroupId=@GroupId
---SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn',@GroupName As [Group Name], @FiscalYear AS [Fiscal Year],@GroupType AS GroupType,
-CONVERT(VARCHAR(10),@GroupId,105) AS [Group Master Policy:],
-CONVERT(VARCHAR(10),@FromDate,105) AS [Surrender Date From:],
-CONVERT(VARCHAR(10),@ToDate,105) AS [Surrender Date To:]
-INTO  #tempSearchSurrender
+SELECT @FromDate=convert(date, @FromDate, 103), @ToDate= convert(date, @ToDate, 103);
 
-SELECT a.PolicyNo,EmployeeId,a.GroupId,Name,NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate INTO #tempGroupEndowment
-FROM dbo.tblGroupEndowment a
 
-WHERE PolicyStatus='S'
-GROUP BY EmployeeId,a.PolicyNo,a.GroupId,Name,NepName,DOB,MaturityDate
-
-select PolicyNo ,Instalment =max(Instalment) into #tblGroupEndowmentDetails  from tblGroupEndowmentDetails group by PolicyNo
-SELECT @FromDate=CAST(  convert(varchar, @FromDate, 23) AS DATE )
-SELECT @ToDate=CAST(  convert(varchar, @ToDate, 23) AS DATE )
-SELECT @DOCDateFrom=CAST(  convert(varchar, @DOCDateFrom, 23) AS DATE )
-SELECT @DOCDateTo=CAST(  convert(varchar, @DOCDateTo, 23) AS DATE )
-SELECT @IntiDateFrom=CAST(  convert(varchar, @IntiDateFrom, 23) AS DATE )
-SELECT @IntiDateTo=CAST(  convert(varchar, @IntiDateTo, 23) AS DATE )
-IF @GroupType='Rastasawak'
-BEGIN
-	IF @DateOption='SurrenderDate'
-	BEGIN
-		SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,
-		CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
+WITH tempGroupEndowment AS(
+	SELECT a.PolicyNo,EmployeeId,a.GroupId,[Name],NepName,DOB,DOC=MIN(DOC),Premium=SUM(Premium),SA=SUM(SumAssured),Term=MAX(Term),MaturityDate 
+	FROM dbo.tblGroupEndowment a
+	WHERE PolicyStatus='S'
+	GROUP BY EmployeeId,a.PolicyNo,a.GroupId,[Name],NepName,DOB,MaturityDate
+),
+tempGroupEndowmentDetails AS(
+	SELECT PolicyNo ,Instalment =max(Instalment)  FROM tblGroupEndowmentDetails WHERE groupid = @GroupId
+	GROUP BY PolicyNo
+),
+tempGroupSurrenderpayment AS (
+		SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
 		CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-		CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate
-		,a.VoucherNo,a.Tax,a.TotalLoanAmount,NetSurrenderAmount=a.SurrenderValue-a.Tax-a.TotalLoanAmount,a.ClaimId,c.Instalment
-		INTO #TempRastasawakSurrender FROM tblGroupSurrender(NOLOCK) a 
-		inner join #tempGroupEndowment(NOLOCK) b  
-		on a.PolicyNo=b.PolicyNo 
-		inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-		WHERE b.GroupId IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-		AND CAST(a.SurrenderDate AS DATE) BETWEEN ISNULL(CAST(  convert(varchar, @FromDate, 23) AS DATE ),a.SurrenderDate) 
-		AND ISNULL(@ToDate,a.SurrenderDate)
-		--AND b.DOC BETWEEN ISNULL(@DOCDateFrom,b.DOC) AND ISNULL(@DOCDateTo,b.DOC)
-		--AND a.IntimationDate BETWEEN ISNULL (@IntiDateFrom,a.IntimationDate) AND ISNULL(@IntiDateTo, a.IntimationDate)
-		AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-		
-		SELECT * From #TempRastasawakSurrender UNION ALL
-			SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(TotalLoanAmount),SUM(NetSurrenderAmount),'',''
-			FROM #TempRastasawakSurrender Order By SNo
-	END
-	ELSE IF @DateOption='IntimationDate'
-	BEGIN
-		SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,
-		CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-		CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-		CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate
-		,a.VoucherNo,a.Tax,a.TotalLoanAmount,NetSurrenderAmount=a.SurrenderValue-a.Tax-a.TotalLoanAmount,a.ClaimId,c.Instalment
-		INTO #TempRastasawakSurrenderin FROM tblGroupSurrender(NOLOCK) a 
-		inner join #tempGroupEndowment(NOLOCK) b  
-		on a.PolicyNo=b.PolicyNo 
-		inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-		WHERE b.GroupId IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-		AND a.IntimationDate BETWEEN ISNULL (@IntiDateFrom,a.IntimationDate) AND ISNULL(@IntiDateTo, a.IntimationDate)
-		AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-		
-		SELECT * From #TempRastasawakSurrenderin UNION ALL
-			SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(TotalLoanAmount),SUM(NetSurrenderAmount),'',''
-			FROM #TempRastasawakSurrenderin Order By SNo
-	END
-	
-	ELSE IF @DateOption='DOCDate'
-		BEGIN
-			SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,
-			CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-			CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-			CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate
-			,a.VoucherNo,a.Tax,a.TotalLoanAmount,NetSurrenderAmount=a.SurrenderValue-a.Tax-a.TotalLoanAmount,a.ClaimId,c.Instalment
-			INTO #TempRastasawakSurrenderdoc FROM tblGroupSurrender(NOLOCK) a 
-			inner join #tempGroupEndowment(NOLOCK) b  
-			on a.PolicyNo=b.PolicyNo 
-			inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-			WHERE b.GroupId IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-			AND b.DOC BETWEEN ISNULL(@DOCDateFrom,b.DOC) AND ISNULL(@DOCDateTo,b.DOC)
-			AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo)
-			
-			SELECT * From #TempRastasawakSurrenderdoc UNION ALL
-				SELECT MAX(SNo) + 1,'Total','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(TotalLoanAmount),SUM(NetSurrenderAmount),'',''
-				FROM #TempRastasawakSurrenderdoc Order By SNo
-		END
-ELSE IF @DateOption='SurrenderPaid'
-BEGIN
-	SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-	CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-	CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
-	INTO #TempGroupSurrenderpaid FROM tblGroupSurrender a 
-	inner join #tempGroupEndowment b  
-	on a.PolicyNo=b.PolicyNo 
-	inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	AND a.SurrenderPaidDate BETWEEN ISNULL(@FromDate,a.SurrenderPaidDate) AND ISNULL(@ToDate,a.SurrenderPaidDate)
-	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo) 
-	
-	Select * From #TempGroupSurrenderpaid UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(LoanAmount),SUM(LoanInterest),SUM(NetPayable),'',''
-	FROM #TempGroupSurrenderpaid Order By SNo
-END
-select * from  #tempSearchSurrender
-
-END
-ELSE
-BEGIN
-IF @DateOption='SurrenderDate'
-BEGIN
-	SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-	CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-	CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
-	INTO #TempGroupSurrender FROM tblGroupSurrender a 
-	inner join #tempGroupEndowment b  
-	on a.PolicyNo=b.PolicyNo 
-	inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	AND CAST(a.SurrenderDate AS DATE) BETWEEN CAST(ISNULL(@FromDate,a.SurrenderDate)AS DATE) and CAST(ISNULL(@ToDate,a.SurrenderDate)AS DATE)
-	--AND b.DOC BETWEEN ISNULL(@DOCDateFrom,b.DOC) AND ISNULL(@DOCDateTo,b.DOC)
-	--AND a.IntimationDate BETWEEN ISNULL (@IntiDateFrom,a.IntimationDate) AND ISNULL(@IntiDateTo, a.IntimationDate)
-	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo) 
-	
-	Select * From #TempGroupSurrender UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(LoanAmount),SUM(LoanInterest),SUM(NetPayable),'',''
-	FROM #TempGroupSurrender Order By SNo
-END
-IF @DateOption='IntimationDate'
-BEGIN
-	SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-	CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-	CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
-	INTO #TempGroupSurrenderInt FROM tblGroupSurrender a 
-	inner join #tempGroupEndowment b  
-	on a.PolicyNo=b.PolicyNo 
-	inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	AND a.IntimationDate BETWEEN ISNULL (@IntiDateFrom,a.IntimationDate) AND ISNULL(@IntiDateTo, a.IntimationDate)
-	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo) 
-	
-	Select * From #TempGroupSurrenderInt UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(LoanAmount),SUM(LoanInterest),SUM(NetPayable),'',''
-	FROM #TempGroupSurrenderInt Order By SNo
-END
-IF @DateOption='DOCDate'
-BEGIN
-	SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-	CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-	CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
-	INTO #TempGroupSurrenderdoc FROM tblGroupSurrender a 
-	inner join #tempGroupEndowment b  
-	on a.PolicyNo=b.PolicyNo 
-	inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	AND b.DOC BETWEEN ISNULL(@DOCDateFrom,b.DOC) AND ISNULL(@DOCDateTo,b.DOC)
-	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo) 
-	
-	Select * From #TempGroupSurrenderdoc UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(LoanAmount),SUM(LoanInterest),SUM(NetPayable),'',''
-	FROM #TempGroupSurrenderdoc Order By SNo
-END
-IF @DateOption='SurrenderPaid'
-BEGIN
-	SELECT   ROW_NUMBER() OVER(ORDER BY a.CreatedDate desc ) as SNo,A.GroupId,b.PolicyNo,b.EmployeeId,b.Name,b.NepName,CONVERT(VARCHAR(10), b.DOB,103) AS DOB,CONVERT(VARCHAR(10), b.DOC,103) AS DOC,b.SA AS SA,b.Premium,Term=CAST(b.Term AS VARCHAR(10)),
-	CONVERT(VARCHAR(10),b.MaturityDate,103) AS MaturityDate,a.SurrenderValue AS SurrenderAmount,CONVERT(VARCHAR(10),a.SurrenderDate,103) AS SurrenderDate,
-	CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
-	INTO #TempGroupSurrenderpayment FROM tblGroupSurrender a 
-	inner join #tempGroupEndowment b  
-	on a.PolicyNo=b.PolicyNo 
-	inner join #tblGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId NOT IN ('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	AND a.SurrenderPaidDate BETWEEN ISNULL(@FromDate,a.SurrenderPaidDate) AND ISNULL(@ToDate,a.SurrenderPaidDate)
-	AND a.PolicyNo=ISNULL(@PolicyNo,a.PolicyNo) 
-	
-	Select * From #TempGroupSurrenderpayment UNION ALL
-	SELECT MAX(SNo) + 1,'Total','','','','','','',SUM(SA),SUM(Premium),'','',SUM(SurrenderAmount),'','','',SUM(Tax),SUM(LoanAmount),SUM(LoanInterest),SUM(NetPayable),'',''
-	FROM #TempGroupSurrenderpayment Order By SNo
-END
-select * from  #tempSearchSurrender
-
-
-END
-
+		CONVERT(VARCHAR(10),a.IntimationDate,103) AS IntimationDate,a.VoucherNo,a.Tax,a.TotalLoanAmount LoanAmount,a.CalculatedInterest LoanInterest,a.NetPayable,a.ClaimId,c.Instalment
+		 FROM tblGroupSurrender a 
+		inner join tempGroupEndowment b  on a.PolicyNo=b.PolicyNo 
+		inner join tempGroupEndowmentDetails c on a.PolicyNo=c.PolicyNo
+		WHERE b.GroupId = @GroupID
+		AND CONVERT(date, a.SurrenderPaidDate,103) BETWEEN @FromDate AND @ToDate
+)	
+-- select statement
+Select * From tempGroupSurrenderpayment 
 
 END
 

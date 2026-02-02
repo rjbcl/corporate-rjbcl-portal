@@ -5,6 +5,8 @@ let deathMetaData = {};
 let maturityReportData = [];
 let maturityMetaData = {};
 
+let surrenderReportData =[];
+let surrenderMetaData = {};
 
 
 // Handle form submissions for all three claim types
@@ -153,12 +155,56 @@ document.addEventListener('DOMContentLoaded', function () {
                     generateBtn.innerHTML = originalText;
                 });
         }
-
         if (claimType === 'surrender') {
-            // Maturity and Surrender not implemented yet
-            alert(`${claimType} claim report is not yet implemented`);
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = originalText;
+            fetch('/api/corporate/reports/surrender-claim/', {
+                method: 'POST',
+                body: JSON.stringify(requestData),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Surrender claim data received:', data);
+
+                    surrenderReportData = data;
+                    surrenderMetaData = {
+                        from_date: requestData.from_date,
+                        to_date: requestData.to_date,
+                        group_id: requestData.group_id
+                    };
+
+                    // Populate the table
+                    populateTable(claimType, data);
+
+                    // Show the report table
+                    reportResults.style.display = 'block';
+
+                    // Mark this report as generated
+                    generatedReports[claimType] = true;
+
+                    // Enable download button
+                    document.getElementById(`${claimType}-download-btn`).disabled = false;
+
+                    // Scroll to the report
+                    setTimeout(() => {
+                        reportResults.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`Error generating ${claimType} report: ${error.message}`);
+                })
+                .finally(() => {
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = originalText;
+                });
         }
     }
     // Populate table with data for specific claim type
@@ -188,14 +234,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 `;
             } else if (claimType === 'surrender') {
                 row.innerHTML = `
-                    <td>${item.policy_no || '-'}</td>
-                    <td>${item.employee_name || '-'}</td>
-                    <td>${formatCurrency(item.sum_assured || 0)}</td>
-                    <td>${formatCurrency(item.premium || 0)}</td>
-                    <td>${item.surrender_date || '-'}</td>
-                    <td>${formatCurrency(item.surrender_value || 0)}</td>
-                    <td>${item.term || '-'}</td>
-                    <td>${item.Bonus || '-'}</td>
+                    <td>${item.PolicyNo || '-'}</td>
+                    <td>${item.Name || item.NepName || '-'}</td>
+                    <td>${formatCurrency(item.SA || 0)}</td>
+                    <td>${formatCurrency(item.Premium || 0)}</td>
+                    <td>${item.SurrenderDate || '-'}</td>
+                    <td>${formatCurrency(item.SurrenderAmount || 0)}</td>
+                    <td>${formatCurrency(item.LoanAmount) || '-'}</td>
+                    <td>${item.Term || '-'}</td>
                 `;
             } else if (claimType === 'death') {
                 row.innerHTML = `
@@ -294,51 +340,6 @@ document.addEventListener('DOMContentLoaded', function () {
         downloadCSV(data, filename);
 
     }
-
-    // Generate dummy data for testing (REMOVE THIS WHEN YOU HAVE REAL API)
-    function generateDummyData(claimType) {
-        const dummyData = [];
-
-        for (let i = 1; i <= 20; i++) {
-            if (claimType === 'maturity') {
-                dummyData.push({
-                    policy_no: `POL-MAT-${1000 + i}`,
-                    employee_name: `Employee ${i}`,
-                    sum_assured: `Rs. ${50000 * i}`,
-                    premium: `Rs. ${5000 * i}`,
-                    maturity_date: `2025-0${Math.min(i, 9)}-15`,
-                    days_to_maturity: `${30 * i}`,
-                    term: `${10 + i} years`,
-                    status: 'Active'
-                });
-            } else if (claimType === 'surrender') {
-                dummyData.push({
-                    policy_no: `POL-SUR-${2000 + i}`,
-                    employee_name: `Employee ${i}`,
-                    sum_assured: `Rs. ${45000 * i}`,
-                    premium: `Rs. ${4500 * i}`,
-                    surrender_date: `2025-0${Math.min(i, 9)}-20`,
-                    surrender_value: `Rs. ${35000 * i}`,
-                    term: `${8 + i} years`,
-                    status: 'Surrendered'
-                });
-            } else if (claimType === 'death') {
-                dummyData.push({
-                    policy_no: `POL-DTH-${3000 + i}`,
-                    employee_name: `Employee ${i}`,
-                    sum_assured: `Rs. ${100000 * i}`,
-                    premium: `Rs. ${10000 * i}`,
-                    death_date: `2025-0${Math.min(i, 9)}-10`,
-                    claim_amount: `Rs. ${100000 * i}`,
-                    term: `${12 + i} years`,
-                    status: 'Claimed'
-                });
-            }
-        }
-
-        return dummyData;
-    }
-
     // No tab switching logic needed - tables persist within their own tab panes!
     // Each table is now part of its tab content, so Bootstrap handles the visibility automatically
 

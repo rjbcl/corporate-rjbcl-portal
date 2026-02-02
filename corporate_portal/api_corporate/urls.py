@@ -10,7 +10,8 @@ from .views import (
     company_policies_web,
     maturity_forecasting_report,
     death_claim_report,
-    maturity_claim_report
+    maturity_claim_report,
+    surrender_claim_report
 )
 
 router = DefaultRouter()
@@ -32,6 +33,7 @@ urlpatterns = [
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
     path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
+    path('reports/surrender-claim/', surrender_claim_report, name='surrender-claim-report'),
     
     # API endpoints
     path('', include(router.urls)),
