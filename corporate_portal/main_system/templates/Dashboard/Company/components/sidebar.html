@@ -9,9 +9,9 @@
                 </a>
             </li>
             <li class="{% if 'policies' in request.path %}mm-active{% endif %}">
-                <a href="{% url 'company_policies' %}">
-                    <i class="bi bi-piggy-bank-fill"></i>
-                    <span class="nav-text">Policies</span>
+                <a href="{% url 'company_groups' %}">
+                    <i class="bi bi-collection"></i>
+                    <span class="nav-text">Group</span>
                 </a>
             </li>
             <li class="{% if 'reports' in request.path %}mm-active{% endif %}">
@@ -30,6 +30,9 @@
                     <li><a href="{% url 'policy_summary' %}"
                             class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Policy
                             Summary</a></li>
+                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Business Detail </a></li>
+                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Transfer</a></li>
+                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Group Loan</a></li>
                 </ul>
             </li>
         </ul>

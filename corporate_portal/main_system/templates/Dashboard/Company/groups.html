@@ -1,0 +1,129 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}{{ company.company_name }} - Groups{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    .stat-label {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 3px;
+    }
+    .stat-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #2d3436;
+    }
+    .group-header-title {
+        font-size: 16px;
+        font-weight: 600;
+    }
+    .group-id-badge {
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 13px;
+        margin-left: 10px;
+    }
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 12px;
+        margin-left: 10px;
+    }
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+    .status-inactive {
+        background: #f8d7da;
+        color: #721c24;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page titles -->
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Your Groups</h4>
+            <p class="mb-0">View and manage your insurance groups</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item active"><a href="javascript:void(0)">Groups</a></li>
+        </ol>
+    </div>
+</div>
+
+<!-- Loading State -->
+<div id="loading-state" class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+                <p class="mt-3">Loading your groups...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error State -->
+<div id="error-state" class="row" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="alert alert-danger" role="alert">
+                    <h4 class="alert-heading">Error Loading Groups</h4>
+                    <p id="error-message"></p>
+                    <hr>
+                    <button class="btn btn-sm btn-danger" onclick="loadGroups()">Try Again</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Groups Accordion -->
+<div id="groups-container" class="row" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-block">
+                <h4 class="card-title">Your Insurance Groups</h4>
+                <p class="m-0 subtitle">Expand each group to view detailed statistics and information</p>
+            </div>
+            <div class="card-body">
+                <div id="groups-accordion" class="accordion accordion-bordered">
+                    <!-- Groups will be dynamically loaded here -->
+                </div>
+                
+                <!-- Empty State -->
+                <div id="empty-state" style="display: none;" class="text-center py-5">
+                    <i class="fa fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5>No Groups Found</h5>
+                    <p class="text-muted">You don't have any groups assigned yet.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard/utilities.js' %}"></script>
+<script src="{% static 'js/dashboard/groups.js' %}"></script>
+{% endblock %}
