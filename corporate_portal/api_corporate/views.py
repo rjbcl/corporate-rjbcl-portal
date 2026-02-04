@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated #type: ignore
 from rest_framework_simplejwt.views import TokenObtainPairView #type: ignore
 from rest_framework_simplejwt.authentication import JWTAuthentication #type: ignore
 from rest_framework.decorators import api_view, permission_classes, authentication_classes #type: ignore
+import django_filters
 from .models import GroupEndowment, GroupInformation
 from .serializers import (
     GroupEndowmentSerializer, 
@@ -657,44 +658,99 @@ class IndividualPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
             employee_id=individual.user_id  # Adjust this field mapping as needed
         )
 
-class GroupInformationViewSet(viewsets.ReadOnlyModelViewSet):
+class GroupInformationFilter(django_filters.FilterSet):
     """
-    Read-only API endpoint for Group Information.
-    Supports both JWT and Session authentication.
-    Provides list and retrieve actions only (GET requests).
-    Supports filtering, searching, and ordering.
+    Filter for GroupInformation view
+    Only includes fields that exist in view_copo_groupInformation
     """
-    queryset = GroupInformation.objects.using('company_external').all()
-    serializer_class = GroupInformationSerializer
-    permission_classes = [AllowAny]
-    authentication_classes = [JWTAuthentication, SessionAuthentication]
+    group_id = django_filters.BaseInFilter(field_name='group_id', lookup_expr='in')
 
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    class Meta:
+        model = GroupInformation
+        fields = {
+            'is_active': ['exact'],
+            'group_name': ['icontains'],  # Optional: search by group name
+        }
+
+@api_view(['GET'])  # Changed from POST to GET since we're not taking body params anymore
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def group_information(request):
+    """
+    Get group information for the authenticated company's groups.
+    GET /api/corporate/groups/
     
-    filterset_fields = [
-        'group_id',
-        'fiscal_year',
-        'is_active',
-        'group_type',
-        'account_number',
-    ]
+    Automatically fetches groups based on the logged-in company user.
+    Superusers and staff can optionally pass company_id as query param.
+    """
+    from main_system.models import Group as PortalGroup
     
-    search_fields = [
-        'group_name',
-        'group_name_nepali',
-        'short_name',
-        'master_policy_no',
-        'group_id',
-    ]
+    user = request.user
     
-    ordering_fields = [
-        'created_date',
-        'modified_date',
-        'group_name',
-        'fiscal_year',
-    ]
+    # Determine which company's groups to fetch
+    if user.is_superuser or user.is_staff:
+        # Staff/Superuser can optionally specify company_id
+        company_id = request.query_params.get('company_id')
+        
+        if company_id:
+            try:
+                company_id = int(company_id)
+                # Get group_ids for specified company
+                group_ids = list(PortalGroup.objects.filter(
+                    company_id=company_id,
+                    isdeleted=False
+                ).values_list('group_id', flat=True))
+            except (ValueError, TypeError):
+                return Response({
+                    'error': 'Invalid company_id'
+                }, status=400)
+        else:
+            # If no company_id specified, return all groups (for superuser/staff)
+            group_ids = list(PortalGroup.objects.filter(
+                isdeleted=False
+            ).values_list('group_id', flat=True))
+    else:
+        # Regular company user - get their own company's groups
+        try:
+            company = user.company_profile
+            
+            # Check if company account is active
+            if not company.isactive:
+                return Response({
+                    'error': 'Company account is inactive'
+                }, status=403)
+            
+            # Get all group_ids for this company from PostgreSQL
+            group_ids = list(PortalGroup.objects.filter(
+                company_id=company,
+                isdeleted=False
+            ).values_list('group_id', flat=True))
+            
+        except AttributeError:
+            return Response({
+                'error': 'User is not associated with a company'
+            }, status=403)
     
-    ordering = ['-created_date']
+    # Check if company has any groups
+    if not group_ids:
+        return Response({
+            'count': 0,
+            'results': [],
+            'message': 'No groups found for this company'
+        })
+    
+    # Fetch group information from MSSQL using the group_ids
+    queryset = GroupInformation.objects.using('company_external').filter(
+        group_id__in=group_ids
+    )
+    
+    serializer = GroupInformationSerializer(queryset, many=True)
+    
+    return Response({
+        'count': queryset.count(),
+        'group_ids': group_ids,  # Include for reference
+        'results': serializer.data
+    })
 
 class GroupEndowmentViewSet(viewsets.ReadOnlyModelViewSet):
     """

@@ -100,7 +100,7 @@ def company_dashboard(request):
 
 
 @login_required
-def company_policies(request):
+def company_groups(request):
     """Policies page for company users"""
     if request.user.get_user_type() != 'company':
         messages.error(request, 'Access denied.')
@@ -111,7 +111,7 @@ def company_policies(request):
     context = {
         'company': company,
     }
-    return render(request, 'Dashboard/Company/policies.html', context)
+    return render(request, 'Dashboard/Company/groups.html', context)
 
 
 # ================================

@@ -13,7 +13,7 @@ urlpatterns = [
     
     # Company routes
     path('company/dashboard/', views.company_dashboard, name='company_dashboard'),
-    path('company/policies/', views.company_policies, name='company_policies'),
+    path('company/groups/', views.company_groups, name='company_groups'),
     
     # Company Reports
     path('company/reports/maturity/', views.maturity_forecasting_report, name='maturity_forecasting_report'),

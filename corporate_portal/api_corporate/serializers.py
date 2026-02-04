@@ -72,45 +72,25 @@ class GroupInformationSerializer(serializers.ModelSerializer):
     class Meta:
         model = GroupInformation
         fields = [
-            'row_id',
+            # Basic group information
+            'group_id',
             'group_name',
             'group_name_nepali',
-            'discount_rate',
-            'fiscal_year',
-            'short_name',
-            'master_policy_no',
-            'group_id',
-            'created_by',
-            'created_date',
             'is_active',
-            'group_type',
-            'account_number',
-            'p_seq',
-            'g_seq',
-            'modified_by',
-            'modified_date',
-            'r_seq',
-            'plan_id',
-            'adb_discount_rate',
-            'retirement_age',
-            'min_age',
-            'max_age',
-            'min_term',
-            'max_term',
-            'rebate',
-            'p2_seq',
-            'doc',
-            'g_loan',
-            's_policy',
-            'adb_amount',
-            'extra_premium',
-            'mode',
-            'remarks',
-            'adb_rate',
-            'extra_load',
-            'is_adb',
+            
+            # Aggregated statistics
+            'total_members_count',
+            'total_active_policies',
+            'total_premium',
+            'total_sa',
+            'death_claim',
+            'surrender_claim',
+            'maturity_claim',
+            'transfer_claim',
+            'terminate_claim',
+            'cancel_claim',
         ]
-        read_only_fields = fields  # All fields are read-only
+        read_only_fields = fields  
 
 class GroupEndowmentSerializer(serializers.ModelSerializer):
     """
