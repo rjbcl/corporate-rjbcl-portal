@@ -202,7 +202,7 @@ def policy_summary(request):
         'company': company,
         'groups': groups,
     }
-    return render(request, 'Dashboard/Company/reports/policy_summary.html', context)
+    return render(request, 'Dashboard/Company/reports/policy_summary_report.html', context)
 
 
 

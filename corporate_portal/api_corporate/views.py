@@ -4,11 +4,12 @@ from rest_framework.decorators import action #type: ignore
 from rest_framework.response import Response #type: ignore
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication #type: ignore
 from django_filters.rest_framework import DjangoFilterBackend #type: ignore
+from main_system.models import Group as PortalGroup
 from rest_framework.permissions import AllowAny, IsAuthenticated #type: ignore
 from rest_framework_simplejwt.views import TokenObtainPairView #type: ignore
 from rest_framework_simplejwt.authentication import JWTAuthentication #type: ignore
 from rest_framework.decorators import api_view, permission_classes, authentication_classes #type: ignore
-import django_filters
+import django_filters #type: ignore
 from .models import GroupEndowment, GroupInformation
 from .serializers import (
     GroupEndowmentSerializer, 
@@ -472,6 +473,92 @@ def surrender_claim_report(request):
             'details': error_details if request.user.is_superuser else None
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def policy_summary_report(request):
+    """
+    Get policy summary data from view_copo_policySummary.
+    POST /api/corporate/reports/policy-summary/
+    """
+    
+    policy_no = request.data.get('policy_no')
+    
+    print(f"Policy Summary Report - Policy: {policy_no}")
+    
+    if not policy_no:
+        return Response({
+            'error': 'policy_no is required'
+        }, status=400)
+    
+    # Get company's group IDs
+    if request.user.is_superuser or request.user.is_staff:
+        # Superuser/staff can see all groups
+        group_ids = list(PortalGroup.objects.filter(
+            isdeleted=False
+        ).values_list('group_id', flat=True))
+    else:
+        company = request.user.company_profile
+        
+        # Check if company account is active
+        if not company.isactive:
+            return Response({
+                'error': 'Company account is inactive'
+            }, status=403)
+        
+        # Get all group_ids for this company
+        group_ids = list(PortalGroup.objects.filter(
+            company_id=company,
+            isdeleted=False
+        ).values_list('group_id', flat=True))
+        
+        if not group_ids:
+            return Response({
+                'error': 'No groups found for your company'
+            }, status=404)
+    
+    try:
+        results = []
+        
+        with connections['company_external'].cursor() as cursor:
+            placeholders = ','.join(['%s'] * len(group_ids))
+            sql = f"""
+                SELECT * FROM view_copo_policySummary
+                WHERE PolicyNo = %s AND GroupId IN ({placeholders})
+            """
+            
+            params = [policy_no] + group_ids
+            cursor.execute(sql, params)
+            
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        col_name = columns[i]
+                        if value is None:
+                            row_dict[col_name] = None
+                        elif hasattr(value, 'isoformat'):
+                            row_dict[col_name] = value.isoformat()
+                        elif isinstance(value, (int, float)):
+                            row_dict[col_name] = value
+                        else:
+                            row_dict[col_name] = str(value)
+                    results.append(row_dict)
+        
+        return Response(results)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        return Response({
+            'error': f'Failed to generate report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -537,6 +624,8 @@ def company_policies_web(request):
         'count': endowments.count(),
         'endowments': serializer.data
     })
+
+
 
 class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
     """

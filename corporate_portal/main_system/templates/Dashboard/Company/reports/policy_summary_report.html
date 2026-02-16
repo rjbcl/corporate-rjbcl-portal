@@ -1,0 +1,333 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}Policy Summary - {{ company.company_name }}{% endblock %}
+
+{% block extra_css %}
+{% endblock %}
+
+{% block content %}
+<style>
+    .stat-card {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 3px;
+    }
+
+    .stat-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #2d3436;
+    }
+
+    .group-header-title {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .group-id-badge {
+        background: #e3f2fd;
+        color: #1976d2;
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 13px;
+        margin-left: 10px;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 12px;
+        margin-left: 10px;
+    }
+
+    .status-active {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-inactive {
+        background: #f8d7da;
+        color: #721c24;
+    }
+</style>
+<!-- Page Header -->
+
+<div id="user-info" data-username="{{ user.username }}" class="d-none"></div>
+
+{% csrf_token %}
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Policy Summary</h4>
+            <p class="mb-0">Find Policy Details</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="javascript:void(0)">Reports</a></li>
+            <li class="breadcrumb-item active"><a href="javascript:void(0)">Policy Report</a></li>
+        </ol>
+    </div>
+</div>
+
+<!-- Report Form Container -->
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card">
+            <!-- Card Body -->
+            <div class="card-body">
+
+                <!-- Report Form -->
+                <div class="basic-form">
+                    <form id="policy-summary-report-form">
+                        <div class="form-row">
+                            <!-- From Date Column -->
+                            <div class="form-group col-md-6">
+                                <label>Policy Number<span class="text-danger">*</span></label>
+                                <div class="row">
+                                    <div class="col-md-6 mb-6 pe-4 mb-md-0">
+                                        <input type="text" class="form-control" id="policy-number" name="policy_number"
+                                            placeholder="Enter Policy Number">
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary" id="generate-btn">
+                                <i class="bi bi-file-earmark-bar-graph"></i> Find Policy
+                            </button>
+                            <button type="button" class="btn btn-success" id="download-policy-summary-btn" disabled>
+                                <i class="bi bi-download"></i> Download
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Policy Summary Display -->
+<div id="policy-summary-container" class="row" style="display: none;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-block">
+                <h4 class="card-title">Policy Summary</h4>
+                <p class="m-0 subtitle">Detailed information about the policy</p>
+            </div>
+            <div class="card-body">
+                <!-- Basic Information Accordion -->
+                <div id="policy-info-accordion" class="accordion accordion-bordered mb-4">
+                    <div class="accordion__item">
+                        <div class="accordion__header" data-toggle="collapse" data-target="#basic-info-collapse"
+                            aria-expanded="true">
+                            <span class="accordion__header--text">
+                                <span class="group-header-title">Basic Information</span>
+                            </span>
+                            <span class="accordion__header--indicator"></span>
+                        </div>
+                        <div id="basic-info-collapse" class="accordion__body collapse show"
+                            data-parent="#policy-info-accordion">
+                            <div class="accordion__body--text">
+                                <div class="row">
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Policy Number</div>
+                                            <div class="stat-value" id="display-policy-no">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Branch</div>
+                                            <div class="stat-value" id="display-branch">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Group ID</div>
+                                            <div class="stat-value" id="display-group-id">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Name</div>
+                                            <div class="stat-value" id="display-name">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Nepali Name</div>
+                                            <div class="stat-value" id="display-nep-name">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Date of Birth</div>
+                                            <div class="stat-value" id="display-dob">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Gender</div>
+                                            <div class="stat-value" id="display-gender">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Occupation</div>
+                                            <div class="stat-value" id="display-occupation">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Mobile</div>
+                                            <div class="stat-value" id="display-mobile">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Email</div>
+                                            <div class="stat-value" id="display-email">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Address</div>
+                                            <div class="stat-value" id="display-address">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">District ID</div>
+                                            <div class="stat-value" id="display-district-id">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Ward No</div>
+                                            <div class="stat-value" id="display-ward-no">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Family Information Accordion -->
+                <div id="family-info-accordion" class="accordion accordion-bordered mb-4">
+                    <div class="accordion__item">
+                        <div class="accordion__header collapsed" data-toggle="collapse"
+                            data-target="#family-info-collapse" aria-expanded="false">
+                            <span class="accordion__header--text">
+                                <span class="group-header-title">Family & Nominee Information</span>
+                            </span>
+                            <span class="accordion__header--indicator"></span>
+                        </div>
+                        <div id="family-info-collapse" class="accordion__body collapse"
+                            data-parent="#family-info-accordion">
+                            <div class="accordion__body--text">
+                                <div class="row">
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Father's Name</div>
+                                            <div class="stat-value" id="display-father-name">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Mother's Name</div>
+                                            <div class="stat-value" id="display-mother-name">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Nominee Name</div>
+                                            <div class="stat-value" id="display-nominee-name">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Nominee Relationship</div>
+                                            <div class="stat-value" id="display-nominee-relationship">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Nominee Phone</div>
+                                            <div class="stat-value" id="display-nominee-phone">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Nominee Address</div>
+                                            <div class="stat-value" id="display-nominee-address">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Policy Details Table -->
+                <h5 class="mb-3">Policy Details</h5>
+                <div class="table-responsive">
+                    <table id="policy-details-table" class="display table table-striped" style="min-width: 845px">
+                        <thead>
+                            <tr>
+                                <th>Sum Assured</th>
+                                <th>DOC</th>
+                                <th>Paid Date</th>
+                                <th>FUP</th>
+                                <th>Term</th>
+                                <th>Premium</th>
+                                <th>Instalment</th>
+                                <th>Paid Amount</th>
+                                <th>Maturity Date</th>
+                                <th>Policy Status</th>
+                                <th>Policy Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="policy-details-tbody">
+                            <!-- Data will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Claim Information (if exists) -->
+                <div id="claim-info-section" style="display: none;" class="mt-4">
+                    <h5 class="mb-3">Claim Information</h5>
+                    <div class="row">
+                        <div class="col-md-4 col-sm-6 mb-3">
+                            <div class="stat-card">
+                                <div class="stat-label">Claim Date</div>
+                                <div class="stat-value" id="display-claim-date">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard/utilities.js' %}"></script>
+<script src="{% static 'js/date-conversion.js' %}"></script>
+<script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
+<script src="{% static 'js/dashboard/reports/report.js' %}"></script>
+<script src="{% static 'js/dashboard/reports/policy_summary.js' %}"></script>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.urls import path, include #type: ignore
 from rest_framework.routers import DefaultRouter #type: ignore
 from rest_framework_simplejwt.views import TokenRefreshView #type: ignore
 from .views import (
+    policy_summary_report,
     CustomTokenObtainPairView,
     group_information,
     GroupEndowmentViewSet,
@@ -11,7 +12,7 @@ from .views import (
     maturity_forecasting_report,
     death_claim_report,
     maturity_claim_report,
-    surrender_claim_report
+    surrender_claim_report,
 )
 
 router = DefaultRouter()
@@ -33,6 +34,7 @@ urlpatterns = [
     # Reports endpoint
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
     path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
+    path('reports/policy-summary/', policy_summary_report, name='policy-summary-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
     path('reports/surrender-claim/', surrender_claim_report, name='surrender-claim-report'),
     
