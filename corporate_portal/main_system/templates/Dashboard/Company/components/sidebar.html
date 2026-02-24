@@ -14,7 +14,13 @@
                     <span class="nav-text">Group</span>
                 </a>
             </li>
-            <li class="{% if 'reports' in request.path %}mm-active{% endif %}">
+            <li class="{% if 'policies' in request.path %}mm-active{% endif %}">
+                <a href="{% url 'policy_summary' %}">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span class="nav-text">Policy Summary</span>
+                </a>
+            </li>
+            <li class="{% if ' Q' in request.path %}mm-active{% endif %}">
                 <a class="has-arrow" href="javascript:void(0);"
                     aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
                     <i class="bi bi-file-earmark-break-fill"></i>
@@ -27,12 +33,15 @@
                     <li><a href="{% url 'claim_report' %}"
                             class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Claim
                             Report</a></li>
-                    <li><a href="{% url 'policy_summary' %}"
-                            class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Policy
-                            Summary</a></li>
-                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Business Detail </a></li>
-                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Transfer</a></li>
-                    <li><a href="#" class="{% if request.resolver_match.url_name == 'policy_summary' %}active{% endif %}">Group Loan</a></li>
+                    <li><a href="#"
+                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Business
+                            Detail </a></li>
+                    <li><a href="#"
+                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Transfer</a>
+                    </li>
+                    <li><a href="#"
+                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Group
+                            Loan</a></li>
                 </ul>
             </li>
         </ul>

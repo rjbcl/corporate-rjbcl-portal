@@ -57,6 +57,36 @@
         background: #f8d7da;
         color: #721c24;
     }
+
+    #policy-search-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        z-index: 9999;
+        max-height: 250px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    #policy-search-dropdown .dropdown-item {
+        cursor: pointer;
+        padding: 8px 16px;
+        font-size: 0.875rem;
+    }
+
+    #policy-search-dropdown .dropdown-item:hover {
+        background-color: #f0f0f0;
+    }
+
+    #policy-search-dropdown .dropdown-item-muted {
+        padding: 8px 16px;
+        font-size: 0.875rem;
+        color: #999;
+        pointer-events: none;
+    }
 </style>
 <!-- Page Header -->
 
@@ -73,7 +103,6 @@
     <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
-            <li class="breadcrumb-item"><a href="javascript:void(0)">Reports</a></li>
             <li class="breadcrumb-item active"><a href="javascript:void(0)">Policy Report</a></li>
         </ol>
     </div>
@@ -94,9 +123,13 @@
                             <div class="form-group col-md-6">
                                 <label>Policy Number<span class="text-danger">*</span></label>
                                 <div class="row">
-                                    <div class="col-md-6 mb-6 pe-4 mb-md-0">
+                                    <div class="col-md-6 mb-6 pe-4 mb-md-0" style="position: relative;">
                                         <input type="text" class="form-control" id="policy-number" name="policy_number"
-                                            placeholder="Enter Policy Number">
+                                            placeholder="Enter Policy Number or Name" autocomplete="off">
+                                        <div id="policy-search-dropdown" class="dropdown-menu"
+                                            style="width: 100%; display: none;">
+                                            <!-- Results will be populated here -->
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -107,9 +140,6 @@
                         <div class="form-group">
                             <button type="submit" class="btn btn-primary" id="generate-btn">
                                 <i class="bi bi-file-earmark-bar-graph"></i> Find Policy
-                            </button>
-                            <button type="button" class="btn btn-success" id="download-policy-summary-btn" disabled>
-                                <i class="bi bi-download"></i> Download
                             </button>
                         </div>
                     </form>
@@ -281,31 +311,6 @@
                     </div>
                 </div>
 
-                <!-- Policy Details Table -->
-                <h5 class="mb-3">Policy Details</h5>
-                <div class="table-responsive">
-                    <table id="policy-details-table" class="display table table-striped" style="min-width: 845px">
-                        <thead>
-                            <tr>
-                                <th>Sum Assured</th>
-                                <th>DOC</th>
-                                <th>Paid Date</th>
-                                <th>FUP</th>
-                                <th>Term</th>
-                                <th>Premium</th>
-                                <th>Instalment</th>
-                                <th>Paid Amount</th>
-                                <th>Maturity Date</th>
-                                <th>Policy Status</th>
-                                <th>Policy Type</th>
-                            </tr>
-                        </thead>
-                        <tbody id="policy-details-tbody">
-                            <!-- Data will be inserted here -->
-                        </tbody>
-                    </table>
-                </div>
-
                 <!-- Claim Information (if exists) -->
                 <div id="claim-info-section" style="display: none;" class="mt-4">
                     <h5 class="mb-3">Claim Information</h5>
@@ -318,6 +323,91 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="policy-tables-accordion" class="accordion accordion-bordered mt-4">
+
+                    <!-- Policy Details Accordion -->
+                    <div class="accordion__item">
+                        <div class="accordion__header" data-toggle="collapse" data-target="#policy-details-collapse"
+                            aria-expanded="true">
+                            <span class="accordion__header--text d-flex justify-content-between align-items-center w-100">
+                                <span class="group-header-title">Policy Details</span>
+                                <button type="button" class="btn btn-sm btn-success ms-2 me-5"
+                                    id="download-policy-summary-btn" disabled onclick="event.stopPropagation()">
+                                    <i class="bi bi-download"></i> Download
+                                </button>
+                            </span>
+                            <span class="accordion__header--indicator"></span>
+                        </div>
+                        <div id="policy-details-collapse" class="accordion__body collapse show"
+                            data-parent="#policy-tables-accordion">
+                            <div class="accordion__body--text">
+                                <div class="table-responsive">
+                                    <table id="policy-details-table" class="display table table-striped"
+                                        style="min-width: 845px">
+                                        <thead>
+                                            <tr>
+                                                <th>Sum Assured</th>
+                                                <th>DOC</th>
+                                                <th>Paid Date</th>
+                                                <th>FUP</th>
+                                                <th>Term</th>
+                                                <th>Premium</th>
+                                                <th>Instalment</th>
+                                                <th>Paid Amount</th>
+                                                <th>Maturity Date</th>
+                                                <th>Policy Status</th>
+                                                <th>Policy Type</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="policy-details-tbody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Loan Details Accordion -->
+                    <div class="accordion__item" id="loan-details-section" style="display: none;">
+                        <div class="accordion__header collapsed" data-toggle="collapse"
+                            data-target="#loan-details-collapse" aria-expanded="false">
+                            <span class="accordion__header--text d-flex justify-content-between align-items-center w-100">
+                                <span class="group-header-title">Loan Details</span>
+                                <button type="button" class="btn btn-sm btn-success ms-2 me-5" id="download-loan-btn"
+                                    onclick="event.stopPropagation()">
+                                    <i class="bi bi-download"></i> Download
+                                </button>
+                            </span>
+                            <span class="accordion__header--indicator"></span>
+                        </div>
+                        <div id="loan-details-collapse" class="accordion__body collapse"
+                            data-parent="#policy-tables-accordion">
+                            <div class="accordion__body--text">
+                                <div class="table-responsive">
+                                    <table id="loan-details-table" class="display table table-striped"
+                                        style="min-width: 845px">
+                                        <thead>
+                                            <tr>
+                                                <th>Voucher No</th>
+                                                <th>Loan Date</th>
+                                                <th>Loan Amount</th>
+                                                <th>Interest Rate</th>
+                                                <th>Instalment</th>
+                                                <th>Last Paid Date</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="loan-details-tbody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
             </div>
         </div>
     </div>
@@ -329,5 +419,5 @@
 <script src="{% static 'js/date-conversion.js' %}"></script>
 <script src="{% static 'js/nepaliFunctions.js' %}" type="text/javascript" charset="UTF-8"></script>
 <script src="{% static 'js/dashboard/reports/report.js' %}"></script>
-<script src="{% static 'js/dashboard/reports/policy_summary.js' %}"></script>
+<script src="{% static 'js/dashboard/policy_summary.js' %}"></script>
 {% endblock %}

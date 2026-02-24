@@ -560,6 +560,199 @@ def policy_summary_report(request):
             'details': error_details if request.user.is_superuser else None
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def policy_search(request):
+    """
+    Search policies by policy number or name.
+    GET /api/corporate/reports/policy-search/?q=<query>
+    """
+    from main_system.models import Group as PortalGroup
+
+    query = request.data.get('q', '').strip()
+
+    if not query:
+        return Response([], status=200)
+
+    # Check if group_ids are cached in session
+    group_ids = request.session.get('company_group_ids')
+
+    if not group_ids:
+        if request.user.is_superuser or request.user.is_staff:
+            group_ids = list(PortalGroup.objects.filter(
+                isdeleted=False
+            ).values_list('group_id', flat=True))
+        else:
+            try:
+                company = request.user.company_profile
+
+                if not company.isactive:
+                    return Response({'error': 'Company account is inactive'}, status=403)
+
+                group_ids = list(PortalGroup.objects.filter(
+                    company_id=company,
+                    isdeleted=False
+                ).values_list('group_id', flat=True))
+
+            except AttributeError:
+                return Response({'error': 'User is not associated with a company'}, status=403)
+
+        if not group_ids:
+            return Response([], status=200)
+
+        # Cache in session
+        request.session['company_group_ids'] = group_ids
+
+    try:
+        # Auto-detect: if query is numeric treat as policy number, otherwise as name
+        # but run both simultaneously to cover partial matches
+        is_numeric = query.isdigit()
+
+        with connections['company_external'].cursor() as cursor:
+            placeholders = ','.join(['%s'] * len(group_ids))
+
+            if is_numeric:
+                sql = f"""
+                    SELECT DISTINCT TOP 15  policyNo, name
+                    FROM tblGroupEndowment
+                    WHERE groupId IN ({placeholders})
+                    AND policyNo LIKE %s
+                """
+                params = group_ids + [f'{query}%']
+            else:
+                sql = f"""
+                    SELECT DISTINCT TOP 15 policyNo, name
+                    FROM tblGroupEndowment
+                    WHERE groupId IN ({placeholders})
+                    AND name LIKE %s
+                """
+                params = group_ids + [f'%{query}%']
+
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+
+        results = [{'policyNo': row[0], 'name': row[1]} for row in rows]
+        return Response(results, status=200)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        return Response({
+            'error': f'Search failed: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def policy_loans(request):
+    """
+    Get loan details for a policy from tblGroupPolicyLoanDetail.
+    POST /api/corporate/reports/policy-loans/
+    """
+    from main_system.models import Group as PortalGroup
+
+    policy_no = request.data.get('policy_no')
+
+    if not policy_no:
+        return Response({'error': 'policy_no is required'}, status=400)
+
+    # Get group_ids from session or fetch and cache
+    group_ids = request.session.get('company_group_ids')
+
+    if not group_ids:
+        if request.user.is_superuser or request.user.is_staff:
+            group_ids = list(PortalGroup.objects.filter(
+                isdeleted=False
+            ).values_list('group_id', flat=True))
+        else:
+            try:
+                company = request.user.company_profile
+
+                if not company.isactive:
+                    return Response({'error': 'Company account is inactive'}, status=403)
+
+                group_ids = list(PortalGroup.objects.filter(
+                    company_id=company,
+                    isdeleted=False
+                ).values_list('group_id', flat=True))
+
+            except AttributeError:
+                return Response({'error': 'User is not associated with a company'}, status=403)
+
+        if not group_ids:
+            return Response([], status=200)
+
+        request.session['company_group_ids'] = group_ids
+
+    try:
+        with connections['company_external'].cursor() as cursor:
+            # Security: verify the policy belongs to one of the company's groups
+            # before returning loan details
+            placeholders = ','.join(['%s'] * len(group_ids))
+            verify_sql = f"""
+                SELECT COUNT(1) FROM tblGroupEndowment
+                WHERE policyNo = %s AND groupId IN ({placeholders})
+            """
+            cursor.execute(verify_sql, [policy_no] + group_ids)
+            count = cursor.fetchone()[0]
+
+            if count == 0:
+                return Response({'error': 'Policy not found or access denied'}, status=403)
+
+            # Fetch loan details
+            loan_sql = """
+                SELECT
+                    PolicyNo,
+                    loanID,
+                    LoanDate,
+                    LoanAmount,
+                    InterestRate,
+                    Instalment,
+                    Status,
+                    LastPaidDate,
+                    VoucherNo
+                FROM tblGroupPolicyLoanDetail
+                WHERE policyNo = %s
+            """
+            cursor.execute(loan_sql, [policy_no])
+
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                rows = cursor.fetchall()
+
+                results = []
+                for row in rows:
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        col_name = columns[i]
+                        if value is None:
+                            row_dict[col_name] = None
+                        elif hasattr(value, 'isoformat'):
+                            row_dict[col_name] = value.isoformat()
+                        elif isinstance(value, (int, float)):
+                            row_dict[col_name] = value
+                        else:
+                            row_dict[col_name] = str(value)
+                    results.append(row_dict)
+
+                return Response(results, status=200)
+
+            return Response([], status=200)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        return Response({
+            'error': f'Failed to fetch loan details: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def company_policies_web(request):

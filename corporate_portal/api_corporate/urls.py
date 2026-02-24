@@ -13,6 +13,8 @@ from .views import (
     death_claim_report,
     maturity_claim_report,
     surrender_claim_report,
+    policy_search,
+    policy_loans,
 )
 
 router = DefaultRouter()
@@ -33,8 +35,12 @@ urlpatterns = [
 
     # Reports endpoint
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
-    path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
+    #Policy Summary
+    path('reports/policy-search/', policy_search, name='policy-search'),
+    path('reports/policy-loans/', policy_loans, name='policy-loans'),
     path('reports/policy-summary/', policy_summary_report, name='policy-summary-report'),
+
+    path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
     path('reports/surrender-claim/', surrender_claim_report, name='surrender-claim-report'),
     
