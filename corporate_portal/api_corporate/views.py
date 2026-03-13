@@ -74,27 +74,24 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([SessionAuthentication])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
 def maturity_forecasting_report(request):
     """
     Generate maturity forecasting report by calling stored procedure.
     POST /api/corporate/reports/maturity-forecasting/
     """
-    from main_system.models import Group as PortalGroup
-    
     # Get parameters from request
     group_id = request.data.get('group_id')
     from_date = request.data.get('from_date')
     to_date = request.data.get('to_date')
     date_type = request.data.get('date_type', 'ad')
-    
-    print(f"Report request - Group: {group_id}, From: {from_date}, To: {to_date}, Type: {date_type}")
-    
     # Validate required fields
     if not all([group_id, from_date, to_date]):
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
+    
+    print(f"Report request - Group: {group_id}, From: {from_date}, To: {to_date}, Type: {date_type}")
     
     # Security: Verify the logged-in user owns this group
     if not request.user.is_superuser and not request.user.is_staff:
@@ -200,12 +197,248 @@ def maturity_forecasting_report(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([JWTAuthentication, SessionAuthentication])
+def group_transfer_report(request):
+    """
+    Generate group transfer report by calling stored procedure.
+    POST /api/corporate/reports/group-transfer/
+    """
+    group_id = request.data.get('group_id')
+    transfer_date_from = request.data.get('transfer_date_from')
+    transfer_date_to = request.data.get('transfer_date_to')
+    date_type = request.data.get('date_type', 'ad')
+
+    if not all([group_id, transfer_date_from, transfer_date_to]):
+        return Response({
+            'error': 'group_id, transfer_date_from, and transfer_date_to are required'
+        }, status=400)
+
+    print(f"Report request - Group: {group_id}, From: {transfer_date_from}, To: {transfer_date_to}, Type: {date_type}")
+
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+
+        if not group_exists:
+            return Response({
+                'error': 'You can only access your own company groups'
+            }, status=403)
+
+    try:
+        results = []
+
+        with connections['company_external'].cursor() as cursor:
+            sql = """
+                SET NOCOUNT ON;
+                EXEC proc_copo_GroupReport
+                    @flag = 'GroupTransferReport',
+                    @User = 'report_reader_copo',
+                    @GroupId = %s,
+                    @TransferDateFrom = %s,
+                    @TransferDateTo = %s;
+            """
+
+            cursor.execute(sql, [group_id, transfer_date_from, transfer_date_to])
+
+            result_set_count = 0
+            while True:
+                result_set_count += 1
+                print(f"Processing result set {result_set_count}")
+
+                if cursor.description:
+                    columns = [col[0] for col in cursor.description]
+                    rows = cursor.fetchall()
+                    print(f"Rows in result set {result_set_count}: {len(rows)}")
+
+                    for row in rows:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            col_name = columns[i]
+                            if value is None:
+                                row_dict[col_name] = None
+                            elif hasattr(value, 'isoformat'):
+                                row_dict[col_name] = value.isoformat()
+                            elif isinstance(value, (int, float)):
+                                row_dict[col_name] = value
+                            else:
+                                row_dict[col_name] = str(value)
+                        results.append(row_dict)
+                else:
+                    print(f"Result set {result_set_count} has no description (no columns)")
+
+                if not cursor.nextset():
+                    print("No more result sets")
+                    break
+
+            print(f"Total results collected: {len(results)}")
+
+        if not results:
+            return Response({
+                'success': True,
+                'count': 0,
+                'group_id': group_id,
+                'transfer_date_from': transfer_date_from,
+                'transfer_date_to': transfer_date_to,
+                'date_type': date_type,
+                'transfers': [],
+                'message': 'No transfers found for the given criteria. The stored procedure executed successfully but returned no data.'
+            })
+
+        return Response({
+            'success': True,
+            'count': len(results),
+            'group_id': group_id,
+            'transfer_date_from': transfer_date_from,
+            'transfer_date_to': transfer_date_to,
+            'date_type': date_type,
+            'transfers': results
+        })
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        return Response({
+            'error': f'Failed to generate report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def loan_repayment_report(request):
+    """
+    Generate loan repayment report by calling stored procedure.
+    POST /api/corporate/reports/loan-repayment/
+    """
+
+    # Get parameters from request
+    group_id = request.data.get('group_id')
+    from_date = request.data.get('from_date')
+    to_date = request.data.get('to_date')
+    date_type = request.data.get('date_type', 'ad')
+
+    # Validate required fields
+    if not all([group_id, from_date, to_date]):
+        return Response({
+            'error': 'group_id, from_date, and to_date are required'
+        }, status=400)
+
+    print(f"Report request - Group: {group_id}, From: {from_date}, To: {to_date}, Type: {date_type}")
+
+    # Security: Verify the logged-in user owns this group
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+
+        if not group_exists:
+            return Response({
+                'error': 'You can only access your own company groups'
+            }, status=403)
+
+    try:
+        results = []
+
+        with connections['company_external'].cursor() as cursor:
+            sql = """
+                SET NOCOUNT ON;
+                EXEC proc_copo_groupReport
+                    @flag = 'rptGroupPolicyLoanRepayment',
+                    @user = 'report_reader',
+                    @fromDate = %s,
+                    @toDate = %s,
+                    @PolicyNo = NULL,
+                    @Status = NULL,
+                    @groupId = %s;
+            """
+
+            print(f"Executing loan repayment report: {sql}")
+
+            cursor.execute(sql, [from_date, to_date, group_id])
+
+            # Process all result sets
+            result_set_count = 0
+            while True:
+                result_set_count += 1
+                print(f"Processing result set {result_set_count}")
+
+                if cursor.description:
+                    columns = [col[0] for col in cursor.description]
+                    rows = cursor.fetchall()
+                    print(f"Rows in result set {result_set_count}: {len(rows)}")
+
+                    for row in rows:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            col_name = columns[i]
+                            if value is None:
+                                row_dict[col_name] = None
+                            elif hasattr(value, 'isoformat'):  # datetime
+                                row_dict[col_name] = value.isoformat()
+                            elif isinstance(value, (int, float)):
+                                row_dict[col_name] = value
+                            else:
+                                row_dict[col_name] = str(value)
+                        results.append(row_dict)
+                else:
+                    print(f"Result set {result_set_count} has no description (no columns)")
+
+                if not cursor.nextset():
+                    print("No more result sets")
+                    break
+
+            print(f"Total results collected: {len(results)}")
+
+        if not results:
+            print("WARNING: No results returned from stored procedure")
+            return Response({
+                'success': True,
+                'count': 0,
+                'group_id': group_id,
+                'from_date': from_date,
+                'to_date': to_date,
+                'date_type': date_type,
+                'repayments': [],
+                'message': 'No repayments found for the given criteria. The stored procedure executed successfully but returned no data.'
+            })
+
+        return Response({
+            'success': True,
+            'count': len(results),
+            'group_id': group_id,
+            'from_date': from_date,
+            'to_date': to_date,
+            'date_type': date_type,
+            'repayments': results
+        })
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        return Response({
+            'error': f'Failed to generate report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+    
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
 def death_claim_report(request):
     """
     Generate death claim report by calling stored procedure.
     POST /api/corporate/reports/death-claim/
     """
-    from main_system.models import Group as PortalGroup
     
     group_id = request.data.get('group_id')
     from_date = request.data.get('from_date')
@@ -298,7 +531,6 @@ def maturity_claim_report(request):
     Generate maturity claim report by calling stored procedure.
     POST /api/corporate/reports/maturity-claim/
     """
-    from main_system.models import Group as PortalGroup
     
     group_id = request.data.get('group_id')
     from_date = request.data.get('from_date')
@@ -390,7 +622,6 @@ def surrender_claim_report(request):
     Generate surrender claim report by calling stored procedure.
     POST /api/corporate/reports/surrender-claim/
     """
-    from main_system.models import Group as PortalGroup
     
     group_id = request.data.get('group_id')
     from_date = request.data.get('from_date')
@@ -568,7 +799,6 @@ def policy_search(request):
     Search policies by policy number or name.
     GET /api/corporate/reports/policy-search/?q=<query>
     """
-    from main_system.models import Group as PortalGroup
 
     query = request.data.get('q', '').strip()
 
@@ -653,8 +883,6 @@ def policy_loans(request):
     Get loan details for a policy from tblGroupPolicyLoanDetail.
     POST /api/corporate/reports/policy-loans/
     """
-    from main_system.models import Group as PortalGroup
-
     policy_no = request.data.get('policy_no')
 
     if not policy_no:
@@ -760,7 +988,6 @@ def company_policies_web(request):
     Web dashboard endpoint - uses Django session authentication.
     GET /api/corporate/endowments/by_company/?company_id=<id>
     """
-    from main_system.models import Group as PortalGroup
     
     company_id = request.query_params.get('company_id', None)
     
@@ -818,8 +1045,6 @@ def company_policies_web(request):
         'endowments': serializer.data
     })
 
-
-
 class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for company users to access their policies.
@@ -868,8 +1093,6 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Automatically filter policies by the authenticated company's groups.
         """
-        from main_system.models import Group as PortalGroup
-        
         user = self.request.user
         
         # Get company from authenticated user
@@ -965,7 +1188,7 @@ def group_information(request):
     Automatically fetches groups based on the logged-in company user.
     Superusers and staff can optionally pass company_id as query param.
     """
-    from main_system.models import Group as PortalGroup
+
     
     user = request.user
     

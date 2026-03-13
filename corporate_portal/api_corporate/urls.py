@@ -8,6 +8,7 @@ from .views import (
     GroupEndowmentViewSet,
     CompanyPoliciesViewSet,
     IndividualPoliciesViewSet,
+    loan_repayment_report,
     company_policies_web,
     maturity_forecasting_report,
     death_claim_report,
@@ -15,6 +16,7 @@ from .views import (
     surrender_claim_report,
     policy_search,
     policy_loans,
+    group_transfer_report,
 )
 
 router = DefaultRouter()
@@ -35,6 +37,7 @@ urlpatterns = [
 
     # Reports endpoint
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
+    path('reports/loan-repayment/', loan_repayment_report, name='loan-repayment-report'),
     #Policy Summary
     path('reports/policy-search/', policy_search, name='policy-search'),
     path('reports/policy-loans/', policy_loans, name='policy-loans'),
@@ -43,7 +46,8 @@ urlpatterns = [
     path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
     path('reports/surrender-claim/', surrender_claim_report, name='surrender-claim-report'),
-    
+    path('reports/group-transfer/', group_transfer_report, name='group-transfer-report'),
+
     # API endpoints
     path('', include(router.urls)),
 ]
