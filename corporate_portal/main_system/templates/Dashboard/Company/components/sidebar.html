@@ -34,14 +34,13 @@
                             class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Claim
                             Report</a></li>
                     <li><a href="#"
-                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Business
+                            class="{% if request.resolver_match.url_name == '#' %}active{% endif %}">Business
                             Detail </a></li>
                     <li><a href="#"
-                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Transfer</a>
+                            class="{% if request.resolver_match.url_name == '#' %}active{% endif %}">Transfer</a>
                     </li>
-                    <li><a href="#"
-                            class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Group
-                            Loan</a></li>
+                    <li><a href="{% url 'loan_repayment_report' %}"
+                            class="{% if request.resolver_match.url_name == 'loan_repayment_report' %}active{% endif %}">Group Loan</a></li>
                 </ul>
             </li>
         </ul>

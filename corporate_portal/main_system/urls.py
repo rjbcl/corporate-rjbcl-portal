@@ -17,6 +17,7 @@ urlpatterns = [
     
     # Company Reports
     path('company/reports/maturity/', views.maturity_forecasting_report, name='maturity_forecasting_report'),
+    path('company/reports/loan/', views.loan_repayment_report, name='loan_repayment_report'),
     path('company/reports/claims/', views.claim_report, name='claim_report'), 
     path('company/reports/premium/', views.premium_report, name='premium_report'),
     path('company/reports/summary/', views.policy_summary, name='policy_summary'),
@@ -27,3 +28,5 @@ urlpatterns = [
     # Admin routes
     path('admin/refresh-groups-cache/', refresh_groups_cache_view, name='refresh_groups_cache'),
 ]
+
+# 

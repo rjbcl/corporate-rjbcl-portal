@@ -161,6 +161,29 @@ def claim_report(request):
     }
     return render(request, 'Dashboard/Company/reports/claim_report.html', context)
 
+
+@login_required
+def loan_repayment_report(request):
+    """Loan repayment report for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+    
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/group_loan_report.html', context)
+
+
 @login_required
 def premium_report(request):
     """Premium report for company users"""
