@@ -162,79 +162,7 @@ END
 ELSE IF @Flag='GroupTransferReport'
 BEGIN
 
-
-IF @TransferType = 'Rastasawak'
-BEGIN
-
-
-
-SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn','Rastasawak Transfer Report' As [Report Name],
-CONVERT(VARCHAR(10),@TransferDateFrom,105) AS [Transfer Date From:],
-CONVERT(VARCHAR(10),@TransferDateTo,105) AS [Transfer Date To:]
-,@MemberNoFrom AS PolicyNoFrom,@MemberNoTo AS PolicyNoTo
-INTO  #tempRastasawakSearchParameterInformation
-
-
-	SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,a.EmployeeId,
-	PD.PolicyNo,PD.PreviousPolicy,a.GroupId,a.Name,
-	a.NepName AS[Nepali Name],
-	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],a.Age,CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
-	CAST(a.Term AS VARCHAR(10)) Term ,BasicPremium=
-	CASE WHEN ISNULL(D.RiderPremium,0)>1 THEN ISNULL(PD.Premium,0)-ISNULL(D.RiderPremium,0) ELSE a.Premium END ,ISNULL(D.RiderPremium,0) AS ADB,PD.Premium As Premium,
-	PaidAmount=PD.TotalPremiumPaid,CONVERT(VARCHAR(10),a.MaturityDate,103) AS [Maturity Date],PD.Instalment,TransferDate=CONVERT(VARCHAR(10),a.TransferDate,103)
-	INTO #TempRastasawakApprove
-	  FROM tblGroupEndowment a WITH(NOLOCK)
-	 
-	
-	INNER JOIN dbo.tblGroupEndowmentDetails c ON a.RegisterNo=c.RegisterNo and  a.PolicyNo=c.PolicyNo
-	INNER JOIN dbo.tblPolicyDetail PD ON a.NewRegisterNo=PD.RegisterNo
-	LEFT JOIN dbo.tblInsuredRiders D ON a.NewRegisterNo=d.RegisterNo
-	WHERE a.GroupId IN('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
-	
-	--AND A.PolicyNo BETWEEN ISNULL(@MemberNoFrom,A.PolicyNo) AND ISNULL(@MemberNoTo,A.PolicyNo)
-	
-	AND a.TransferDate BETWEEN CAST( ISNULL(@TransferDateFrom,a.TransferDate) AS DATE) AND CAST(ISNULL(@TransferDateTo,A.TransferDate) AS DATE)
-
-AND PD.Instalment=ISNULL(@Instalment,PD.Instalment)
-
-	AND a.TransferDate IS NOT NULL
-
-	ORDER BY PolicyNo ASC
-
-
-	
-
-	Select * INTO #TempRastasawakApprove1 From #TempRastasawakApprove 
-	
-	UNION ALL
-	SELECT MAX([S No.]) + 1,'Total','','','','','','','','',SUM(SA),'',SUM(BasicPremium),SUM(ADB),SUM(Premium),SUM(PaidAmount),'','','' 
-	FROM #TempRastasawakApprove 
-	
-
-	SELECT * FROM #TempRastasawakApprove1 ORDER BY [S No.]
-
-	
-	select * from  #tempRastasawakSearchParameterInformation
-	DROP TABLE #TempRastasawakApprove
-DROP TABLE #TempRastasawakApprove1
-
-	RETURN;
-END
-
-ELSE IF @TransferType = 'Group'
-BEGIN
-
-SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn','Group Transfer Report' As [Report Name],
-CONVERT(VARCHAR(10),@TransferDateFrom,105) AS [Transfer Date From:],
-CONVERT(VARCHAR(10),@TransferDateTo,105) AS [Transfer Date To:]
-,@MemberNoFrom AS PolicyNoFrom,@MemberNoTo AS PolicyNoTo
-INTO  #tempTransferSearchParameterInformation
-
-
-
-SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,a.EmployeeId,
+SELECT a.EmployeeId,
 	PD.PolicyNo,PD.PreviousPolicy,a.GroupId,a.Name,
 	a.NepName AS[Nepali Name],
 	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],a.Age,CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
@@ -249,7 +177,7 @@ SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,a.EmployeeId,
 	INNER JOIN dbo.tblGroupEndowmentDetails c ON a.RegisterNo=c.RegisterNo and  a.PolicyNo=c.PolicyNo
 	INNER JOIN dbo.tblPolicyDetail PD ON a.NewRegisterNo=PD.RegisterNo
 	LEFT JOIN dbo.tblInsuredRiders D ON a.NewRegisterNo=d.RegisterNo
-	WHERE a.GroupId NOT IN('GE1001','GE1002','GE1003','GE1004','GE1005','GE1022')
+	WHERE a.GroupId = @GroupId
 	
 	--AND A.PolicyNo BETWEEN ISNULL(@MemberNoFrom,A.PolicyNo) AND ISNULL(@MemberNoTo,A.PolicyNo)
 	
@@ -263,75 +191,65 @@ SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,a.EmployeeId,
 
 
 	Select * INTO #TempGroupTransferApprove1 From #TempGroupTransferApprove 
-	UNION ALL
-	SELECT MAX([S No.]) + 1,'Total','','','','','','','','',SUM(SA),'',SUM(BasicPremium),SUM(ADB),SUM(Premium),SUM(PaidAmount),'','','' 
-	FROM #TempGroupTransferApprove 
 	
 
-	SELECT * FROM #TempGroupTransferApprove1 ORDER BY [S No.]
+	SELECT * FROM #TempGroupTransferApprove1 
 
-	
-	select * from  #tempTransferSearchParameterInformation
-	DROP TABLE #TempGroupTransferApprove
-DROP TABLE #TempGroupTransferApprove1
 
 	RETURN;
 
-
-END
-
-ELSE
-BEGIN 
-SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn','All Group Transfer Report' As [Report Name],
-CONVERT(VARCHAR(10),@TransferDateFrom,105) AS [Transfer Date From:],
-CONVERT(VARCHAR(10),@TransferDateTo,105) AS [Transfer Date To:]
-,@MemberNoFrom AS PolicyNoFrom,@MemberNoTo AS PolicyNoTo
-INTO  #tempTransferAllSearchParameterInformation
+-- ELSE
+-- BEGIN 
+-- SELECT TOP 1 @FiscalYear=FiscalYear FROM tblgroupendowment WHERE GroupId=@GroupId
+-- SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn','All Group Transfer Report' As [Report Name],
+-- CONVERT(VARCHAR(10),@TransferDateFrom,105) AS [Transfer Date From:],
+-- CONVERT(VARCHAR(10),@TransferDateTo,105) AS [Transfer Date To:]
+-- ,@MemberNoFrom AS PolicyNoFrom,@MemberNoTo AS PolicyNoTo
+-- INTO  #tempTransferAllSearchParameterInformation
 
 
-	SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,
-	a.PolicyNo,a.Name,
-	a.NepName AS[Nepali Name],
-	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
-	CAST(a.Term AS VARCHAR(10)) Term ,BasicPremium=
-	CASE WHEN ISNULL(a.BasicPremium,0)>1 THEN a.BasicPremium ELSE a.Premium END ,ISNULL(a.ExtraPremium,0) AS ADB,a.Premium As Premium,
-	c.PaidAmount,CONVERT(VARCHAR(10),a.MaturityDate,103) AS [Maturity Date],c.Instalment,a.PreviousPolicy
-	INTO #TempGroupTransferAllApprove
-	  FROM tblGroupEndowment a WITH(NOLOCK)
-	  INNER JOIN tblGroupEndowmentHistory b ON a.PreviousPolicy=b.PolicyNo
+-- 	SELECT ROW_NUMBER() OVER(ORDER BY a.PolicyNo asc) AS [S No.] ,
+-- 	a.PolicyNo,a.Name,
+-- 	a.NepName AS[Nepali Name],
+-- 	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
+-- 	CAST(a.Term AS VARCHAR(10)) Term ,BasicPremium=
+-- 	CASE WHEN ISNULL(a.BasicPremium,0)>1 THEN a.BasicPremium ELSE a.Premium END ,ISNULL(a.ExtraPremium,0) AS ADB,a.Premium As Premium,
+-- 	c.PaidAmount,CONVERT(VARCHAR(10),a.MaturityDate,103) AS [Maturity Date],c.Instalment,a.PreviousPolicy
+-- 	INTO #TempGroupTransferAllApprove
+-- 	  FROM tblGroupEndowment a WITH(NOLOCK)
+-- 	  INNER JOIN tblGroupEndowmentHistory b ON a.PreviousPolicy=b.PolicyNo
 	
-	INNER JOIN dbo.tblGroupEndowmentDetails c ON a.PolicyNo=c.PolicyNo
-	WHERE b.GroupId =b.GroupId
+-- 	INNER JOIN dbo.tblGroupEndowmentDetails c ON a.PolicyNo=c.PolicyNo
+-- 	WHERE b.GroupId =b.GroupId
 	
-	AND A.PolicyNo BETWEEN ISNULL(@MemberNoFrom,A.PolicyNo) AND ISNULL(@MemberNoTo,A.PolicyNo)
+-- 	AND A.PolicyNo BETWEEN ISNULL(@MemberNoFrom,A.PolicyNo) AND ISNULL(@MemberNoTo,A.PolicyNo)
 	
-	AND a.TransferDate BETWEEN CAST( ISNULL(@TransferDateFrom,a.TransferDate) AS DATE) AND CAST(ISNULL(@TransferDateTo,A.TransferDate) AS DATE)
+-- 	AND a.TransferDate BETWEEN CAST( ISNULL(@TransferDateFrom,a.TransferDate) AS DATE) AND CAST(ISNULL(@TransferDateTo,A.TransferDate) AS DATE)
 
-	AND c.Instalment=ISNULL(@Instalment,c.Instalment)
+-- 	AND c.Instalment=ISNULL(@Instalment,c.Instalment)
 
-	AND a.TransferDate IS NOT NULL
+-- 	AND a.TransferDate IS NOT NULL
 
-	ORDER BY PolicyNo ASC
+-- 	ORDER BY PolicyNo ASC
 
 	
 
-	Select * INTO #TempGroupTransferAllApprove1 From #TempGroupTransferAllApprove 
+-- 	Select * INTO #TempGroupTransferAllApprove1 From #TempGroupTransferAllApprove 
 	
-	UNION ALL
-	SELECT MAX([S No.]) + 1,'Total','','','','',SUM(SA),'',SUM(BasicPremium),SUM(ADB),SUM(Premium),SUM(PaidAmount),'','','' 
-	FROM #TempGroupTransferAllApprove 
+-- 	UNION ALL
+-- 	SELECT MAX([S No.]) + 1,'Total','','','','',SUM(SA),'',SUM(BasicPremium),SUM(ADB),SUM(Premium),SUM(PaidAmount),'','','' 
+-- 	FROM #TempGroupTransferAllApprove 
 	
 
-	SELECT * FROM #TempGroupTransferAllApprove1 ORDER BY [S No.]
+-- 	SELECT * FROM #TempGroupTransferAllApprove1 ORDER BY [S No.]
 
 	
-	select * from  #tempTransferAllSearchParameterInformation
-	DROP TABLE #TempGroupTransferAllApprove
-DROP TABLE #TempGroupTransferAllApprove1
+-- 	select * from  #tempTransferAllSearchParameterInformation
+-- 	DROP TABLE #TempGroupTransferAllApprove
+-- DROP TABLE #TempGroupTransferAllApprove1
 
-	RETURN;
-END
+-- 	RETURN;
+-- END
 
 
 
@@ -1829,45 +1747,100 @@ Select * From TempGroupMaturity
 END
 
 
-
+--201
 ELSE IF @flag='rptGroupPolicyLoanRepayment'
 BEGIN
 
 
-SELECT @user AS 'userID',CONVERT(VARCHAR(10),GETDATE(),105) AS 'GeneratedOn', @FiscalYear AS [Fiscal Year],
-CONVERT(VARCHAR(10),@FromDate,105) AS [ Date From:],
-CONVERT(VARCHAR(10),@ToDate,105) AS [ Date To:]
-INTO  #temprptGroupPolicyLoanRepayment
+
+-- SELECT DISTINCT Name,PolicyNo INTO #AA FROM dbo.tblGroupEndowment
+
+-- 	SELECT a.PolicyNo,id.Name AS FullName,
+-- 	a.LoanId,LoanDate=CONVERT(VARCHAR(10),b.LoanDate,121),b.LoanAmount,a.Instalment,a.DuePrincipal,a.PaidPrincipal,a.RemainingPrincipal,a.PaidInterest,a.RemainingInterest,
+-- 	Cash=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom)=171 THEN a.PaidAmount ELSE 0 END,
+-- 	Cheque=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom)=172 THEN a.PaidAmount ELSE 0 END,
+-- 	Bank=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom) in ('179','177') THEN a.PaidAmount ELSE 0 END,PaymentFrom=dbo.FN_GetAccountName(a.PaymentFrom)
+-- 	,b.Status ,PaidDate=CONVERT(VARCHAR(10),a.PaidDate,121),[Tran/Cheque Date]=CONVERT(VARCHAR(10),a.ChequeDate,121),a.VoucherNo INTO #GroupPolicyLoanRepayment
+-- 	FROM dbo.tblGroupPolicyLoanPaid a (NOLOCK)
+-- 	INNER JOIN dbo.tblGroupPolicyLoanDetail b (NOLOCK) ON b.PolicyNo = a.PolicyNo AND b.LoanId = a.LoanId
+-- 	--INNER JOIN dbo.tblGroupEndowmentDetails pd (NOLOCK) ON pd.PolicyNo = a.PolicyNo 
+-- 	INNER JOIN dbo.#AA id (NOLOCK) ON id.PolicyNo = a.PolicyNo 
+-- 	--WHERE a.PaidDate BETWEEN @fromDate AND @toDate AND a.PolicyNo=ISNULL(@policyNo,a.PolicyNo) AND 
+-- 	WHERE CAST(a.PaidDate AS DATE) BETWEEN @fromDate AND @toDate AND a.PolicyNo=ISNULL(@policyNo,a.PolicyNo)  
+-- 	AND a.Remarks NOT IN ('Paid From Maturity Amount','Paid From Death Amount','Paid From Surrender Amount')
+-- 	--AND a.Branch= CASE WHEN @branch IS NULL AND dbo.FN_GetBranch(@user)='300' THEN a.Branch ELSE @branch END ORDER BY a.PaidDate ASC
 
 
-SELECT DISTINCT Name,PolicyNo INTO #AA FROM dbo.tblGroupEndowment
+-- 	SELECT * FROM #GroupPolicyLoanRepayment 
+-- 	where policyNo in (select policyNo from tblGroupEndowment where groupId = @GroupId)
 
 
+-- 	DROP TABLE #GroupPolicyLoanRepayment
 
+	WITH CTE_GroupEndowment AS (
+		SELECT DISTINCT Name, PolicyNo
+		FROM dbo.tblGroupEndowment
+	),
 
-	SELECT ROW_NUMBER() OVER(ORDER BY a.CreatedDate ASC) AS RowNo,a.PolicyNo,id.Name AS FullName,
-	a.LoanId,LoanDate=CONVERT(VARCHAR(10),b.LoanDate,121),b.LoanAmount,a.Instalment,a.DuePrincipal,a.PaidPrincipal,a.RemainingPrincipal,a.PaidInterest,a.RemainingInterest,
-	Cash=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom)=171 THEN a.PaidAmount ELSE 0 END,
-	Cheque=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom)=172 THEN a.PaidAmount ELSE 0 END,
-	Bank=CASE WHEN dbo.FN_GetGlCode(a.PaymentFrom) in ('179','177') THEN a.PaidAmount ELSE 0 END,PaymentFrom=dbo.FN_GetAccountName(a.PaymentFrom)
-	,b.Status ,PaidDate=CONVERT(VARCHAR(10),a.PaidDate,121),[Tran/Cheque Date]=CONVERT(VARCHAR(10),a.ChequeDate,121),a.VoucherNo INTO #GroupPolicyLoanRepayment
-	FROM dbo.tblGroupPolicyLoanPaid a (NOLOCK)
-	INNER JOIN dbo.tblGroupPolicyLoanDetail b (NOLOCK) ON b.PolicyNo = a.PolicyNo AND b.LoanId = a.LoanId
-	--INNER JOIN dbo.tblGroupEndowmentDetails pd (NOLOCK) ON pd.PolicyNo = a.PolicyNo 
-	INNER JOIN dbo.#AA id (NOLOCK) ON id.PolicyNo = a.PolicyNo 
-	--WHERE a.PaidDate BETWEEN @fromDate AND @toDate AND a.PolicyNo=ISNULL(@policyNo,a.PolicyNo) AND 
-	WHERE CAST(a.PaidDate AS DATE) BETWEEN @fromDate AND @toDate AND a.PolicyNo=ISNULL(@policyNo,a.PolicyNo)  
-	AND a.Remarks NOT IN ('Paid From Maturity Amount','Paid From Death Amount','Paid From Surrender Amount')
-	--AND a.Branch= CASE WHEN @branch IS NULL AND dbo.FN_GetBranch(@user)='300' THEN a.Branch ELSE @branch END ORDER BY a.PaidDate ASC
+	CTE_GroupPolicyLoanRepayment AS (
+		SELECT 
+			a.PolicyNo,
+			id.Name AS FullName,
+			a.LoanId,
+			CONVERT(VARCHAR(10), b.LoanDate, 121)          AS LoanDate,
+			b.LoanAmount,
+			a.Instalment,
+			a.DuePrincipal,
+			a.PaidPrincipal,
+			a.RemainingPrincipal,
+			a.PaidInterest,
+			a.RemainingInterest,
+			CASE WHEN TRY_CAST(a.PaymentFrom AS BIGINT) IS NOT NULL 
+				AND dbo.FN_GetGlCode(a.PaymentFrom) = 171
+				THEN a.PaidAmount ELSE 0 END               AS Cash,
 
+			CASE WHEN TRY_CAST(a.PaymentFrom AS BIGINT) IS NOT NULL 
+				AND dbo.FN_GetGlCode(a.PaymentFrom) = 172
+				THEN a.PaidAmount ELSE 0 END               AS Cheque,
 
-	SELECT * FROM #GroupPolicyLoanRepayment 
-  UNION ALL SELECT Max(RowNo)+1,'Total','','','',SUM(LoanAmount),'',SUM(DuePrincipal),SUM(PaidPrincipal),SUM(RemainingPrincipal),SUM(PaidInterest),SUM(RemainingInterest),SUM(Cash),SUM(Cheque),SUM(Bank),
-  '','','','','' FROM #GroupPolicyLoanRepayment ORDER BY RowNo ASC
-  SELECT * FROM #temprptGroupPolicyLoanRepayment
+			CASE WHEN TRY_CAST(a.PaymentFrom AS BIGINT) IS NOT NULL 
+				AND dbo.FN_GetGlCode(a.PaymentFrom) IN (179, 177)
+				THEN a.PaidAmount ELSE 0 END               AS Bank,
 
-	DROP TABLE #temprptGroupPolicyLoanRepayment
-	DROP TABLE #GroupPolicyLoanRepayment
+			CASE WHEN TRY_CAST(a.PaymentFrom AS BIGINT) IS NOT NULL
+				THEN dbo.FN_GetAccountName(a.PaymentFrom) 
+				ELSE a.PaymentFrom END                     AS PaymentFrom,
+			b.Status,
+			CONVERT(VARCHAR(10), a.PaidDate, 121)           AS PaidDate,
+			CONVERT(VARCHAR(10), a.ChequeDate, 121)         AS [Tran/Cheque Date],
+			a.VoucherNo
+		FROM dbo.tblGroupPolicyLoanPaid a (NOLOCK)
+		INNER JOIN dbo.tblGroupPolicyLoanDetail b (NOLOCK)
+			ON  b.PolicyNo = a.PolicyNo
+			AND b.LoanId   = a.LoanId
+		INNER JOIN CTE_GroupEndowment id (NOLOCK)
+			ON  id.PolicyNo = a.PolicyNo
+		WHERE CAST(a.PaidDate AS DATE) BETWEEN @fromDate AND @toDate
+		AND a.PolicyNo = ISNULL(@policyNo, a.PolicyNo)
+		AND a.Remarks NOT IN (
+				'Paid From Maturity Amount',
+				'Paid From Death Amount',
+				'Paid From Surrender Amount'
+			)
+	),
+
+	CTE_FilteredByGroup AS (
+		SELECT r.*
+		FROM CTE_GroupPolicyLoanRepayment r
+		WHERE r.PolicyNo IN (
+			SELECT PolicyNo
+			FROM dbo.tblGroupEndowment
+			WHERE groupId = @GroupId
+		)
+	)
+
+	SELECT * FROM CTE_FilteredByGroup;
+
 END
 ELSE IF @flag='rptGroupPolicyLoanPayment'
 BEGIN
