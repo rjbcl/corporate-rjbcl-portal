@@ -43,7 +43,7 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     REQUIRED_FIELDS = []
     
     class Meta:
-        db_table = 'account'
+        db_table = 'copo_account'
         permissions = [
             ('view_own_account', 'Can view own account details'),
             ('reset_staff_password', 'Can reset staff passwords'),
@@ -108,7 +108,7 @@ class Company(AuditBase):
     blank_col2 = models.CharField(max_length=200, blank=True, null=True)
 
     class Meta:
-        db_table = 'company'
+        db_table = 'copo_company'
         permissions = [
             ('soft_delete_company', 'Can soft delete company'),
         ]
@@ -130,7 +130,7 @@ class Group(AuditBase):
     isactive = models.BooleanField(default=True)
     
     class Meta:
-        db_table = 'groups'
+        db_table = 'copo_groups'
         permissions = [
             ('soft_delete_group', 'Can soft delete group'),
         ]
@@ -156,7 +156,7 @@ class Individual(AuditBase):
     user_full_name = models.CharField(max_length=200, null=True, blank=True)
 
     class Meta:
-        db_table = 'individual'
+        db_table = 'copo_individual'
         permissions = [
             ('soft_delete_individual', 'Can soft delete individual'),
             ('reset_individual_password', 'Can reset individual passwords'),
@@ -176,7 +176,7 @@ class Policy(models.Model):
     )
 
     class Meta:
-        db_table = 'policy'
+        db_table = 'copo_policy'
 
     def __str__(self):
         return f"Policy {self.policy_number} for User {self.user_id_id}"
@@ -205,7 +205,7 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     
     class Meta:
-        db_table = 'audit_log'
+        db_table = 'copo_audit_log'
         ordering = ['-timestamp']
     
     def __str__(self):
