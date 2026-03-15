@@ -139,6 +139,27 @@ def maturity_forecasting_report(request):
     return render(request, 'Dashboard/Company/reports/maturity_forecasting_report.html', context)
 
 @login_required
+def transfer_report(request):
+    """Group transfer report for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+    
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/Transfer_report.html', context)
+
+@login_required
 def claim_report(request):
     """
     Claim report for company users (Maturity, Surrender, Death claims).

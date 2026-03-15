@@ -36,8 +36,8 @@
                     <li><a href="#"
                             class="{% if request.resolver_match.url_name == '#' %}active{% endif %}">Business
                             Detail </a></li>
-                    <li><a href="#"
-                            class="{% if request.resolver_match.url_name == '#' %}active{% endif %}">Transfer</a>
+                    <li><a href="{% url 'transfer_report' %}"
+                            class="{% if request.resolver_match.url_name == 'transfer_report' %}active{% endif %}">Group Transfer</a>
                     </li>
                     <li><a href="{% url 'loan_repayment_report' %}"
                             class="{% if request.resolver_match.url_name == 'loan_repayment_report' %}active{% endif %}">Group Loan</a></li>
