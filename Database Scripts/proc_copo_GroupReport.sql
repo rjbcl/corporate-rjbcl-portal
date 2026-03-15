@@ -165,7 +165,7 @@ BEGIN
 SELECT a.EmployeeId,
 	PD.PolicyNo,PD.PreviousPolicy,a.GroupId,a.Name,
 	a.NepName AS[Nepali Name],
-	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],a.Age,CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
+	CONVERT(VARCHAR(10),a.DOB,103) AS [DOB],CONVERT(VARCHAR(10),a.DOC,103) AS [DOC],a.SumAssured AS SA,
 	CAST(a.Term AS VARCHAR(10)) Term ,BasicPremium=
 	CASE WHEN ISNULL(D.RiderPremium,0)>1 THEN ISNULL(PD.Premium,0)-ISNULL(D.RiderPremium,0) ELSE a.Premium END ,ISNULL(D.RiderPremium,0) AS ADB,PD.Premium As Premium,
 	PaidAmount=PD.TotalPremiumPaid,CONVERT(VARCHAR(10),a.MaturityDate,103) AS [Maturity Date],PD.Instalment,TransferDate=CONVERT(VARCHAR(10),a.TransferDate,103)
