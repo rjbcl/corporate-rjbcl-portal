@@ -69,7 +69,12 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
         
         print(f"Login successful for: {user.username}")
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        # Return only tokens and username to keep response minimal
+        return Response({
+            'access': serializer.validated_data.get('access'),
+            'refresh': serializer.validated_data.get('refresh'),
+            'username': serializer.validated_data.get('username')
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -1109,7 +1114,7 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
             group_id__in=group_ids
         )
     
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['POST'])
     def statistics(self, request):
         """
         Get statistics for the company's policies.
