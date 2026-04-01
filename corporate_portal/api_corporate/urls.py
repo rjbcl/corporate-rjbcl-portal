@@ -20,8 +20,8 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r'endowments', GroupEndowmentViewSet, basename='endowment')
 router.register(r'company/policies', CompanyPoliciesViewSet, basename='company-policies')
+router.register(r'endowments', GroupEndowmentViewSet, basename='endowment')
 router.register(r'individual/policies', IndividualPoliciesViewSet, basename='individual-policies')
 
 urlpatterns = [

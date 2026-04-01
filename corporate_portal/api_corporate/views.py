@@ -840,34 +840,21 @@ def policy_search(request):
         request.session['company_group_ids'] = group_ids
 
     try:
-        # Auto-detect: if query is numeric treat as policy number, otherwise as name
-        # but run both simultaneously to cover partial matches
-        is_numeric = query.isdigit()
-
         with connections['company_external'].cursor() as cursor:
             placeholders = ','.join(['%s'] * len(group_ids))
 
-            if is_numeric:
-                sql = f"""
-                    SELECT DISTINCT TOP 15  policyNo, name
-                    FROM tblGroupEndowment
-                    WHERE groupId IN ({placeholders})
-                    AND policyNo LIKE %s
-                """
-                params = group_ids + [f'{query}%']
-            else:
-                sql = f"""
-                    SELECT DISTINCT TOP 15 policyNo, name
-                    FROM tblGroupEndowment
-                    WHERE groupId IN ({placeholders})
-                    AND name LIKE %s
-                """
-                params = group_ids + [f'%{query}%']
+            sql = f"""
+                SELECT DISTINCT TOP 15 policyNo, name, employeeid
+                FROM tblGroupEndowment
+                WHERE groupId IN ({placeholders})
+                AND (ISNULL(policyNo, '') + ' ' + ISNULL(name, '') + ' ' + ISNULL(employeeid, '')) LIKE %s
+            """
+            params = group_ids + [f'%{query}%']
 
             cursor.execute(sql, params)
             rows = cursor.fetchall()
 
-        results = [{'policyNo': row[0], 'name': row[1]} for row in rows]
+        results = [{'policyNo': row[0], 'name': row[1], 'employeeid': row[2]} for row in rows]
         return Response(results, status=200)
 
     except Exception as e:
