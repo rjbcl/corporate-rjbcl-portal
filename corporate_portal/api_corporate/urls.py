@@ -17,6 +17,8 @@ from .views import (
     policy_search,
     policy_loans,
     group_transfer_report,
+    group_renewal_business_report,
+    group_new_business_report,
 )
 
 router = DefaultRouter()
@@ -42,11 +44,18 @@ urlpatterns = [
     path('reports/policy-search/', policy_search, name='policy-search'),
     path('reports/policy-loans/', policy_loans, name='policy-loans'),
     path('reports/policy-summary/', policy_summary_report, name='policy-summary-report'),
-
+    #CLaim Reports
     path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
     path('reports/surrender-claim/', surrender_claim_report, name='surrender-claim-report'),
+
+    #Transfer Report
     path('reports/group-transfer/', group_transfer_report, name='group-transfer-report'),
+
+
+    #Group Business Report
+    path('reports/group-renewal-business/', group_renewal_business_report, name='group-renewal-business-report'),
+    path('reports/group-new-business/', group_new_business_report, name='group-new-business-report'),
 
     # API endpoints
     path('', include(router.urls)),

@@ -618,6 +618,258 @@ def maturity_claim_report(request):
             'details': error_details if request.user.is_superuser else None
         }, status=500)
     
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def group_renewal_business_report(request):
+    """
+    Generate group renewal business report from view.
+    POST /api/corporate/reports/group-renewal-business/
+
+    Body params:
+        group_id    (required)
+        paid_from   (optional) - paired with paid_to
+        paid_to     (optional) - paired with paid_from
+        value_from  (optional) - paired with value_to
+        value_to    (optional) - paired with value_from
+
+    At least one complete date range (paid or value) must be provided.
+    When both ranges are supplied, rows must satisfy both (AND logic).
+    """
+
+    group_id    = request.data.get('group_id')
+    paid_from   = request.data.get('paid_from')
+    paid_to     = request.data.get('paid_to')
+    value_from  = request.data.get('value_from')
+    value_to    = request.data.get('value_to')
+
+    print(
+        f"Group Renewal Business Report - Group: {group_id}, "
+        f"PaidDate: {paid_from} → {paid_to}, "
+        f"ValueDate: {value_from} → {value_to}"
+    )
+
+    # --- Validation ---
+
+    if not group_id:
+        return Response({'error': 'group_id is required'}, status=400)
+
+    # Each date field must come as a complete pair
+    paid_range_partial   = bool(paid_from)  != bool(paid_to)
+    value_range_partial  = bool(value_from) != bool(value_to)
+
+    if paid_range_partial:
+        return Response(
+            {'error': 'Both paid_from and paid_to are required when filtering by paid date'},
+            status=400
+        )
+    if value_range_partial:
+        return Response(
+            {'error': 'Both value_from and value_to are required when filtering by value date'},
+            status=400
+        )
+
+    has_paid_range  = bool(paid_from and paid_to)
+    has_value_range = bool(value_from and value_to)
+
+    if not has_paid_range and not has_value_range:
+        return Response(
+            {'error': 'At least one complete date range (paid or value) is required'},
+            status=400
+        )
+
+    # --- Group access check (mirrors maturity_claim_report) ---
+
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+
+        if not group_exists:
+            return Response(
+                {'error': 'You can only access your own company groups'},
+                status=403
+            )
+
+    # --- Query ---
+
+    try:
+        conditions = ["groupId = %s"]
+        params     = [group_id]
+
+        if has_paid_range:
+            conditions.append("PaidDate BETWEEN %s AND %s")
+            params.extend([paid_from, paid_to])
+
+        if has_value_range:
+            conditions.append("ValueDate BETWEEN %s AND %s")
+            params.extend([value_from, value_to])
+
+        where_clause = " AND ".join(conditions)
+        sql = f"SELECT * FROM view_copo_GroupBusinessReport WHERE {where_clause};"
+
+        results = []
+
+        with connections['company_external'].cursor() as cursor:
+            cursor.execute(sql, params)
+
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                rows    = cursor.fetchall()
+
+                for row in rows:
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        col_name = columns[i]
+                        if value is None:
+                            row_dict[col_name] = None
+                        elif hasattr(value, 'isoformat'):
+                            row_dict[col_name] = value.isoformat()
+                        elif isinstance(value, (int, float)):
+                            row_dict[col_name] = value
+                        else:
+                            row_dict[col_name] = str(value)
+                    results.append(row_dict)
+
+        return Response(results)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}\n{error_details}")
+        return Response({
+            'error': f'Failed to generate group renewal business report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
+def group_new_business_report(request):
+    """
+    Generate group new business report from view.
+    POST /api/corporate/reports/group-new-business/
+
+    Body params:
+        group_id    (required)
+        paid_from   (optional) - paired with paid_to
+        paid_to     (optional) - paired with paid_from
+        value_from  (optional) - paired with value_to
+        value_to    (optional) - paired with value_from
+
+    At least one complete date range (paid or value) must be provided.
+    When both ranges are supplied, rows must satisfy both (AND logic).
+    """
+
+    group_id   = request.data.get('group_id')
+    paid_from  = request.data.get('paid_from')
+    paid_to    = request.data.get('paid_to')
+    value_from = request.data.get('value_from')
+    value_to   = request.data.get('value_to')
+
+    print(
+        f"Group New Business Report - Group: {group_id}, "
+        f"PaidDate: {paid_from} → {paid_to}, "
+        f"ValueDate: {value_from} → {value_to}"
+    )
+
+    # --- Validation ---
+
+    if not group_id:
+        return Response({'error': 'group_id is required'}, status=400)
+
+    paid_range_partial  = bool(paid_from)  != bool(paid_to)
+    value_range_partial = bool(value_from) != bool(value_to)
+
+    if paid_range_partial:
+        return Response(
+            {'error': 'Both paid_from and paid_to are required when filtering by paid date'},
+            status=400
+        )
+    if value_range_partial:
+        return Response(
+            {'error': 'Both value_from and value_to are required when filtering by value date'},
+            status=400
+        )
+
+    has_paid_range  = bool(paid_from and paid_to)
+    has_value_range = bool(value_from and value_to)
+
+    if not has_paid_range and not has_value_range:
+        return Response(
+            {'error': 'At least one complete date range (paid or value) is required'},
+            status=400
+        )
+
+    # --- Group access check ---
+
+    if not request.user.is_superuser and not request.user.is_staff:
+        company = request.user.company_profile
+        group_exists = PortalGroup.objects.filter(
+            company_id=company,
+            group_id=group_id,
+            isdeleted=False
+        ).exists()
+
+        if not group_exists:
+            return Response(
+                {'error': 'You can only access your own company groups'},
+                status=403
+            )
+
+    # --- Query ---
+
+    try:
+        conditions = ["groupid = %s"]
+        params     = [group_id]
+
+        if has_paid_range:
+            conditions.append("PaidDate BETWEEN %s AND %s")
+            params.extend([paid_from, paid_to])
+
+        if has_value_range:
+            conditions.append("ValueDate BETWEEN %s AND %s")
+            params.extend([value_from, value_to])
+
+        where_clause = " AND ".join(conditions)
+        sql = f"SELECT * FROM view_copo_GroupNewBusinessReport WHERE {where_clause};"
+
+        results = []
+
+        with connections['company_external'].cursor() as cursor:
+            cursor.execute(sql, params)
+
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                rows    = cursor.fetchall()
+
+                for row in rows:
+                    row_dict = {}
+                    for i, value in enumerate(row):
+                        col_name = columns[i]
+                        if value is None:
+                            row_dict[col_name] = None
+                        elif hasattr(value, 'isoformat'):
+                            row_dict[col_name] = value.isoformat()
+                        elif isinstance(value, (int, float)):
+                            row_dict[col_name] = value
+                        else:
+                            row_dict[col_name] = str(value)
+                    results.append(row_dict)
+
+        return Response(results)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR: {str(e)}\n{error_details}")
+        return Response({
+            'error': f'Failed to generate group new business report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
