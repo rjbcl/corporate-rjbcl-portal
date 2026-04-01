@@ -59,19 +59,25 @@ $(document).ready(function () {
                     fetchAndDisplayLoans(policySummaryData[0].PolicyNo);
                     $('#download-policy-summary-btn').prop('disabled', false); 
                 } else {
-                    alert('No policy found with the given policy number.');
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Not Found',
+                        text: 'No policy found with the given policy number.',
+                    });
                 }
             },
             error: function (xhr) {
-                console.error('Error:', xhr);
-
                 let errorMessage = 'Failed to fetch policy summary';
 
                 if (xhr.responseJSON && xhr.responseJSON.error) {
                     errorMessage = xhr.responseJSON.error;
                 }
 
-                alert(errorMessage);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: errorMessage,
+                });
             },
             complete: function () {
                 // Re-enable button and restore original text
@@ -111,20 +117,39 @@ $(document).ready(function () {
         // Use first record for basic information (should be same across all records)
         const firstRecord = dataArray[0];
 
+        // Compute aggregated values across all records
+        const totalSumAssured = dataArray.reduce((sum, r) => sum + (parseFloat(r.Sumassured) || 0), 0);
+        const totalPremium = dataArray.reduce((sum, r) => sum + (parseFloat(r.Premium) || 0), 0);
+
+        const earliestDOC = dataArray
+            .map(r => r.DOC ? new Date(r.DOC) : null)
+            .filter(Boolean)
+            .reduce((min, d) => d < min ? d : min, new Date(8640000000000000));
+
+        const earliestFUP = dataArray
+            .map(r => r.FUP ? new Date(r.FUP) : null)
+            .filter(Boolean)
+            .reduce((min, d) => d < min ? d : min, new Date(8640000000000000));
+
+        const latestMaturity = dataArray
+            .map(r => r.maturitydate ? new Date(r.maturitydate) : null)
+            .filter(Boolean)
+            .reduce((max, d) => d > max ? d : max, new Date(-8640000000000000));
+
         // Display basic information
         $('#display-policy-no').text(firstRecord.PolicyNo || '-');
-        $('#display-branch').text(firstRecord.Branch || '-');
-        $('#display-group-id').text(firstRecord.GroupId || '-');
         $('#display-name').text(firstRecord.Name || '-');
         $('#display-nep-name').text(firstRecord.NepName || '-');
         $('#display-dob').text(formatDate(firstRecord.DOB) || '-');
         $('#display-gender').text(firstRecord.Gender || '-');
-        $('#display-occupation').text(firstRecord.Occupation || '-');
         $('#display-mobile').text(firstRecord.Mobile || '-');
         $('#display-email').text(firstRecord.Email || '-');
         $('#display-address').text(firstRecord.Address || '-');
-        $('#display-district-id').text(firstRecord.DistrictID || '-');
-        $('#display-ward-no').text(firstRecord.WardNo || '-');
+        $('#display-total-sum-assured').text(formatCurrency(totalSumAssured));
+        $('#display-total-premium').text(formatCurrency(totalPremium));
+        $('#display-doc').text(earliestDOC.getTime() !== new Date(8640000000000000).getTime() ? formatDate(earliestDOC) : '-');
+        $('#display-fup').text(earliestFUP.getTime() !== new Date(8640000000000000).getTime() ? formatDate(earliestFUP) : '-');
+        $('#display-maturity-date').text(latestMaturity.getTime() !== new Date(-8640000000000000).getTime() ? formatDate(latestMaturity) : '-');
 
         // Display family and nominee information
         $('#display-father-name').text(firstRecord.FatherName || '-');
@@ -348,7 +373,7 @@ $(document).ready(function () {
                         $dropdown.append('<div class="dropdown-item-muted">No results found</div>');
                     } else {
                         results.forEach(function (item) {
-                            const $item = $(`<a class="dropdown-item" href="#">${item.policyNo} | ${item.name}</a>`);
+                            const $item = $(`<a class="dropdown-item" href="#">${item.policyNo} | ${item.name} | ${item.employeeid || '-'}</a>`);
                             $item.on('click', function (e) {
                                 e.preventDefault();
                                 $('#policy-number').val(item.policyNo);
@@ -361,8 +386,12 @@ $(document).ready(function () {
                     $dropdown.show();
                 },
                 error: function (xhr) {
-                    $dropdown.empty().append('<div class="dropdown-item-muted">Search failed. Try again.</div>');
-                    console.error('Search error:', xhr);
+                    $dropdown.hide().empty();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Search Failed',
+                        text: 'Could not search for policies. Please try again.',
+                    });
                 }
             });
 
@@ -444,8 +473,15 @@ $(document).ready(function () {
                 $('#loan-details-section').show();
             },
             error: function (xhr) {
-                console.error('Loan fetch error:', xhr);
-                // Silently fail - just keep section hidden
+                let errorMessage = 'Failed to fetch loan details.';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage = xhr.responseJSON.error;
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Loan Fetch Error',
+                    text: errorMessage,
+                });
             }
         });
     }
@@ -464,5 +500,3 @@ $(document).ready(function () {
         }
     }
 });
-
-

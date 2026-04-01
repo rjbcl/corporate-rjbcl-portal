@@ -120,12 +120,12 @@
                     <form id="policy-summary-report-form">
                         <div class="form-row">
                             <!-- From Date Column -->
-                            <div class="form-group col-md-6">
+                            <div class="form-group col-md-7">
                                 <label>Policy Number<span class="text-danger">*</span></label>
                                 <div class="row">
                                     <div class="col-md-6 mb-6 pe-4 mb-md-0" style="position: relative;">
                                         <input type="text" class="form-control" id="policy-number" name="policy_number"
-                                            placeholder="Enter Policy Number or Name" autocomplete="off">
+                                            placeholder="Enter Policy Number or Name or Employee ID" autocomplete="off">
                                         <div id="policy-search-dropdown" class="dropdown-menu"
                                             style="width: 100%; display: none;">
                                             <!-- Results will be populated here -->
@@ -163,7 +163,7 @@
                         <div class="accordion__header" data-toggle="collapse" data-target="#basic-info-collapse"
                             aria-expanded="true">
                             <span class="accordion__header--text">
-                                <span class="group-header-title">Basic Information</span>
+                                <span class="group-header-title">Primary Information</span>
                             </span>
                             <span class="accordion__header--indicator"></span>
                         </div>
@@ -175,18 +175,6 @@
                                         <div class="stat-card">
                                             <div class="stat-label">Policy Number</div>
                                             <div class="stat-value" id="display-policy-no">-</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 col-sm-6 mb-3">
-                                        <div class="stat-card">
-                                            <div class="stat-label">Branch</div>
-                                            <div class="stat-value" id="display-branch">-</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 col-sm-6 mb-3">
-                                        <div class="stat-card">
-                                            <div class="stat-label">Group ID</div>
-                                            <div class="stat-value" id="display-group-id">-</div>
                                         </div>
                                     </div>
                                     <div class="col-md-4 col-sm-6 mb-3">
@@ -215,12 +203,6 @@
                                     </div>
                                     <div class="col-md-4 col-sm-6 mb-3">
                                         <div class="stat-card">
-                                            <div class="stat-label">Occupation</div>
-                                            <div class="stat-value" id="display-occupation">-</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 col-sm-6 mb-3">
-                                        <div class="stat-card">
                                             <div class="stat-label">Mobile</div>
                                             <div class="stat-value" id="display-mobile">-</div>
                                         </div>
@@ -239,14 +221,32 @@
                                     </div>
                                     <div class="col-md-4 col-sm-6 mb-3">
                                         <div class="stat-card">
-                                            <div class="stat-label">District ID</div>
-                                            <div class="stat-value" id="display-district-id">-</div>
+                                            <div class="stat-label">Sum Assured</div>
+                                            <div class="stat-value" id="display-total-sum-assured">-</div>
                                         </div>
                                     </div>
                                     <div class="col-md-4 col-sm-6 mb-3">
                                         <div class="stat-card">
-                                            <div class="stat-label">Ward No</div>
-                                            <div class="stat-value" id="display-ward-no">-</div>
+                                            <div class="stat-label">Premium</div>
+                                            <div class="stat-value" id="display-total-premium">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">DOC</div>
+                                            <div class="stat-value" id="display-doc">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">FUP</div>
+                                            <div class="stat-value" id="display-fup">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 col-sm-6 mb-3">
+                                        <div class="stat-card">
+                                            <div class="stat-label">Maturity Date</div>
+                                            <div class="stat-value" id="display-maturity-date">-</div>
                                         </div>
                                     </div>
                                 </div>
