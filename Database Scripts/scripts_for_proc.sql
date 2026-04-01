@@ -83,4 +83,20 @@ EXEC proc_copo_GroupReport
 
 
 
+-- New Business filtered by ValueDate
+EXEC proc_copo_BusinessDetail
+    @GroupId  = '101',
+    @FromDate = '2024-07-16',
+    @ToDate   = '2025-07-16',
+    @FilterBy = 'ValueDate',
+    @Flag     = 'NB';
+
+-- Renewal Business filtered by PaidDate
+EXEC proc_copo_BusinessDetail
+    @GroupId  = '101',
+    @FromDate = '2024-07-16',
+    @ToDate   = '2025-07-16',
+    @FilterBy = 'PaidDate',
+    @Flag     = 'RB';
+
 
