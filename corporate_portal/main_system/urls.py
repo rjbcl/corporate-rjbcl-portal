@@ -22,7 +22,7 @@ urlpatterns = [
     path('company/reports/claims/', views.claim_report, name='claim_report'), 
     path('company/reports/premium/', views.premium_report, name='premium_report'),
     path('company/reports/summary/', views.policy_summary, name='policy_summary'),
-    
+    path('company/reports/business-detail/', views.business_detail_report, name='business_detail_report'),
     # Individual routes
     path('individual/dashboard/', views.individual_dashboard, name='individual_dashboard'),
     

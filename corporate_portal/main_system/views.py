@@ -182,6 +182,28 @@ def claim_report(request):
     }
     return render(request, 'Dashboard/Company/reports/claim_report.html', context)
 
+@login_required
+def business_detail_report(request):
+    """
+    Business detail report for company users (New Business, Renewal Business).
+    """
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+
+    company = request.user.company_profile
+
+    # Get groups for dropdown
+    groups = Group.objects.filter(
+        company_id=company,
+        isdeleted=False
+    ).values('group_id', 'group_name')
+
+    context = {
+        'company': company,
+        'groups': groups,
+    }
+    return render(request, 'Dashboard/Company/reports/Business_detail_report.html', context)
 
 @login_required
 def loan_repayment_report(request):
