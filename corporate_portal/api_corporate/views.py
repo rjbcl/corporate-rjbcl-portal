@@ -18,6 +18,8 @@ from .serializers import (
 )
 from .permissions import IsCompanyUser, IsIndividualUser
 from django.db import connections #type: ignore
+from .utils import log_report_access
+from main_system.models import ReportAccessLog
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -92,6 +94,13 @@ def maturity_forecasting_report(request):
     date_type = request.data.get('date_type', 'ad')
     # Validate required fields
     if not all([group_id, from_date, to_date]):
+        log_report_access(
+            request=request,
+            report_type='Maturity Forecasting Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
@@ -108,6 +117,13 @@ def maturity_forecasting_report(request):
         ).exists()
         
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Maturity Forecasting Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -168,6 +184,13 @@ def maturity_forecasting_report(request):
         
         if not results:
             print("WARNING: No results returned from stored procedure")
+            log_report_access(
+                request=request,
+                report_type='Maturity Forecasting Report',
+                sql_template=sql,
+                params=[group_id, from_date, to_date],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
             return Response({
                 'success': True,
                 'count': 0,
@@ -179,6 +202,13 @@ def maturity_forecasting_report(request):
                 'message': 'No policies found for the given criteria. The stored procedure executed successfully but returned no data.'
             })
         
+        log_report_access(
+            request=request,
+            report_type='Maturity Forecasting Report',
+            sql_template=sql,
+            params=[group_id, from_date, to_date],
+            status=ReportAccessLog.Status.SUCCESS,
+        )
         return Response({
             'success': True,
             'count': len(results),
@@ -194,6 +224,14 @@ def maturity_forecasting_report(request):
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}")
         print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Maturity Forecasting Report',
+            sql_template=sql,
+            params=[group_id, from_date, to_date],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -213,6 +251,13 @@ def group_transfer_report(request):
     date_type = request.data.get('date_type', 'ad')
 
     if not all([group_id, transfer_date_from, transfer_date_to]):
+        log_report_access(
+            request=request,
+            report_type='Group Transfer Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, transfer_date_from, and transfer_date_to are required'
         }, status=400)
@@ -228,6 +273,13 @@ def group_transfer_report(request):
         ).exists()
 
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Group Transfer Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -281,6 +333,13 @@ def group_transfer_report(request):
             print(f"Total results collected: {len(results)}")
 
         if not results:
+            log_report_access(
+                request=request,
+                report_type='Group Transfer Report',
+                sql_template=sql,
+                params=[group_id, transfer_date_from, transfer_date_to],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
             return Response({
                 'success': True,
                 'count': 0,
@@ -292,6 +351,13 @@ def group_transfer_report(request):
                 'message': 'No transfers found for the given criteria. The stored procedure executed successfully but returned no data.'
             })
 
+        log_report_access(
+            request=request,
+            report_type='Group Transfer Report',
+            sql_template=sql,
+            params=[group_id, transfer_date_from, transfer_date_to],
+            status=ReportAccessLog.Status.SUCCESS,
+        )
         return Response({
             'success': True,
             'count': len(results),
@@ -307,6 +373,14 @@ def group_transfer_report(request):
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}")
         print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Group Transfer Report',
+            sql_template=sql,
+            params=[group_id, transfer_date_from, transfer_date_to],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -329,6 +403,13 @@ def loan_repayment_report(request):
 
     # Validate required fields
     if not all([group_id, from_date, to_date]):
+        log_report_access(
+            request=request,
+            report_type='Loan Repayment Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
@@ -345,6 +426,13 @@ def loan_repayment_report(request):
         ).exists()
 
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Loan Repayment Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -404,6 +492,13 @@ def loan_repayment_report(request):
 
         if not results:
             print("WARNING: No results returned from stored procedure")
+            log_report_access(
+                request=request,
+                report_type='Loan Repayment Report',
+                sql_template=sql,
+                params=[from_date, to_date, group_id],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
             return Response({
                 'success': True,
                 'count': 0,
@@ -415,6 +510,13 @@ def loan_repayment_report(request):
                 'message': 'No repayments found for the given criteria. The stored procedure executed successfully but returned no data.'
             })
 
+        log_report_access(
+            request=request,
+            report_type='Loan Repayment Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.SUCCESS,
+        )
         return Response({
             'success': True,
             'count': len(results),
@@ -430,6 +532,14 @@ def loan_repayment_report(request):
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}")
         print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Loan Repayment Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -452,6 +562,13 @@ def death_claim_report(request):
     print(f"Death Claim Report - Group: {group_id}, From: {from_date}, To: {to_date}")
     
     if not all([group_id, from_date, to_date]):
+        log_report_access(
+            request=request,
+            report_type='Death Claim Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
@@ -465,6 +582,13 @@ def death_claim_report(request):
         ).exists()
         
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Death Claim Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -514,14 +638,37 @@ def death_claim_report(request):
                 
                 if not cursor.nextset():
                     break
-        
-        # Return only the data array
+
+        if not results:
+            log_report_access(
+                request=request,
+                report_type='Death Claim Report',
+                sql_template=sql,
+                params=[from_date, to_date, group_id],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
+        else:
+            log_report_access(
+                request=request,
+                report_type='Death Claim Report',
+                sql_template=sql,
+                params=[from_date, to_date, group_id],
+                status=ReportAccessLog.Status.SUCCESS,
+            )
         return Response(results)
         
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Death Claim Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate death claim report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -544,6 +691,13 @@ def maturity_claim_report(request):
     print(f"Maturity Claim Report - Group: {group_id}, From: {from_date}, To: {to_date}")
     
     if not all([group_id, from_date, to_date]):
+        log_report_access(
+            request=request,
+            report_type='Maturity Claim Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
@@ -557,6 +711,13 @@ def maturity_claim_report(request):
         ).exists()
         
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Maturity Claim Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -605,14 +766,37 @@ def maturity_claim_report(request):
                 
                 if not cursor.nextset():
                     break
-        
-        # Return only the data array
+
+        if not results:
+            log_report_access(
+                request=request,
+                report_type='Maturity Claim Report',
+                sql_template=sql,
+                params=[from_date, to_date, group_id],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
+        else:
+            log_report_access(
+                request=request,
+                report_type='Maturity Claim Report',
+                sql_template=sql,
+                params=[from_date, to_date, group_id],
+                status=ReportAccessLog.Status.SUCCESS,
+            )
         return Response(results)
         
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Maturity Claim Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate maturity claim report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -649,6 +833,9 @@ def group_business_detail_report(request):
 
     # --- Validation ---
 
+    # Build params dict once for reuse in all log calls
+    log_params = {'group_id': group_id, 'flag': flag, 'filter_by': filter_by, 'from_date': from_date, 'to_date': to_date}
+
     missing = [
         field for field, value in {
             'group_id' : group_id,
@@ -659,22 +846,46 @@ def group_business_detail_report(request):
         }.items() if not value
     ]
     if missing:
+        log_report_access(
+            request=request,
+            report_type='New Business Detail Report' if flag == 'NB' else 'Renewal Business Detail Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response(
             {'error': f'Missing required fields: {", ".join(missing)}'},
             status=400
         )
 
     if flag not in VALID_FLAGS:
+        log_report_access(
+            request=request,
+            report_type='Business Detail Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response(
             {'error': f'Invalid flag "{flag}". Must be one of: {", ".join(VALID_FLAGS)}'},
             status=400
         )
 
     if filter_by not in VALID_FILTER_BY:
+        log_report_access(
+            request=request,
+            report_type='New Business Detail Report' if flag == 'NB' else 'Renewal Business Detail Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response(
             {'error': f'Invalid filter_by "{filter_by}". Must be one of: {", ".join(VALID_FILTER_BY)}'},
             status=400
         )
+
+    # Resolve human-readable report name from flag
+    report_name = 'New Business Detail Report' if flag == 'NB' else 'Renewal Business Detail Report'
 
     # --- Group access check ---
 
@@ -687,6 +898,13 @@ def group_business_detail_report(request):
         ).exists()
 
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type=report_name,
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response(
                 {'error': 'You can only access your own company groups'},
                 status=403
@@ -735,12 +953,27 @@ def group_business_detail_report(request):
                 if not cursor.nextset():
                     break
 
+        log_report_access(
+            request=request,
+            report_type=report_name,
+            sql_template=sql,
+            params=[group_id, from_date, to_date, filter_by, flag],
+            status=ReportAccessLog.Status.NO_DATA if not results else ReportAccessLog.Status.SUCCESS,
+        )
         return Response(results)
 
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type=report_name,
+            sql_template=sql,
+            params=[group_id, from_date, to_date, filter_by, flag],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate group business detail report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -762,6 +995,13 @@ def surrender_claim_report(request):
     print(f"Surrender Claim Report - Group: {group_id}, From: {from_date}, To: {to_date}")
     
     if not all([group_id, from_date, to_date]):
+        log_report_access(
+            request=request,
+            report_type='Surrender Claim Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'group_id, from_date, and to_date are required'
         }, status=400)
@@ -775,6 +1015,13 @@ def surrender_claim_report(request):
         ).exists()
         
         if not group_exists:
+            log_report_access(
+                request=request,
+                report_type='Surrender Claim Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'You can only access your own company groups'
             }, status=403)
@@ -823,14 +1070,28 @@ def surrender_claim_report(request):
                 
                 if not cursor.nextset():
                     break
-        
-        # Return only the data array
+
+        log_report_access(
+            request=request,
+            report_type='Surrender Claim Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.NO_DATA if not results else ReportAccessLog.Status.SUCCESS,
+        )
         return Response(results)
         
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Surrender Claim Report',
+            sql_template=sql,
+            params=[from_date, to_date, group_id],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate surrender claim report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -850,6 +1111,13 @@ def policy_summary_report(request):
     print(f"Policy Summary Report - Policy: {policy_no}")
     
     if not policy_no:
+        log_report_access(
+            request=request,
+            report_type='Policy Summary Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({
             'error': 'policy_no is required'
         }, status=400)
@@ -865,6 +1133,13 @@ def policy_summary_report(request):
         
         # Check if company account is active
         if not company.isactive:
+            log_report_access(
+                request=request,
+                report_type='Policy Summary Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'Company account is inactive'
             }, status=403)
@@ -876,6 +1151,13 @@ def policy_summary_report(request):
         ).values_list('group_id', flat=True))
         
         if not group_ids:
+            log_report_access(
+                request=request,
+                report_type='Policy Summary Report',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
             return Response({
                 'error': 'No groups found for your company'
             }, status=404)
@@ -910,7 +1192,14 @@ def policy_summary_report(request):
                         else:
                             row_dict[col_name] = str(value)
                     results.append(row_dict)
-        
+
+        log_report_access(
+            request=request,
+            report_type='Policy Summary Report',
+            sql_template=sql,
+            params=params,
+            status=ReportAccessLog.Status.NO_DATA if not results else ReportAccessLog.Status.SUCCESS,
+        )
         return Response(results)
         
     except Exception as e:
@@ -918,6 +1207,14 @@ def policy_summary_report(request):
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}")
         print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Policy Summary Report',
+            sql_template=sql,
+            params=params,
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate report: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -1005,6 +1302,13 @@ def policy_loans(request):
     policy_no = request.data.get('policy_no')
 
     if not policy_no:
+        log_report_access(
+            request=request,
+            report_type='Policy Loans Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
         return Response({'error': 'policy_no is required'}, status=400)
 
     # Get group_ids from session or fetch and cache
@@ -1020,6 +1324,13 @@ def policy_loans(request):
                 company = request.user.company_profile
 
                 if not company.isactive:
+                    log_report_access(
+                        request=request,
+                        report_type='Policy Loans Report',
+                        sql_template='',
+                        params=[],
+                        status=ReportAccessLog.Status.FORBIDDEN,
+                    )
                     return Response({'error': 'Company account is inactive'}, status=403)
 
                 group_ids = list(PortalGroup.objects.filter(
@@ -1028,6 +1339,13 @@ def policy_loans(request):
                 ).values_list('group_id', flat=True))
 
             except AttributeError:
+                log_report_access(
+                    request=request,
+                    report_type='Policy Loans Report',
+                    sql_template='',
+                    params=[],
+                    status=ReportAccessLog.Status.FORBIDDEN,
+                )
                 return Response({'error': 'User is not associated with a company'}, status=403)
 
         if not group_ids:
@@ -1048,6 +1366,13 @@ def policy_loans(request):
             count = cursor.fetchone()[0]
 
             if count == 0:
+                log_report_access(
+                    request=request,
+                    report_type='Policy Loans Report',
+                    sql_template=verify_sql,
+                    params=[policy_no] + group_ids,
+                    status=ReportAccessLog.Status.FORBIDDEN,
+                )
                 return Response({'error': 'Policy not found or access denied'}, status=403)
 
             # Fetch loan details
@@ -1086,8 +1411,22 @@ def policy_loans(request):
                             row_dict[col_name] = str(value)
                     results.append(row_dict)
 
+                log_report_access(
+                    request=request,
+                    report_type='Policy Loans Report',
+                    sql_template=loan_sql,
+                    params=[policy_no],
+                    status=ReportAccessLog.Status.NO_DATA if not results else ReportAccessLog.Status.SUCCESS,
+                )
                 return Response(results, status=200)
 
+            log_report_access(
+                request=request,
+                report_type='Policy Loans Report',
+                sql_template=loan_sql,
+                params=[policy_no],
+                status=ReportAccessLog.Status.NO_DATA,
+            )
             return Response([], status=200)
 
     except Exception as e:
@@ -1095,6 +1434,14 @@ def policy_loans(request):
         error_details = traceback.format_exc()
         print(f"ERROR: {str(e)}")
         print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Policy Loans Report',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to fetch loan details: {str(e)}',
             'details': error_details if request.user.is_superuser else None
@@ -1325,6 +1672,13 @@ def group_information(request):
                     isdeleted=False
                 ).values_list('group_id', flat=True))
             except (ValueError, TypeError):
+                log_report_access(
+                    request=request,
+                    report_type='Group Information',
+                    sql_template='',
+                    params=[],
+                    status=ReportAccessLog.Status.INVALID_INPUT,
+                )
                 return Response({
                     'error': 'Invalid company_id'
                 }, status=400)
@@ -1340,6 +1694,13 @@ def group_information(request):
             
             # Check if company account is active
             if not company.isactive:
+                log_report_access(
+                    request=request,
+                    report_type='Group Information',
+                    sql_template='',
+                    params=[],
+                    status=ReportAccessLog.Status.FORBIDDEN,
+                )
                 return Response({
                     'error': 'Company account is inactive'
                 }, status=403)
@@ -1351,12 +1712,26 @@ def group_information(request):
             ).values_list('group_id', flat=True))
             
         except AttributeError:
-            return Response({
-                'error': 'User is not associated with a company'
-            }, status=403)
+                log_report_access(
+                    request=request,
+                    report_type='Group Information',
+                    sql_template='',
+                    params=[],
+                    status=ReportAccessLog.Status.FORBIDDEN,
+                )
+                return Response({
+                    'error': 'User is not associated with a company'
+                }, status=403)
     
     # Check if company has any groups
     if not group_ids:
+        log_report_access(
+            request=request,
+            report_type='Group Information',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.NO_DATA,
+        )
         return Response({
             'count': 0,
             'results': [],
@@ -1370,6 +1745,13 @@ def group_information(request):
     
     serializer = GroupInformationSerializer(queryset, many=True)
     
+    log_report_access(
+        request=request,
+        report_type='Group Information',
+        sql_template='',
+        params=[],
+        status=ReportAccessLog.Status.SUCCESS,
+    )
     return Response({
         'count': queryset.count(),
         'group_ids': group_ids,  # Include for reference

@@ -185,7 +185,7 @@ class ReportAccessLog(models.Model):
     """
     Audit log that records every report generation attempt —
     both successful and failed — across all corporate report endpoints.
-    Stored in the default PostgreSQL database under the table 'copo_error_log'.
+    Stored in the default PostgreSQL database under 'copo_report_generation_log'.
  
     A global limit of 50 rows is enforced: whenever a new log is saved,
     any rows beyond the 50 most recent are automatically deleted.
@@ -200,50 +200,52 @@ class ReportAccessLog(models.Model):
         FORBIDDEN     = 'forbidden',     'Forbidden'
         INVALID_INPUT = 'invalid_input', 'Invalid Input'
  
-    class TargetType(models.TextChoices):
-        GROUP  = 'group',  'Group'
-        POLICY = 'policy', 'Policy'
- 
-
-    report_id = models.AutoField(
+    # ── Primary Key ───────────────────────────────────────────────────────────
+    row_id = models.AutoField(
         primary_key=True,
     )
  
-
-    username = models.CharField(
+    # ── Who ───────────────────────────────────────────────────────────────────
+    generator_company = models.CharField(
         max_length=150,
-        help_text="Username of the user who triggered the report.",
+        default='unknown',
+        help_text="Username of the company user who triggered the report.",
     )
  
+    # ── What ──────────────────────────────────────────────────────────────────
     report_type = models.CharField(
         max_length=150,
         db_index=True,
-        help_text="Human-readable report name. e.g. 'Maturity Forecasting Report', 'Death Claim Report'.",
+        help_text="Human-readable report name. e.g. 'Death Claim Report', 'Maturity Forecasting Report'.",
     )
-    target_type = models.CharField(
-        max_length=10,
-        choices=TargetType.choices,
-        db_index=True,
-        help_text="Whether the report targets a group or a policy.",
-    )
-    target_id = models.CharField(
-        max_length=100,
-        db_index=True,
-        help_text="The ID of the target — either a group_id or a policy_no depending on target_type.",
-    )
-    parameters = models.JSONField(
-        default=dict,
-        help_text="All input parameters sent with the request stored as a JSON blob (dates, flags, etc.).",
+    query = models.TextField(
+        default='N/A',
+        help_text="Raw SQL query with injected parameters exactly as executed against the database.",
     )
  
-
+    # ── Outcome ───────────────────────────────────────────────────────────────
     status = models.CharField(
         max_length=15,
         choices=Status.choices,
         db_index=True,
         help_text="Outcome of the report request.",
+    )    
+    has_error = models.BooleanField(
+        default=False,
+        help_text="1 if error exists, 0 if no error.",
+    )   
+    error_message = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Full error message or traceback captured on failure. NULL on success.",
+    )
+    remarks = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Optional free-form notes for any additional context.",
     )
  
+    # ── When ──────────────────────────────────────────────────────────────────
     generated_at = models.DateTimeField(
         auto_now_add=True,
         db_index=True,
@@ -251,13 +253,13 @@ class ReportAccessLog(models.Model):
     )
  
     class Meta:
-        db_table = 'copo_error_log'
+        db_table = 'copo_report_generation_log'
         ordering = ['-generated_at']
-        verbose_name = 'Report Access Log'
-        verbose_name_plural = 'Report Access Logs'
+        verbose_name = 'Report Generation Log'
+        verbose_name_plural = 'Report Generation Logs'
  
     def __str__(self):
-        return f"[{self.generated_at}] {self.username} → {self.report_type} ({self.status})"
+        return f"[{self.generated_at}] {self.generator_company} → {self.report_type} ({self.status})"
  
     def save(self, *args, **kwargs):
         # Save the new log entry first
@@ -266,14 +268,13 @@ class ReportAccessLog(models.Model):
         # Count total rows; if over the limit, delete the oldest ones
         total = ReportAccessLog.objects.count()
         if total > self.MAX_LOGS:
-            # Find the report_ids of the oldest rows that exceed the limit
             oldest_ids = (
                 ReportAccessLog.objects
-                .order_by('generated_at')                  # oldest first
-                .values_list('report_id', flat=True)
-                [:total - self.MAX_LOGS]                   # only the excess rows
+                .order_by('generated_at')
+                .values_list('row_id', flat=True)
+                [:total - self.MAX_LOGS]
             )
-            ReportAccessLog.objects.filter(report_id__in=list(oldest_ids)).delete()
+            ReportAccessLog.objects.filter(row_id__in=list(oldest_ids)).delete()
 
 class AuditLog(models.Model):
     ACTION_CHOICES = [
