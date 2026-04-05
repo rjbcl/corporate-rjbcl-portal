@@ -227,10 +227,11 @@ FROM information_schema.tables
 WHERE table_schema = 'public';
 
 
-Select * from company;
-Select * from groups;
-Select * from account;
-Select * from account_groups;
-select * from individual;
-select * from policy;
-select * from audit_log;
+Select * from copo_company;
+Select * from copo_groups;
+Select * from copo_account;
+Select * from copo_account_groups;
+select * from copo_individual;
+select * from copo_policy;
+select * from copo_audit_log;
+select * from copo_report_generation_log;
