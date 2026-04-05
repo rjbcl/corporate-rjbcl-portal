@@ -20,6 +20,12 @@
                     <span class="nav-text">Policy Summary</span>
                 </a>
             </li>
+            <li class="{% if 'calculator' in request.path %}mm-active{% endif %}">
+                <a href="#">
+                    <i class="bi bi-calculator"></i>
+                    <span class="nav-text">Policy Calculator</span>
+                </a>
+            </li>
             <li class="{% if ' Q' in request.path %}mm-active{% endif %}">
                 <a class="has-arrow" href="javascript:void(0);"
                     aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
@@ -33,8 +39,8 @@
                     <li><a href="{% url 'claim_report' %}"
                             class="{% if request.resolver_match.url_name == 'claim_report' %}active{% endif %}">Claim
                             Report</a></li>
-                    <li><a href="#"
-                            class="{% if request.resolver_match.url_name == '#' %}active{% endif %}">Business
+                    <li><a href="{% url 'business_detail_report' %}"
+                            class="{% if request.resolver_match.url_name == 'business_detail_report' %}active{% endif %}">Business
                             Detail </a></li>
                     <li><a href="{% url 'transfer_report' %}"
                             class="{% if request.resolver_match.url_name == 'transfer_report' %}active{% endif %}">Group Transfer</a>
