@@ -1223,6 +1223,141 @@ def policy_summary_report(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @authentication_classes([JWTAuthentication, SessionAuthentication])
+def surrender_calculator(request):
+    """
+    Get surrender value and active loan status for a given policy.
+    POST /api/corporate/surrender-calculator/
+    
+    Request body:
+        { "policy_no": "05208669" }
+
+    Response:
+        {
+            "policyNO": "05208669",
+            "hasActiveLoan": 1,
+            "SurrenderAmount": 50000.00
+        }
+    """
+
+    policy_no = request.data.get('policy_no')
+    if not policy_no:
+        log_report_access(
+            request=request,
+            report_type='Surrender Calculator',
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+        )
+        return Response({'error': 'policy_no is required'}, status=400)
+
+    # ----------------------------------------------------------------
+    # Resolve accessible group IDs for the requesting user
+    # ----------------------------------------------------------------
+    if request.user.is_superuser or request.user.is_staff:
+        group_ids = list(PortalGroup.objects.filter(
+            isdeleted=False
+        ).values_list('group_id', flat=True))
+    else:
+        company = request.user.company_profile
+
+        if not company.isactive:
+            log_report_access(
+                request=request,
+                report_type='Surrender Calculator',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
+            return Response({'error': 'Company account is inactive'}, status=403)
+
+        group_ids = list(PortalGroup.objects.filter(
+            company_id=company,
+            isdeleted=False
+        ).values_list('group_id', flat=True))
+
+        if not group_ids:
+            log_report_access(
+                request=request,
+                report_type='Surrender Calculator',
+                sql_template='',
+                params=[],
+                status=ReportAccessLog.Status.FORBIDDEN,
+            )
+            return Response({'error': 'No groups found for your company'}, status=404)
+
+    # ----------------------------------------------------------------
+    # Query the view
+    # ----------------------------------------------------------------
+    sql = ''
+    params = []
+
+    try:
+        with connections['company_external'].cursor() as cursor:
+            placeholders = ','.join(['%s'] * len(group_ids))
+            sql = f"""
+                SELECT policyNO, hasActiveLoan, SurrenderAmount
+                FROM view_copo_surrender_calculator
+                WHERE policyNO = %s AND GroupId IN ({placeholders})
+            """
+            params = [policy_no] + group_ids
+            cursor.execute(sql, params)
+
+            row = cursor.fetchone()
+
+            if not row:
+                log_report_access(
+                    request=request,
+                    report_type='Surrender Calculator',
+                    sql_template=sql,
+                    params=params,
+                    status=ReportAccessLog.Status.NO_DATA,
+                )
+                return Response({'error': 'Policy not found or access denied'}, status=404)
+
+            columns = [col[0] for col in cursor.description]
+            result = {}
+            for i, value in enumerate(row):
+                col_name = columns[i]
+                if value is None:
+                    result[col_name] = None
+                elif hasattr(value, 'isoformat'):
+                    result[col_name] = value.isoformat()
+                elif isinstance(value, (int, float)):
+                    result[col_name] = value
+                else:
+                    result[col_name] = str(value)
+
+        log_report_access(
+            request=request,
+            report_type='Surrender Calculator',
+            sql_template=sql,
+            params=params,
+            status=ReportAccessLog.Status.SUCCESS,
+        )
+        return Response(result)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"ERROR in surrender_calculator: {str(e)}")
+        print(f"Full traceback:\n{error_details}")
+        log_report_access(
+            request=request,
+            report_type='Surrender Calculator',
+            sql_template=sql,
+            params=params,
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
+        return Response({
+            'error': f'Failed to retrieve surrender data: {str(e)}',
+            'details': error_details if request.user.is_superuser else None
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes([JWTAuthentication, SessionAuthentication])
 def policy_search(request):
     """
     Search policies by policy number or name.

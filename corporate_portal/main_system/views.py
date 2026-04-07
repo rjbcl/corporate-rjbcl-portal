@@ -255,20 +255,26 @@ def policy_summary(request):
     if request.user.get_user_type() != 'company':
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-    
     company = request.user.company_profile
-    
-    # Get groups for dropdown
-    groups = Group.objects.filter(
-        company_id=company,
-        isdeleted=False
-    ).values('group_id', 'group_name')
     
     context = {
         'company': company,
-        'groups': groups,
     }
-    return render(request, 'Dashboard/Company/policy_summary_report.html', context)
+    return render(request, 'Dashboard/Company/policy_summary_report.html',context)
+
+@login_required
+def surrender_calculator(request):
+    """Surrender calculator for company users"""
+    if request.user.get_user_type() != 'company':
+        messages.error(request, 'Access denied.')
+        return redirect('dashboard')
+    
+    company = request.user.company_profile
+    
+    context = {
+        'company': company,
+    }
+    return render(request, 'Dashboard/Company/surrender_calculator.html',context)
 
 
 

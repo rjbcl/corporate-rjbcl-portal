@@ -21,9 +21,9 @@
                 </a>
             </li>
             <li class="{% if 'calculator' in request.path %}mm-active{% endif %}">
-                <a href="#">
+                <a href="{% url 'surrender_calculator' %}">
                     <i class="bi bi-calculator"></i>
-                    <span class="nav-text">Policy Calculator</span>
+                    <span class="nav-text">Surrender Calculator</span>
                 </a>
             </li>
             <li class="{% if ' Q' in request.path %}mm-active{% endif %}">

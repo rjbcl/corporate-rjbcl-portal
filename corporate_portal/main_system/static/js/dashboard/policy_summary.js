@@ -41,7 +41,7 @@ $(document).ready(function () {
 
         // Make API request
         $.ajax({
-            url: '/api/corporate/reports/policy-summary/',
+            url: '/api/corporate/policy-summary/',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -359,7 +359,7 @@ $(document).ready(function () {
             $dropdown.empty().append('<div class="dropdown-item-muted">Searching...</div>').show();
 
             $.ajax({
-                url: '/api/corporate/reports/policy-search/',
+                url: '/api/corporate/policy-search/',
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

@@ -18,6 +18,7 @@ from .views import (
     policy_loans,
     group_transfer_report,
     group_business_detail_report,
+    surrender_calculator,
 )
 
 router = DefaultRouter()
@@ -40,9 +41,10 @@ urlpatterns = [
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
     path('reports/loan-repayment/', loan_repayment_report, name='loan-repayment-report'),
     #Policy Summary
-    path('reports/policy-search/', policy_search, name='policy-search'),
+    path('policy-search/', policy_search, name='policy-search'),
     path('reports/policy-loans/', policy_loans, name='policy-loans'),
-    path('reports/policy-summary/', policy_summary_report, name='policy-summary-report'),
+    path('surrender-calculator/', surrender_calculator, name='surrender-calculator'),
+    path('policy-summary/', policy_summary_report, name='policy-summary-report'),
     #CLaim Reports
     path('reports/maturity-claim/', maturity_claim_report, name='maturity-claim-report'),
     path('reports/death-claim/', death_claim_report, name='death-claim-report'),
