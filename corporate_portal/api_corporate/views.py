@@ -1589,61 +1589,71 @@ def company_policies_web(request):
     Web dashboard endpoint - uses Django session authentication.
     GET /api/corporate/endowments/by_company/?company_id=<id>
     """
-    
+
     company_id = request.query_params.get('company_id', None)
-    
+
     if not company_id:
         return Response({
             'error': 'company_id parameter is required',
             'example': '/api/corporate/endowments/by_company/?company_id=1'
         }, status=400)
-    
-    # Validate company_id is a number
+
     try:
         company_id = int(company_id)
     except ValueError:
         return Response({
             'error': 'company_id must be a valid integer'
         }, status=400)
-    
-    # Security: Verify the logged-in user owns this company
+
     if not request.user.is_superuser and not request.user.is_staff:
         user_company_id = request.user.company_profile.company_id
         if user_company_id != company_id:
             return Response({
                 'error': 'You can only access your own company data'
             }, status=403)
-    
-    # Get all group IDs for this company from portal database
+
     portal_groups = PortalGroup.objects.filter(
         company_id=company_id,
         isdeleted=False
     )
-    
+
     group_ids = list(portal_groups.values_list('group_id', flat=True))
-    
+
     if not group_ids:
         return Response({
             'company_id': company_id,
             'group_ids': [],
-            'endowments': [],
-            'count': 0,
+            'summary': {},
+            'latest_policies': [],
+            'fup_data': [],
             'message': 'No groups found for this company'
         })
-    
-    # Fetch endowments from external database view
-    endowments = GroupEndowment.objects.using('company_external').filter(
-        group_id__in=group_ids
-    )
-    
-    # Serialize the data
-    serializer = GroupEndowmentSerializer(endowments, many=True)
-    
+
+    group_ids_csv = ','.join(str(g) for g in group_ids)
+
+    with connections['company_external'].cursor() as cursor:
+        cursor.execute("EXEC proc_copo_dashboard_data @groupids = %s", [group_ids_csv])
+
+        latest_policies = [
+            dict(zip([col[0] for col in cursor.description], row))
+            for row in cursor.fetchall()
+        ]
+
+        cursor.nextset()
+        summary = dict(zip([col[0] for col in cursor.description], cursor.fetchone()))
+
+        cursor.nextset()
+        fup_data = [
+            dict(zip([col[0] for col in cursor.description], row))
+            for row in cursor.fetchall()
+        ]
+
     return Response({
         'company_id': company_id,
         'group_ids': group_ids,
-        'count': endowments.count(),
-        'endowments': serializer.data
+        'summary': summary,
+        'latest_policies': latest_policies,
+        'fup_data': fup_data,
     })
 
 class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):

@@ -33,7 +33,7 @@
                     <i class="bi bi-cash-stack text-success border-success"></i>
                 </div>
                 <div class="stat-content d-inline-block">
-                    <div class="stat-text">Total Premium</div>
+                    <div class="stat-text">Total Active Premium</div>
                     <div class="stat-digit" id="total-premium">Loading...</div>
                 </div>
             </div>
@@ -96,8 +96,8 @@
                                 <th>Employee Name</th>
                                 <th>Sum Assured</th>
                                 <th>Premium</th>
+                                <th>DOC</th>
                                 <th>Maturity Date</th>
-                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="policies-tbody">
@@ -111,9 +111,31 @@
         </div>
     </div>
 </div>
+
+<!-- FUP Timeline -->
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">Upcoming Premium Payments</h4>
+            </div>
+            <div class="card-body">
+                <div class="widget-timeline ps ps--active-y" id="fup-timeline-scroll" >
+                    <ul class="timeline" id="fup-timeline">
+                        <li>
+                            <td colspan="3" class="text-center">Loading payment schedule...</td>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/dashboard/utilities.js' %}"></script>
 <script src="{% static 'js/dashboard/dashboard-2.js' %}"></script>
 {% endblock %}
+
+
