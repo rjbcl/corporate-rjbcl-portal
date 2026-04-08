@@ -65,7 +65,7 @@ $(document).ready(function () {
             },
             data: JSON.stringify({ policy_no: policyNumber }),
             success: function (response) {
-                if (!response || !response.policyNO) {
+                if (!response) {
                     Swal.fire({
                         icon: 'warning',
                         title: 'Not Found',
@@ -95,10 +95,12 @@ $(document).ready(function () {
     // ── Display Results ──────────────────────────────────────────────────────
 
     function displaySurrenderCalculator(data) {
+        console.log('Surrender Calculator Data:', data);
         const today = formatTodayDate();
-        const surrenderAmount = data.SurrenderAmount || 0;
+        const surrenderAmount = data.SurrenderValue || 0;
         const loanAmount = surrenderAmount * 0.9;
-        const hasActiveLoan = data.hasActiveLoan === 1;
+        const hasActiveLoan = data.HasActiveLoan;
+        console.log(hasActiveLoan);
 
         // Surrender card
         $('#surrender-value').text(formatCurrency(surrenderAmount));
@@ -110,10 +112,9 @@ $(document).ready(function () {
         }
 
         // Loan card
-        console.log('hasActiveLoan:', hasActiveLoan, 'loanAmount:', loanAmount);
         if (hasActiveLoan) {
             $('#loan-value-text').html(
-                'Active loan exists. Go to Policy Summary for further details.'
+                'Active loan exists. Go to <b>Policy Summary</b> for further details.'
             );
             $('#loan-value').closest('p').hide();
         } else {

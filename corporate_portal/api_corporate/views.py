@@ -1295,11 +1295,10 @@ def surrender_calculator(request):
         with connections['company_external'].cursor() as cursor:
             placeholders = ','.join(['%s'] * len(group_ids))
             sql = f"""
-                SELECT policyNO, hasActiveLoan, SurrenderAmount
-                FROM view_copo_surrender_calculator
-                WHERE policyNO = %s AND GroupId IN ({placeholders})
+                EXEC proc_copo_surrender_calculator
+                @PolicyNo = %s
             """
-            params = [policy_no] + group_ids
+            params = [policy_no]
             cursor.execute(sql, params)
 
             row = cursor.fetchone()
@@ -1326,7 +1325,7 @@ def surrender_calculator(request):
                     result[col_name] = value
                 else:
                     result[col_name] = str(value)
-
+        print(f"Surrender Calculator result for policy {policy_no}: {result}")
         log_report_access(
             request=request,
             report_type='Surrender Calculator',

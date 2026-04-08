@@ -298,12 +298,6 @@ def individual_dashboard(request):
     return render(request, 'individual_dashboard.html', context)
 
 
-from django.http import JsonResponse
-from django.views.decorators.http import require_POST
-from django.contrib.auth import update_session_auth_hash
-from .forms import ChangePasswordForm
-from main_system.models import AuditLog  # adjust import path if needed
-
 @login_required
 @require_POST
 def change_password(request):
