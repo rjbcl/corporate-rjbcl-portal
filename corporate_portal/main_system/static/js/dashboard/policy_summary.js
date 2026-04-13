@@ -57,7 +57,7 @@ $(document).ready(function () {
                 if (policySummaryData && policySummaryData.length > 0) {
                     displayPolicySummary(policySummaryData);
                     fetchAndDisplayLoans(policySummaryData[0].PolicyNo);
-                    $('#download-policy-summary-btn').prop('disabled', false); 
+                    $('#download-policy-summary-btn').prop('disabled', false);
                 } else {
                     Swal.fire({
                         icon: 'warning',
@@ -498,5 +498,14 @@ $(document).ready(function () {
         } else {
             return `<span class="badge badge-secondary">${status}</span>`;
         }
+    }
+
+        // Auto-search if policy_no is passed in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoPolicy = urlParams.get('policy_number');
+    if (autoPolicy) {
+        console.log('Auto-searching for policy:', autoPolicy);
+        $('#policy-number').val(autoPolicy);
+        $('#policy-summary-report-form').trigger('submit');
     }
 });
