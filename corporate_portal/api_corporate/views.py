@@ -1673,10 +1673,8 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
         'gender',
         'policy_type',
         'is_adb',
-        'register_no',
         'employee_id',
         'claim_status',
-        'branch'
     ]
     
     search_fields = [
@@ -1686,7 +1684,6 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
         'employee_id',
         'mobile',
         'email',
-        'register_no',
     ]
     
     ordering_fields = [
