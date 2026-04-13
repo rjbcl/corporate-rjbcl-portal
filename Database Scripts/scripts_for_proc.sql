@@ -102,5 +102,5 @@ EXEC proc_copo_BusinessDetail
 
 
 --Dashboard Data
-EXEC proc_copo_dashboard_data 
-    @groupids = '057';
+EXEC proc_copo_dashboard_data
+    @groupids = '052,053';
