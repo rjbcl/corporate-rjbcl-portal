@@ -23,7 +23,6 @@ urlpatterns = [
     path('company/reports/loan/', views.loan_repayment_report, name='loan_repayment_report'),
     path('company/reports/transfer/', views.transfer_report, name='transfer_report'),
     path('company/reports/claims/', views.claim_report, name='claim_report'), 
-    path('company/reports/premium/', views.premium_report, name='premium_report'),
     path('company/reports/summary/', views.policy_summary, name='policy_summary'),
     path('company/reports/surrender-calculator/', views.surrender_calculator, name='surrender_calculator'),
     path('company/reports/business-detail/', views.business_detail_report, name='business_detail_report'),
