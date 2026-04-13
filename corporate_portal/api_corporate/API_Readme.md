@@ -1,301 +1,642 @@
-# Corporate API Documentation
+# Corporate Portal API Documentation
 
 ## Overview
 
-This API allows companies to access their group insurance policies in json format. All endpoints require authentication using JWT tokens.
+This document describes the REST API endpoints available to authenticated company users of the Corporate Portal. All endpoints are prefixed with the base URL:
 
-**Base URL:** `https://xyz.com/api/corporate/`
+```
+https://your-base-url.com/api/corporate/
+```
 
-****
+All API responses are in JSON format. Authentication is handled via JWT (JSON Web Token). **Only active company accounts** can access these endpoints.
+
+---
+
 ## Authentication
 
-### Login (Obtain JWT Token)
+### Login
 
-Authenticate and receive a JWT access token for subsequent API calls.
+Obtain a JWT access and refresh token pair.
 
 **Endpoint:** `POST /api/corporate/auth/login/`
 
 **Authentication:** None (public endpoint)
 
 **Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `username` | string | Yes | Company account username |
+| `password` | string | Yes | Account password |
+
+**Example Request:**
 ```json
 {
-  "username": "your_company_username",
-  "password": "your_password"
+  "username": "company_user",
+  "password": "yourpassword"
 }
 ```
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "username": "company_username"
+  "access": "<JWT access token>",
+  "refresh": "<JWT refresh token>",
+  "username": "company_user"
 }
 ```
 
 **Error Responses:**
-- `401 Unauthorized` - Invalid credentials
-- `403 Forbidden` - Account is inactive or not a company account
 
-**Notes:**
-- Access token expire every 30 minutes
-- Only active company accounts can access the API
-- Store the `access` token securely for authenticating subsequent requests
-- The access token should be included in the `Authorization` header as: `Bearer <access_token>`
+| Status | Description |
+|--------|-------------|
+| `401` | Invalid credentials |
+| `403` | Account is not a company account, or company account is inactive |
+
+---
 
 ### Refresh Token
 
-When your access token expires, use the refresh token to obtain a new access token without re-authenticating. This token expires after a day.
+Obtain a new access token using a valid refresh token.
 
 **Endpoint:** `POST /api/corporate/auth/refresh/`
 
-**Authentication:** None required
+**Authentication:** None
 
 **Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `refresh` | string | Yes | A valid JWT refresh token |
+
+**Example Request:**
 ```json
 {
-  "refresh": "your_refresh_token"
+  "refresh": "<JWT refresh token>"
 }
 ```
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
-  "access": "new_access_token"
+  "access": "<new JWT access token>"
 }
 ```
-
-**Error Responses:**
-- `401 Unauthorized` - Invalid or expired refresh token
-
-**Notes:**
-- Refresh tokens are valid for 1 day after generation. Then login is required again.
-
 
 ---
 
-## Company Policies
+## General Conventions
 
-### Get Company Policies
+### Authorization Header
 
-Retrieve all insurance policies associated with your company's groups.
+All authenticated endpoints require the JWT access token to be passed in the request header:
+
+```
+Authorization: Bearer <access token>
+```
+
+### Date Format
+
+All dates must be provided in `YYYY-MM-DD` format (AD only).
+
+```
+"from_date": "2024-01-01"
+"to_date":   "2024-12-31"
+```
+
+### Access Control
+
+Each company can only access data belonging to their own groups. Any attempt to access another company's data will return a `403 Forbidden` response.
+
+### Common Error Response Shape
+
+```json
+{
+  "error": "Human-readable error message"
+}
+```
+
+### Common HTTP Status Codes
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Success |
+| `400` | Bad request / missing or invalid parameters |
+| `401` | Unauthenticated — token missing or invalid |
+| `403` | Forbidden — account inactive or accessing unauthorized data |
+| `404` | Resource not found |
+| `500` | Server error |
+
+---
+
+## Groups
+
+### Get Group Information
+
+Returns all groups associated with the authenticated company.
+
+**Endpoint:** `GET /api/corporate/groups/`
+
+**Authentication:** JWT required
+
+**Query Parameters:** None (data is automatically scoped to the authenticated company)
+
+**Success Response (200):**
+```json
+{
+    "count": 3,
+    "group_ids": [
+        "G01",
+        "G02",
+        "G03"
+    ],
+    "results": [
+        {
+            "group_id": "G01",
+            "group_name": "Dummy Group",
+            "group_name_nepali": "Nepali Name in Devnagari",
+            "is_active": true,
+            "total_members_count": 123,
+            "total_active_policies": 123,
+            "total_premium": "123",
+            "total_sa": "123.0000",
+            "death_claim": 123,
+            "surrender_claim": 123,
+            "maturity_claim": 123,
+            "transfer_claim": 123,
+            "terminate_claim": 123,
+            "cancel_claim": 123
+        }
+    ]
+```
+
+> **Note:** Fill in response field names based on your `GroupInformationSerializer`.
+
+---
+
+## Policies
+
+### List Company Policies
+
+Returns a paginated list of all endowment policies belonging to the authenticated company's groups.
 
 **Endpoint:** `GET /api/corporate/company/policies/`
 
-**Authentication:** Required (JWT)
+**Authentication:** JWT required
 
-**Headers:**
-```
-Authorization: Bearer <your_access_token>
-```
+**Query Parameters (all optional):**
 
-**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `policy_status` | string | Filter by policy status (e.g. `A` for active, `L` for lapsed) |
+| `fiscal_year` | string | Filter by fiscal year |
+| `gender` | string | Filter by gender |
+| `policy_type` | string | Filter by policy type |
+| `is_adb` | boolean | Filter by ADB flag |
+| `register_no` | string | Filter by register number |
+| `employee_id` | string | Filter by employee ID |
+| `claim_status` | string | Filter by claim status |
+| `branch` | string | Filter by branch |
+| `search` | string | Search across name, policy number, employee ID, mobile, email, register number |
+| `ordering` | string | Order by field: `maturity_date`, `doc`, `name`, `premium`, `sum_assured`. Prefix with `-` for descending (default: `-maturity_date`) |
 
-| Parameter | Type | Description | Example |
-|-----------|------|-------------|---------|
-| `search` | string | Search by name, policy number, mobile, email | `?search=John` |
-| `policy_status` | string | Filter by policy status (A=Approved, L=Lapsed, M= Matured, S = Surrendred, I = Acitive, C= Cancel, T = Transfer ) | `?policy_status=A` |
-| `gender` | string | Filter by gender (M/F) | `?gender=M` |
-| `ordering` | string | Order results | `?ordering=-maturity_date` |
-
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
-    "count": 1,
-    "next": "link_to_next_page",
-    "previous": "link_to_previous_page",
-    "results": [
-        {
-            "register_no": "REG123",
-            "policy_no": "POL123",
-            "branch": "300",
-            "group_id": "123",
-            "doc": "2021-11-23",
-            "term": 17,
-            "sum_assured": "84000.0000",
-            "premium": "4620.0000",
-            "fup": "2025-11-23T00:00:00Z",
-            "maturity_date": "2038-11-23",
-            "policy_status": "A",
-            "policy_type": "MP",
-            "late_fine": "0.0000",
-            "paid_date": "2024-11-22T00:00:00Z",
-            "instalment": 4,
-            "paid_amount": "18480.0000",
-            "batch_no": "179",
-            "details_remarks": "",
-            "intrest": null,
-            "claim_status": null,
-            "late_fine_percent": null,
-            "reduced_instalment": null,
-            "employee_id": null,
-            "name": "SARMILA ADHIKARI",
-            "nep_name": null,
-            "gender": "F",
-            "occupation": "A",
-            "dob": "1992-06-29T00:00:00Z",
-            "age": "30",
-            "extra_premium": "0.0000",
-            "total_premium": "13860.0000",
-            "id_no": null,
-            "id_type": null,
-            "appointed_date": "2021-07-22T00:00:00Z",
-            "endowment_remarks": null,
-            "address": null,
-            "email": null,
-            "mobile": null,
-            "adb": null,
-            "previous_policy": null,
-            "occ_extra_amount": null,
-            "adb_discount": null,
-            "father_name": null,
-            "mother_name": null,
-            "nominee_name": null,
-            "nominee_address": null,
-            "phone_number_residence": null,
-            "transfer_date": null,
-            "duplicate_policy_date": null,
-            "approved_date": "2021-12-26T14:36:15.670000Z",
-            "approved_by": "bindu.sharma",
-            "lapse_date": null,
-            "lapse_active_date": null,
-            "doe": null,
-            "approve_remarks": null,
-            "modified_date": null,
-            "basic_premium": "4620.0000",
-            "is_adb": null,
-            "after_dis_rebate_rate": "55.0002",
-            "fiscal_year": "7879",
-            "nominee_relationship": null,
-            "claim_date": null,
-            "termination_date": null,
-            "is_ind_issue": null,
-            "province_id": null,
-            "district_id": null,
-            "municipality_id": null,
-            "ward_no": null,
-            "age_proof_doc_type": null,
-            "age_proof_doc_no": null,
-            "nep_address": null,
-            "nep_father_name": null,
-            "nep_mother_name": null,
-            "nep_nominee_name": null,
-            "nep_nominee_address": null,
-            "nom_district_id": null,
-            "nominee_ward_no": null,
-            "nominee_phone": null,
-            "plan_id": 1,
-            "is_multiple_policy_issued": true,
-            "terminate_by": null,
-            "cancel_date": null,
-            "cancel_by": null,
-            "active_date": null,
-            "active_by": null,
-            "terminate_remarks": null,
-            "cancel_remarks": null,
-            "active_remarks": null,
-            "lapse_by": null,
-            "lapse_remarks": null
-        },
-  ]
+  "count": 119773,
+  "next": "http://xyz.com/api/corporate/company/policies/?page=2",
+  "previous": null,
+  "results": [
+                {
+                    "register_no": "reg123",
+                    "policy_no": "pol123",
+                    "group_id": "G123",
+                    "doc": "2024-11-23",
+                    "term": 123,
+                    "sum_assured": "123.0000",
+                    "premium": "123.0000",
+                    "fup": "2025-11-23T00:00:00Z",
+                    "maturity_date": "2044-11-23",
+                    "policy_status": "A",
+                    "policy_type": "S",
+                    "late_fine": "0.0000",
+                    "paid_date": "2025-02-02T12:34:01.317000Z",
+                    "instalment": 1,
+                    "paid_amount": "123.0000",
+                    "batch_no": "123",
+                    "intrest": null,
+                    "claim_status": null,
+                    "late_fine_percent": null,
+                    "reduced_instalment": null,
+                    "employee_id": "",
+                    "name": "John Dow",
+                    "nep_name": "",
+                    "gender": "M",
+                    "occupation": "",
+                    "dob": "2000-01-22T00:00:00Z",
+                    "extra_premium": "0.0000",
+                    "total_premium": null,
+                    "address": "",
+                    "email": "",
+                    "mobile": "",
+                    "adb": null,
+                    "occ_extra_amount": null,
+                    "adb_discount": null,
+                    "father_name": null,
+                    "mother_name": null,
+                    "nominee_name": "John Doe",
+                    "nominee_address": null,
+                    "transfer_date": null,
+                    "duplicate_policy_date": null,
+                    "lapse_date": null,
+                    "lapse_active_date": null,
+                    "doe": null,
+                    "basic_premium": "123.0000",
+                    "is_adb": "N",
+                    "after_dis_rebate_rate": "123",
+                    "fiscal_year": "123",
+                    "nominee_relationship": null,
+                    "claim_date": null,
+                    "termination_date": null,
+                    "plan_id": 1,
+                    "is_multiple_policy_issued": true
+                },
+```
+
+---
+
+### Policy Statistics
+
+Returns aggregate statistics for the authenticated company's policies.
+
+**Endpoint:** `POST /api/corporate/company/policies/statistics/`
+
+**Authentication:** JWT required
+
+**Request Body:** None
+
+**Success Response (200):**
+```json
+{
+  "total_policies": 500,
+  "active_policies": 420,
+  "lapsed_policies": 50,
+  "inactive_policies": 30,
+  "total_sum_assured": 125000000.00,
+  "total_premium": 3500000.00
 }
 ```
 
 ---
 
-### Get Policy Statistics
+## Policy Utilities
 
-Get aggregate statistics for your company's policies.
+### Policy Search
 
-**Endpoint:** `GET /api/corporate/company/policies/statistics/`
+Searches policies by policy number, name, or employee ID. Returns up to 15 results.
 
-**Authentication:** Required (JWT)
+**Endpoint:** `POST /api/corporate/policy-search/`
 
-**Headers:**
-```
-Authorization: Bearer <your_access_token>
-```
+**Authentication:** JWT required
 
-**Success Response (200 OK):**
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `q` | string | Yes | Search query (matches against policy number, name, and employee ID) |
+
+**Example Request:**
 ```json
 {
-  "total_policies": 500,
-  "active_policies": 450,
-  "lapsed_policies": 30,
-  "inactive_policies": 20,
-  "total_sum_assured": 500000000.00,
-  "total_premium": 12500000.00
+  "q": "John"
 }
 ```
 
-**Example Request:**
-```bash
-curl -H "Authorization: Bearer <token>" \
-  "https://your-domain.com/api/corporate/company/policies/statistics/"
+**Success Response (200):**
+```json
+[
+  {
+    "policyNo": "DUMMY_POLICY_NO",
+    "name": "DUMMY_NAME",
+    "employeeid": "DUMMY_EMP_ID"
+  }
+]
 ```
+
+Returns an empty array `[]` if the query is blank or no matches are found.
+
+---
+
+### Policy Summary
+
+Returns full summary details for a specific policy.
+
+**Endpoint:** `POST /api/corporate/policy-summary/`
+
+**Authentication:** JWT required
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `policy_no` | string | Yes | The policy number to look up |
+
+**Example Request:**
+```json
+{
+  "policy_no": "05208669"
+}
+```
+
+**Success Response (200):**
+```json
+[
+    {
+        "PolicyNo": "POL123",
+        "Branch": "300",
+        "Name": "KRISHNA BAHADUR PAKHREL",
+        "NepName": null,
+        "GroupId": "G01",
+        "DOB": "1953-11-15T00:00:00",
+        "Gender": null,
+        "Address": null,
+        "Email": null,
+        "Mobile": null,
+        "FatherName": null,
+        "MotherName": null,
+        "NomineeName": null,
+        "NomineeRelationship": null,
+        "ClaimDate": null,
+        "DistrictID": null,
+        "WardNo": null,
+        "NomineePhone": null,
+        "NomineeAddress": null,
+        "Occupation": "A",
+        "Sumassured": "123.0000",
+        "DOC": "1994-11-23",
+        "PaidDate": "2008-11-23T00:00:00",
+        "FUP": "2009-11-23T00:00:00",
+        "Term": 123,
+        "Premium": "123.0600",
+        "Instalment": 123,
+        "PaidAmount": "123.9000",
+        "maturitydate": "2009-01-23",
+        "PolicyStatus": "M",
+        "PolicyType": null
+    }
+]
+```
+
+> **Note:** Fill in response field names from `view_copo_policySummary`.
+
+---
+
+### Policy Loans
+
+Returns loan details for a specific policy. The policy must belong to the authenticated company.
+
+**Endpoint:** `POST /api/corporate/reports/policy-loans/`
+
+**Authentication:** JWT required
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `policy_no` | string | Yes | The policy number |
+
+**Example Request:**
+```json
+{
+  "policy_no": "05208669"
+}
+```
+
+**Success Response (200):**
+```json
+[
+    {
+        "PolicyNo": "POL123",
+        "loanID": "123",
+        "LoanDate": "2021-11-17T00:00:00",
+        "LoanAmount": "123.00",
+        "InterestRate": "123.00",
+        "Instalment": 123,
+        "Status": "CLEARED",
+        "LastPaidDate": "2022-01-13T00:00:00",
+        "VoucherNo": "123"
+    }
+]
+```
+
+Returns an empty array `[]` if no loans exist for the policy.
+
+---
+
+### Surrender Calculator
+
+Returns the surrender value and active loan status for a specific policy.
+
+**Endpoint:** `POST /api/corporate/surrender-calculator/`
+
+**Authentication:** JWT required
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `policy_no` | string | Yes | The policy number |
+
+**Example Request:**
+```json
+{
+  "policy_no": "05208669"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "SurrenderValue":"3297858.0000",
+  "HasActiveLoan":false
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `hasActiveLoan` | `1` if an active loan exists, `0` if not |
+| `SurrenderAmount` | Calculated surrender value |
 
 ---
 
 ## Reports
 
-All report endpoints require authentication and automatically filter data based on your company's groups.
+> All report endpoints require JWT authentication and accept only `POST` requests. Dates must be in `YYYY-MM-DD` format.
+
+---
 
 ### Maturity Forecasting Report
 
-Generate a report of policies maturing within a specified date range.
+Returns policies expected to mature within a given date range for a specific group.
 
 **Endpoint:** `POST /api/corporate/reports/maturity-forecasting/`
 
-**Authentication:** Required (JWT)
-
-**Headers:**
-```
-Authorization: Bearer <your_access_token>
-Content-Type: application/json
-```
-
 **Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
 ```json
 {
-  "group_id": "GRP001",
+  "group_id": 101,
   "from_date": "2024-01-01",
-  "to_date": "2024-12-31",
+  "to_date": "2024-12-31"
 }
 ```
 
-**Parameters:**
-- `group_id` (required): Your group ID
-- `from_date` (required): Start date (YYYY-MM-DD)
-- `to_date` (required): End date (YYYY-MM-DD)
-
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
 {
-  "success": true,
-  "count": 25,
-  "group_id": "GRP001",
+    "success": true,
+    "count": 1687,
+    "group_id": "G01",
+    "from_date": "2026-01-01",
+    "to_date": "2032-12-31",
+    "date_type": "ad",
+    "policies": [
+        {
+            "SN": 1,
+            "PolicyNo": "POL123",
+            "Branch": "300",
+            "Name": "John Doe",
+            "NepName": null,
+            "GroupId": "G01",
+            "DOB": "24/01/1972",
+            "DOC": "23/11/2006",
+            "SumAssured": "123.0000",
+            "Term": 123,
+            "Instalment": 123,
+            "Premium": "23123079.4300",
+            "MaturityDate": "23/01/2026",
+            "TotalPolicy": 123,
+            "RemainingDayToMature": 224,
+            "PolicyStatus": "A"
+        }
+    ]
+}
+```
+
+---
+
+### Loan Repayment Report
+
+Returns loan repayment records for a group within a date range.
+
+**Endpoint:** `POST /api/corporate/reports/loan-repayment/`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
+```json
+{
+  "group_id": 101,
   "from_date": "2024-01-01",
-  "to_date": "2024-12-31",
-  "date_type": "ad",
-  "policies": [
-    {"SN":1,
-    "PolicyNo":"POL123",
-    "Branch":"300",
-    "Name":"Ram Krshna Shah",
-    "NepName":null,
-    "GroupId":"GP123",
-    "DOB":"10/05/1999",
-    "DOC":"23/11/2000",
-    "SumAssured":"2706732.0000",
-    "Term":20,
-    "Instalment":20,
-    "Premium":"391132.6100",
-    "MaturityDate":"23/11/2025",
-    "TotalPolicy":14,
-    "RemainingDayToMature":-113,
-    "PolicyStatus":"A"},
-  ]
+  "to_date": "2024-12-31"
+}
+```
+
+**Success Response (200):**
+```json
+{
+    "success": true,
+    "count": 388,
+    "group_id": "G01",
+    "from_date": "2024-01-01",
+    "to_date": "2026-12-31",
+    "date_type": "ad",
+    "repayments": [
+        {
+            "PolicyNo": "POL123",
+            "FullName": "John Doe",
+            "LoanId": "123",
+            "LoanDate": "2014-12-10",
+            "LoanAmount": "123.00",
+            "Instalment": 1,
+            "DuePrincipal": "123.0000",
+            "PaidPrincipal": "123.0000",
+            "RemainingPrincipal": "0.0000",
+            "PaidInterest": "123.0000",
+            "RemainingInterest": "0.0000",
+            "Cash": "0.0000",
+            "Cheque": "0.0000",
+            "Bank": "123.0000",
+            "PaymentFrom": "Nepal Bank ltd.",
+            "Status": "CLEARED",
+            "PaidDate": "2024-01-01",
+            "Tran/Cheque Date": "2024-01-01",
+            "VoucherNo": "123"
+        },
+    ]
+}
+```
+
+---
+
+### Maturity Claim Report
+
+Returns matured policies that have been claimed within a date range.
+
+**Endpoint:** `POST /api/corporate/reports/maturity-claim/`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
+```json
+{
+  "group_id": 101,
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+**Success Response (200):**
+```json
+{
+        "GroupId": "G01",
+        "PolicyNo": "POL123",
+        "EmployeeId": null,
+        "Name": "John Doe",
+        "NepName": null,
+        "DOB": "27/07/1972",
+        "SA": "123.0000",
+        "Premium": "qwe.1200",
+        "DOC": "23/11/2001",
+        "MaturityDate": "23/11/2023",
+        "Bonus": "123.0000",
+        "TotalTax": "123.0000",
+        "ClaimAmount": "123.0000",
+        "LoanAmount": "0.0000",
+        "CalculatedInterest": "0.0000",
+        "NetClaimAmount": "123.0000",
+        "ClaimDate": "09/01/2024",
+        "VoucherNo": "123",
+        "ClaimId": "123"
 }
 ```
 
@@ -303,236 +644,258 @@ Content-Type: application/json
 
 ### Death Claim Report
 
-Generate a report of death claims for a specified period.
+Returns death claim records for a group within a date range.
 
 **Endpoint:** `POST /api/corporate/reports/death-claim/`
 
-**Authentication:** Required (JWT)
-
 **Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
 ```json
 {
-  "group_id": "GRP001",
+  "group_id": 101,
   "from_date": "2024-01-01",
   "to_date": "2024-12-31"
 }
 ```
 
-**Success Response (200 OK):**
-```json
-[
-  {
-    "GroupId":"GP123",
-    "PolicyNo":"POL123",
-    "EmployeeId":null,
-    "Name":"Ram Krishna",
-    "NepName":null,
-    "DOB":"17/05/1999",
-    "SA":"1124928.0000",
-    "Premium":"144898.7000",
-    "DOC":"23/11/2012",
-    "MaturityDate":"23/11/2026",
-    "Bonus":"504491.5200",
-    "ClaimAmount":"1629420.0000",
-    "LoanAmount":"0.0000",
-    "InterestOnLoanAmount":"0.0000",
-    "TotalClaimAmount":"1629419.5200",
-    "NetClaimAmount":"1629419.5200",
-    "DeathDate":"30/10/2023",
-    "IntimationDate":"27/12/2023",
-    "TerminationDate":"30/10/2023",
-    "VoucherNo":"DP30080810000202",
-    "ClaimId":"D-80810000032",
-    "Instalment":11
-  }
-]
-```
-
----
-
-### Maturity Claim Report
-
-Generate a report of maturity claims for a specified period.
-
-**Endpoint:** `POST /api/corporate/reports/maturity-claim/`
-
-**Authentication:** Required (JWT)
-
-**Request Body:**
+**Success Response (200):**
 ```json
 {
-  "group_id": "GRP001",
-  "from_date": "2024-01-01",
-  "to_date": "2024-12-31"
+            "GroupId": "G01",
+            "PolicyNo": "POL123",
+            "EmployeeId": null,
+            "Name": "John Doe",
+            "NepName": null,
+            "DOB": "17/07/1971",
+            "SA": "123.0000",
+            "Premium": "123.6300",
+            "DOC": "23/11/2025",
+            "MaturityDate": "23/11/2035",
+            "Bonus": "123.8000",
+            "ClaimAmount": "123.0000",
+            "LoanAmount": "123.0000",
+            "InterestOnLoanAmount": "123.0000",
+            "TotalClaimAmount": "123.8000",
+            "NetClaimAmount": "123.8000",
+            "DeathDate": "24/02/2024",
+            "IntimationDate": "16/01/2024",
+            "TerminationDate": "22/03/2024",
+            "VoucherNo": "123",
+            "ClaimId": "123",
+            "Instalment": 123
 }
-```
-
-**Success Response (200 OK):**
-```json
-[
-  {
-    "GroupId":"GP123",
-    "PolicyNo":"POL123",
-    "EmployeeId":null,
-    "Name":"Ram Krishna",
-    "NepName":null,
-    "DOB":"27/06/1999",
-    "SA":"2269680.0000",
-    "Premium":"531500.3200",
-    "DOC":"23/11/2004",
-    "MaturityDate":"23/11/2021",
-    "Bonus":"1134822.0000",
-    "TotalTax":"52378.0000",
-    "ClaimAmount":"3404502.0000",
-    "LoanAmount":"0.0000",
-    "CalculatedInterest":"0.0000",
-    "NetClaimAmount":"3352124.0000",
-    "ClaimDate":"05/12/2021",
-    "VoucherNo":"MP300787900000181",
-    "ClaimId":"CM123"
-  }
-]
 ```
 
 ---
 
 ### Surrender Claim Report
 
-Generate a report of surrender claims for a specified period.
+Returns surrender claim records for a group within a date range.
 
 **Endpoint:** `POST /api/corporate/reports/surrender-claim/`
 
-**Authentication:** Required (JWT)
-
 **Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
 ```json
 {
-  "group_id": "GRP001",
+  "group_id": 101,
   "from_date": "2024-01-01",
   "to_date": "2024-12-31"
 }
 ```
 
-**Success Response (200 OK):**
+**Success Response (200):**
 ```json
-[
-  {
-    "SNo":1,
-    "GroupId":"052",
-    "PolicyNo":"05211586",
-    "EmployeeId":null,
-    "Name":"LAL BAHADUR CHAND",
-    "NepName":null,
-    "DOB":"28/11/1967",
-    "DOC":"23/11/2012",
-    "SA":"1124928.0000",
-    "Premium":"170707.7700",
-    "Term":"13",
-    "MaturityDate":"23/11/2025",
-    "SurrenderAmount":"1680142.0000",
-    "SurrenderDate":"29/12/2024",
-    "IntimationDate":"11/05/2025",
-    "VoucherNo":"SP30081820011636",
-    "Tax":"25032.0000",
-    "LoanAmount":"1512128.0000",
-    "LoanInterest":"0.0000",
-    "NetPayable":"1655110.0000",
-    "ClaimId":"GS-30081820001154",
-    "Instalment":13
-  }
-]
+    {
+        "SNo": 1,
+        "GroupId": "G01",
+        "PolicyNo": "POL123",
+        "EmployeeId": null,
+        "Name": "John Doe",
+        "NepName": null,
+        "DOB": "28/11/1964",
+        "DOC": "23/11/2014",
+        "SA": "123.0000",
+        "Premium": "123.7700",
+        "Term": "123",
+        "MaturityDate": "23/12/2025",
+        "SurrenderAmount": "123.0000",
+        "SurrenderDate": "29/11/2024",
+        "IntimationDate": "11/15/2025",
+        "VoucherNo": "123",
+        "Tax": "123.0000",
+        "LoanAmount": "123.0000",
+        "LoanInterest": "0.0000",
+        "NetPayable": "123",
+        "ClaimId": "123",
+        "Instalment": 123
+    }
 ```
 
 ---
 
-## Group Information
+### Group Transfer Report
 
-### Get Group Information
+Returns transfer records for members moved between groups within a date range.
 
-Retrieve information about insurance groups.
+**Endpoint:** `POST /api/corporate/reports/group-transfer/`
 
-**Endpoint:** `GET /api/corporate/groups/`
+**Request Body:**
 
-**Authentication:** Required to view groups belonging to company
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `transfer_date_from` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `transfer_date_to` | string | Yes | End date (`YYYY-MM-DD`) |
 
-**Query Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `group_id` | string | Filter by group ID |
-| `is_active` | boolean | Filter by active status |
-| `search` | string | Search by group name |
-
-**Success Response (200 OK):**
+**Example Request:**
 ```json
 {
-  "count":3,
-  "group_ids":["052","179","GE1016"],
-  "results":[
-    {"group_id":"052",
-    "group_name":"NEPAL ELECTRICITY AUTHORITY",
-    "group_name_nepali":"नेपाल विद्युत प्राधिकरण",
-    "is_active":true,
-    "total_members_count":102792,
-    "total_active_policies":2695,
-    "total_premium":"1762643679.7100",
-    "total_sa":"9137321448.0000",
-    "death_claim":766,
-    "surrender_claim":1334,
-    "maturity_claim":7146,
-    "transfer_claim":30,
-    "terminate_claim":51,
-    "cancel_claim":49
-    }
-  ]
+  "group_id": 101,
+  "transfer_date_from": "2024-01-01",
+  "transfer_date_to": "2024-12-31"
+}
+```
+
+**Success Response (200):**
+```json
+{
+    "success": true,
+    "count": 10,
+    "group_id": "G01",
+    "transfer_date_from": "2023-01-01",
+    "transfer_date_to": "2026-12-31",
+    "date_type": "ad",
+    "transfers": [
+        {
+            "EmployeeId": null,
+            "PolicyNo": "POL123",
+            "PreviousPolicy": "123",
+            "GroupId": "G01",
+            "Name": "John Doe",
+            "Nepali Name": "John Doe",
+            "DOB": "27/07/1986",
+            "DOC": "23/11/2015",
+            "SA": "123.0000",
+            "Term": "123",
+            "BasicPremium": "123.9100",
+            "ADB": "0.0000",
+            "Premium": "123.00",
+            "PaidAmount": "123.0000",
+            "Maturity Date": "23/01/2035",
+            "Instalment": 123,
+            "TransferDate": "28/05/2023"
+        }
+    ]
 }
 ```
 
 ---
 
-## Error Codes
+### Group Business Detail Report
 
-| Status Code | Meaning |
-|-------------|---------|
-| 200 | Success |
-| 400 | Bad Request - Missing required parameters or invalid data |
-| 401 | Unauthorized - Invalid or missing authentication token |
-| 403 | Forbidden - You don't have permission to access this resource |
-| 404 | Not Found - Resource doesn't exist |
-| 500 | Internal Server Error - Something went wrong on our end |
+Returns new or renewal business details for a group within a date range.
 
+**Endpoint:** `POST /api/corporate/reports/group-business-detail/`
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string/int | Yes | The group ID |
+| `flag` | string | Yes | `NB` for new business, `RB` for renewal business |
+| `filter_by` | string | Yes | `PaidDate` or `ValueDate` |
+| `from_date` | string | Yes | Start date (`YYYY-MM-DD`) |
+| `to_date` | string | Yes | End date (`YYYY-MM-DD`) |
+
+**Example Request:**
+```json
+{
+  "group_id": 101,
+  "flag": "NB",
+  "filter_by": "PaidDate",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+**Success Response (200):**
+```json
+[
+    {
+        "BranchName": "abc",
+        "Name": "John Doe",
+        "RegisterNo": "R123",
+        "PolicyNo": "POL123",
+        "GroupId": "G01",
+        "SA": 123,
+        "Premium": "123.0000",
+        "Term": 123,
+        "DOC": "23/11/2024",
+        "NextDueDate": "23/11/2025",
+        "DOB": "23/09/1989",
+        "Gender": "M",
+        "ValueDate": "2025-02-02T12:32:00.653000",
+        "ValueDate_Formatted": "02/02/2025",
+        "MaturityDate": "23/11/2036",
+        "PaidDate": "2024-11-22T00:00:00",
+        "PaidDate_Formatted": "22/11/2024",
+        "VoucherNo": "123",
+        "RiderID": null,
+        "RiderSA": 123,
+        "RiderPremium": "0.0000",
+        "Status": null,
+        "Instalment": null,
+        "RiderSA_Renewal": null,
+        "Paid Date": null
+    }
+]
+```
+
+| `flag` value | Report Type |
+|--------------|-------------|
+| `NB` | New Business |
+| `RB` | Renewal Business |
+
+| `filter_by` value | Description |
+|-------------------|-------------|
+| `PaidDate` | Filter records by the date payment was made |
+| `ValueDate` | Filter records by the policy value date |
 
 ---
 
-## Rate Limiting
+## Quick Reference
 
-- API requests are rate-limited to ensure fair usage
-- Contact support if you need higher rate limits
-
----
-
-## Best Practices
-
-1. **Store tokens securely** - Never expose JWT tokens in client-side code
-2. **Handle token expiration** - Implement token refresh logic
-3. **Use pagination** - For large datasets, use the pagination parameters
-4. **Filter at the API level** - Use query parameters to reduce data transfer
-
----
-
-## Support
-
-For technical support or questions about the API:
-- **Email:** support@yourcompany.com
-- **Documentation:** https://docs.yourcompany.com
-- **Status Page:** https://status.yourcompany.com
-
----
-
-## Changelog
-
-### Version 1.0.0 (Current)
-- Initial API release
-- Company policies endpoint
-- Report generation endpoints
-- Group information endpoint
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/auth/login/` | POST | None | Obtain JWT tokens |
+| `/auth/refresh/` | POST | None | Refresh access token |
+| `/groups/` | GET | JWT | List company groups |
+| `/company/policies/` | GET | JWT | List company policies |
+| `/company/policies/{id}/` | GET | JWT | Get single policy |
+| `/company/policies/statistics/` | POST | JWT | Policy statistics |
+| `/policy-search/` | POST | JWT | Search policies |
+| `/policy-summary/` | POST | JWT | Policy summary detail |
+| `/reports/policy-loans/` | POST | JWT | Policy loan details |
+| `/surrender-calculator/` | POST | JWT | Surrender value lookup |
+| `/reports/maturity-forecasting/` | POST | JWT | Maturity forecasting report |
+| `/reports/loan-repayment/` | POST | JWT | Loan repayment report |
+| `/reports/maturity-claim/` | POST | JWT | Maturity claim report |
+| `/reports/death-claim/` | POST | JWT | Death claim report |
+| `/reports/surrender-claim/` | POST | JWT | Surrender claim report |
+| `/reports/group-transfer/` | POST | JWT | Group transfer report |
+| `/reports/group-business-detail/` | POST | JWT | New/renewal business report |
