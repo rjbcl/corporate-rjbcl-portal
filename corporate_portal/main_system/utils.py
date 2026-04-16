@@ -1,50 +1,47 @@
-import requests #type: ignore
 from django.core.cache import cache #type: ignore
 from django.conf import settings #type: ignore
+from django.db import DatabaseError #type: ignore
 import logging
 
 logger = logging.getLogger(__name__)
 
 class GroupAPIService:
-    """Service to fetch and cache groups from corporate API"""
+    """Service to fetch and cache groups from database"""
     
     CACHE_KEY = 'corporate_groups_data'
     CACHE_TTL = 86400  # 24 hours
-    API_ENDPOINT = f"{settings.CORPORATE_API_BASE_URL}/groups/"
     
     @classmethod
-    def fetch_groups_from_api(cls):
-        """Fetch all groups from the API with pagination"""
-        all_groups = []
-        url = cls.API_ENDPOINT
+    def fetch_groups_from_db(cls):
+        """Fetch all groups from the database"""
+        from api_corporate.models import GroupInformation
         
         try:
-            while url:
-                response = requests.get(url, timeout=settings.CORPORATE_API_TIMEOUT)
-                response.raise_for_status()
-                data = response.json()
-                
-                # Extract only group_id and group_name
-                for group in data.get('results', []):
-                    all_groups.append({
-                        'groupid': group.get('group_id'),
-                        'groupname': group.get('group_name')
-                    })
-                
-                # Get next page URL
-                url = data.get('next')
+            # Query all groups from company_external database
+            groups_queryset = GroupInformation.objects.using('company_external').all()
             
-            logger.info(f"Successfully fetched {len(all_groups)} groups from API")
+            # Convert to list of dicts with groupid and groupname
+            all_groups = []
+            for group in groups_queryset:
+                all_groups.append({
+                    'groupid': group.group_id,
+                    'groupname': group.group_name
+                })
+            
+            logger.info(f"Successfully fetched {len(all_groups)} groups from database")
             return all_groups
             
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch groups from API: {str(e)}")
+        except DatabaseError as e:
+            logger.error(f"Failed to fetch groups from database: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error fetching groups: {str(e)}")
             raise
     
     @classmethod
     def get_groups(cls, force_refresh=False):
         """
-        Get groups from cache or API
+        Get groups from cache or database
         
         Args:
             force_refresh: If True, bypass cache and fetch fresh data
@@ -59,9 +56,9 @@ class GroupAPIService:
                 logger.info(f"Retrieved {len(cached_groups)} groups from cache")
                 return cached_groups
         
-        # Cache miss or force refresh - fetch from API
-        logger.info("Cache miss or force refresh - fetching groups from API")
-        groups = cls.fetch_groups_from_api()
+        # Cache miss or force refresh - fetch from database
+        logger.info("Cache miss or force refresh - fetching groups from database")
+        groups = cls.fetch_groups_from_db()
         
         # Store in cache
         cache.set(cls.CACHE_KEY, groups, cls.CACHE_TTL)

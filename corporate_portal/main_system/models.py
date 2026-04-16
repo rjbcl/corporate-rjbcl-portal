@@ -43,7 +43,7 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     REQUIRED_FIELDS = []
     
     class Meta:
-        db_table = 'account'
+        db_table = 'copo_account'
         permissions = [
             ('view_own_account', 'Can view own account details'),
             ('reset_staff_password', 'Can reset staff passwords'),
@@ -108,7 +108,7 @@ class Company(AuditBase):
     blank_col2 = models.CharField(max_length=200, blank=True, null=True)
 
     class Meta:
-        db_table = 'company'
+        db_table = 'copo_company'
         permissions = [
             ('soft_delete_company', 'Can soft delete company'),
         ]
@@ -130,7 +130,7 @@ class Group(AuditBase):
     isactive = models.BooleanField(default=True)
     
     class Meta:
-        db_table = 'groups'
+        db_table = 'copo_groups'
         permissions = [
             ('soft_delete_group', 'Can soft delete group'),
         ]
@@ -156,7 +156,7 @@ class Individual(AuditBase):
     user_full_name = models.CharField(max_length=200, null=True, blank=True)
 
     class Meta:
-        db_table = 'individual'
+        db_table = 'copo_individual'
         permissions = [
             ('soft_delete_individual', 'Can soft delete individual'),
             ('reset_individual_password', 'Can reset individual passwords'),
@@ -176,10 +176,105 @@ class Policy(models.Model):
     )
 
     class Meta:
-        db_table = 'policy'
+        db_table = 'copo_policy'
 
     def __str__(self):
         return f"Policy {self.policy_number} for User {self.user_id_id}"
+
+class ReportAccessLog(models.Model):
+    """
+    Audit log that records every report generation attempt —
+    both successful and failed — across all corporate report endpoints.
+    Stored in the default PostgreSQL database under 'copo_report_generation_log'.
+ 
+    A global limit of 50 rows is enforced: whenever a new log is saved,
+    any rows beyond the 50 most recent are automatically deleted.
+    """
+ 
+    MAX_LOGS = 50
+ 
+    class Status(models.TextChoices):
+        SUCCESS       = 'success',       'Success'
+        NO_DATA       = 'no_data',       'No Data'
+        ERROR         = 'error',         'Error'
+        FORBIDDEN     = 'forbidden',     'Forbidden'
+        INVALID_INPUT = 'invalid_input', 'Invalid Input'
+ 
+    # ── Primary Key ───────────────────────────────────────────────────────────
+    row_id = models.AutoField(
+        primary_key=True,
+    )
+ 
+    # ── Who ───────────────────────────────────────────────────────────────────
+    generator_company = models.CharField(
+        max_length=150,
+        default='unknown',
+        help_text="Username of the company user who triggered the report.",
+    )
+ 
+    # ── What ──────────────────────────────────────────────────────────────────
+    report_type = models.CharField(
+        max_length=150,
+        db_index=True,
+        help_text="Human-readable report name. e.g. 'Death Claim Report', 'Maturity Forecasting Report'.",
+    )
+    query = models.TextField(
+        default='N/A',
+        help_text="Raw SQL query with injected parameters exactly as executed against the database.",
+    )
+ 
+    # ── Outcome ───────────────────────────────────────────────────────────────
+    status = models.CharField(
+        max_length=15,
+        choices=Status.choices,
+        db_index=True,
+        help_text="Outcome of the report request.",
+    )    
+    has_error = models.BooleanField(
+        default=False,
+        help_text="1 if error exists, 0 if no error.",
+    )   
+    error_message = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Full error message or traceback captured on failure. NULL on success.",
+    )
+    remarks = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Optional free-form notes for any additional context.",
+    )
+ 
+    # ── When ──────────────────────────────────────────────────────────────────
+    generated_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="Timestamp of when the report was requested.",
+    )
+ 
+    class Meta:
+        db_table = 'copo_report_generation_log'
+        ordering = ['-generated_at']
+        verbose_name = 'Report Generation Log'
+        verbose_name_plural = 'Report Generation Logs'
+ 
+    def __str__(self):
+        return f"[{self.generated_at}] {self.generator_company} → {self.report_type} ({self.status})"
+ 
+    def save(self, *args, **kwargs):
+        # Save the new log entry first
+        super().save(*args, **kwargs)
+ 
+        # Count total rows; if over the limit, delete the oldest ones
+        total = ReportAccessLog.objects.count()
+        if total > self.MAX_LOGS:
+            oldest_ids = (
+                ReportAccessLog.objects
+                .order_by('generated_at')
+                .values_list('row_id', flat=True)
+                [:total - self.MAX_LOGS]
+            )
+            ReportAccessLog.objects.filter(row_id__in=list(oldest_ids)).delete()
 
 class AuditLog(models.Model):
     ACTION_CHOICES = [
@@ -205,7 +300,7 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(blank=True, null=True)
     
     class Meta:
-        db_table = 'audit_log'
+        db_table = 'copo_audit_log'
         ordering = ['-timestamp']
     
     def __str__(self):

@@ -3,12 +3,15 @@ from django.db import models #type: ignore
 
 class GroupInformation(models.Model):
     """
-    Read-only model for tblGroupInformation from external company database.
-    This is an unmanaged model - Django will not create/modify this table.
+    Read-only model for view_copo_groupInformation from external company database.
+    This view aggregates group information with policy statistics.
+    This is an unmanaged model - Django will not create/modify this view.
     """
-    row_id = models.BigAutoField(
-        db_column='RowId',
-        primary_key=True
+    # Primary fields from tblGroupInformation
+    group_id = models.CharField(
+        db_column='GroupId',
+        max_length=50,
+        primary_key=True  # Using GroupId as primary key since view doesn't have RowId
     )
     group_name = models.CharField(
         db_column='GroupName',
@@ -22,207 +25,72 @@ class GroupInformation(models.Model):
         null=True,
         blank=True
     )
-    discount_rate = models.DecimalField(
-        db_column='DiscountRate',
-        max_digits=19,
-        decimal_places=4,
-        null=True,
-        blank=True
-    )
-    fiscal_year = models.CharField(
-        db_column='FiscalYear',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    short_name = models.CharField(
-        db_column='ShortName',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    master_policy_no = models.CharField(
-        db_column='MasterPolicyNo',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    group_id = models.CharField(
-        db_column='GroupId',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    created_by = models.CharField(
-        db_column='CreatedBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    created_date = models.DateTimeField(
-        db_column='CreatedDate',
-        null=True,
-        blank=True
-    )
     is_active = models.BooleanField(
-        db_column='IsActive',
+        db_column='isactive',
         null=True,
         blank=True
     )
-    group_type = models.CharField(
-        db_column='GroupType',
-        max_length=100,
+    
+    # Aggregated statistics from tblGroupEndowmentDetails
+    total_members_count = models.IntegerField(
+        db_column='Total_members_count',
         null=True,
         blank=True
     )
-    account_number = models.BigIntegerField(
-        db_column='AccountNumber',
+    total_active_policies = models.IntegerField(
+        db_column='Total_active_policies',
         null=True,
         blank=True
     )
-    p_seq = models.CharField(
-        db_column='PSeq',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    g_seq = models.CharField(
-        db_column='Gseq',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    modified_by = models.CharField(
-        db_column='ModifiedBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    modified_date = models.DateTimeField(
-        db_column='ModifiedDate',
-        null=True,
-        blank=True
-    )
-    r_seq = models.IntegerField(
-        db_column='RSeq',
-        null=True,
-        blank=True
-    )
-    plan_id = models.IntegerField(
-        db_column='PlanID',
-        null=True,
-        blank=True
-    )
-    adb_discount_rate = models.DecimalField(
-        db_column='ADBDiscountRate',
+    total_premium = models.DecimalField(
+        db_column='Total_Premium',
         max_digits=19,
         decimal_places=4,
         null=True,
         blank=True
     )
-    retirement_age = models.IntegerField(
-        db_column='RetirementAge',
-        null=True,
-        blank=True
-    )
-    min_age = models.BigIntegerField(
-        db_column='MinAge',
-        null=True,
-        blank=True
-    )
-    max_age = models.BigIntegerField(
-        db_column='MaxAge',
-        null=True,
-        blank=True
-    )
-    min_term = models.BigIntegerField(
-        db_column='MinTerm',
-        null=True,
-        blank=True
-    )
-    max_term = models.BigIntegerField(
-        db_column='MaxTerm',
-        null=True,
-        blank=True
-    )
-    rebate = models.IntegerField(
-        db_column='Rebate',
-        null=True,
-        blank=True
-    )
-    p2_seq = models.BigIntegerField(
-        db_column='P2Seq',
-        null=True,
-        blank=True
-    )
-    doc = models.DateTimeField(
-        db_column='DOC',
-        null=True,
-        blank=True
-    )
-    g_loan = models.CharField(
-        db_column='G_LOAN',
-        max_length=10,
-        null=True,
-        blank=True
-    )
-    s_policy = models.CharField(
-        db_column='S_Policy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    adb_amount = models.DecimalField(
-        db_column='ADBAmount',
+    total_sa = models.DecimalField(
+        db_column='Total_SA',
         max_digits=19,
         decimal_places=4,
         null=True,
         blank=True
     )
-    extra_premium = models.DecimalField(
-        db_column='ExtraPremium',
-        max_digits=19,
-        decimal_places=4,
+    death_claim = models.IntegerField(
+        db_column='Death_Claim',
         null=True,
         blank=True
     )
-    mode = models.CharField(
-        db_column='Mode',
-        max_length=50,
+    surrender_claim = models.IntegerField(
+        db_column='Surrender_Claim',
         null=True,
         blank=True
     )
-    remarks = models.CharField(
-        db_column='Remarks',
-        max_length=50,
+    maturity_claim = models.IntegerField(
+        db_column='Maturity_Claim',
         null=True,
         blank=True
     )
-    adb_rate = models.DecimalField(
-        db_column='ADBRate',
-        max_digits=19,
-        decimal_places=4,
+    transfer_claim = models.IntegerField(
+        db_column='Transfer_Claim',
         null=True,
         blank=True
     )
-    extra_load = models.DecimalField(
-        db_column='ExtraLoad',
-        max_digits=19,
-        decimal_places=4,
+    terminate_claim = models.IntegerField(
+        db_column='Terminate_Claim',
         null=True,
         blank=True
     )
-    is_adb = models.CharField(
-        db_column='IsADB',
-        max_length=10,
+    cancel_claim = models.IntegerField(
+        db_column='Cancel_Claim',
         null=True,
         blank=True
     )
 
     class Meta:
-        managed = False  # Django won't create/modify this table
-        db_table = 'tblGroupInformation'  # Exact table name in external DB
-        ordering = ['-created_date']  # Optional: default ordering
+        managed = False  # Django won't create/modify this view
+        db_table = 'view_copo_groupInformation'  # Points to the view
+        ordering = ['group_id']  # Default ordering by group_id
 
     def __str__(self):
         return f"{self.group_name or 'Unnamed Group'} ({self.group_id or 'No ID'})"
@@ -233,7 +101,7 @@ class GroupEndowment(models.Model):
     This view combines tblGroupEndowment and tblGroupEndowmentDetails,
     prioritizing more reliable data from tblGroupEndowmentDetails.
     """
-    # Primary Keys (composite)
+
     register_no = models.CharField(
         db_column='RegisterNo',
         max_length=50,
@@ -243,8 +111,6 @@ class GroupEndowment(models.Model):
         db_column='PolicyNo',
         max_length=50
     )
-    
-    # Fields from tblGroupEndowmentDetails (prioritized/reliable data)
     group_id = models.CharField(
         db_column='GroupId',
         max_length=50,
@@ -329,12 +195,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    details_remarks = models.CharField(
-        db_column='DetailsRemarks',
-        max_length=50,
-        null=True,
-        blank=True
-    )
     intrest = models.DecimalField(
         db_column='Intrest',
         max_digits=19,
@@ -397,12 +257,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    age = models.CharField(
-        db_column='Age',
-        max_length=50,
-        null=True,
-        blank=True
-    )
     extra_premium = models.DecimalField(
         db_column='ExtraPremium',
         max_digits=19,
@@ -414,29 +268,6 @@ class GroupEndowment(models.Model):
         db_column='TotalPremium',
         max_digits=19,
         decimal_places=4,
-        null=True,
-        blank=True
-    )
-    id_no = models.CharField(
-        db_column='IdNo',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    id_type = models.CharField(
-        db_column='IdType',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    appointed_date = models.DateTimeField(
-        db_column='AppointedDate',
-        null=True,
-        blank=True
-    )
-    endowment_remarks = models.CharField(
-        db_column='EndowmentRemarks',
-        max_length=200,
         null=True,
         blank=True
     )
@@ -461,11 +292,6 @@ class GroupEndowment(models.Model):
         db_column='ADB',
         max_digits=19,
         decimal_places=4,
-        null=True,
-        blank=True
-    )
-    previous_policy = models.TextField(
-        db_column='PreviousPolicy',
         null=True,
         blank=True
     )
@@ -507,12 +333,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    phone_number_residence = models.CharField(
-        db_column='PhoneNumberResidence',
-        max_length=50,
-        null=True,
-        blank=True
-    )
     transfer_date = models.DateTimeField(
         db_column='TransferDate',
         null=True,
@@ -520,17 +340,6 @@ class GroupEndowment(models.Model):
     )
     duplicate_policy_date = models.DateTimeField(
         db_column='DuplicatePolicyDate',
-        null=True,
-        blank=True
-    )
-    approved_date = models.DateTimeField(
-        db_column='ApprovedDate',
-        null=True,
-        blank=True
-    )
-    approved_by = models.CharField(
-        db_column='ApprovedBy',
-        max_length=50,
         null=True,
         blank=True
     )
@@ -546,16 +355,6 @@ class GroupEndowment(models.Model):
     )
     doe = models.DateTimeField(
         db_column='DOE',
-        null=True,
-        blank=True
-    )
-    approve_remarks = models.TextField(
-        db_column='ApproveRemarks',
-        null=True,
-        blank=True
-    )
-    modified_date = models.DateField(
-        db_column='ModifiedDate',
         null=True,
         blank=True
     )
@@ -601,95 +400,6 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    is_ind_issue = models.CharField(
-        db_column='IsINDIssue',
-        max_length=10,
-        null=True,
-        blank=True
-    )
-    province_id = models.CharField(
-        db_column='ProvinceID',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    district_id = models.CharField(
-        db_column='DistrictID',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    municipality_id = models.CharField(
-        db_column='MunicipalityID',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    ward_no = models.CharField(
-        db_column='WardNo',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    age_proof_doc_type = models.IntegerField(
-        db_column='AgeProofDocType',
-        null=True,
-        blank=True
-    )
-    age_proof_doc_no = models.CharField(
-        db_column='AgeProofDocNo',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nep_address = models.CharField(
-        db_column='NepAddress',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nep_father_name = models.CharField(
-        db_column='NepFatherName',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nep_mother_name = models.CharField(
-        db_column='NepMotherName',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nep_nominee_name = models.CharField(
-        db_column='NepNomineeName',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nep_nominee_address = models.CharField(
-        db_column='NepNomineeAddress',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nom_district_id = models.CharField(
-        db_column='NomDistrictID',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nominee_ward_no = models.CharField(
-        db_column='NomineeWardNo',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    nominee_phone = models.CharField(
-        db_column='NomineePhone',
-        max_length=50,
-        null=True,
-        blank=True
-    )
     plan_id = models.SmallIntegerField(
         db_column='PlanId',
         null=True,
@@ -700,60 +410,7 @@ class GroupEndowment(models.Model):
         null=True,
         blank=True
     )
-    terminate_by = models.CharField(
-        db_column='TerminateBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    cancel_date = models.DateField(
-        db_column='CancelDate',
-        null=True,
-        blank=True
-    )
-    cancel_by = models.CharField(
-        db_column='CancelBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    active_date = models.DateField(
-        db_column='ActiveDate',
-        null=True,
-        blank=True
-    )
-    active_by = models.CharField(
-        db_column='ActiveBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    terminate_remarks = models.TextField(
-        db_column='TerminateRemarks',
-        null=True,
-        blank=True
-    )
-    cancel_remarks = models.TextField(
-        db_column='CancelRemarks',
-        null=True,
-        blank=True
-    )
-    active_remarks = models.TextField(
-        db_column='ActiveRemarks',
-        null=True,
-        blank=True
-    )
-    lapse_by = models.CharField(
-        db_column='LapseBy',
-        max_length=50,
-        null=True,
-        blank=True
-    )
-    lapse_remarks = models.TextField(
-        db_column='LapseRemarks',
-        null=True,
-        blank=True
-    )
+
 
     class Meta:
         managed = False
