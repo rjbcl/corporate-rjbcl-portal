@@ -87,7 +87,6 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     def has_module_perms(self, app_label):
         return super().has_module_perms(app_label)
 
-    
 class Company(AuditBase):
     company_id = models.AutoField(primary_key=True)
     username = models.OneToOneField(
