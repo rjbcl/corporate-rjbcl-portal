@@ -25,14 +25,14 @@ def user_login(request):
         if user is not None:
             if not user.is_active:
                 messages.error(request, 'Your account is inactive. Please contact support.')
-                return render(request, 'login.html')
+                return render(request, 'Login.html')
             
             # Check if company account is inactive
             user_type = user.get_user_type()
             if user_type == 'company':
                 if not user.company_profile.isactive:
                     messages.error(request, 'Your company account is inactive. Please contact support.')
-                    return render(request, 'login.html')
+                    return render(request, 'Login.html')
             
             # Check if individual's group is valid
             elif user_type == 'individual':
@@ -41,12 +41,12 @@ def user_login(request):
                 
                 if not group.isactive or group.isdeleted:
                     messages.error(request, 'Your group is inactive. Please contact your company administrator.')
-                    return render(request, 'login.html')
+                    return render(request, 'Login.html')
                 
                 # Check if the company is inactive
                 if not group.company_id.isactive:
                     messages.error(request, 'Your company account is inactive. Please contact support.')
-                    return render(request, 'login.html')
+                    return render(request, 'Login.html')
             
             # Login successful
             login(request, user)
@@ -54,7 +54,7 @@ def user_login(request):
         else:
             messages.error(request, 'Invalid username or password.')
     
-    return render(request, 'login.html')
+    return render(request, 'Login.html')
 
 
 @login_required
