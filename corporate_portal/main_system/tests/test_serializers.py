@@ -140,6 +140,7 @@ def make_group_endowment(**kwargs):
     """
     Build an unsaved GroupEndowment instance (managed=False).
     Only register_no and policy_no are required at the model level.
+    All other fields are nullable/blank on the real model.
     """
     defaults = dict(
         register_no="REG001",
@@ -445,77 +446,68 @@ class TestGroupInformationSerializer(TestCase):
 
 class TestGroupEndowmentSerializer(TestCase):
     """
-    GroupEndowment is also an unmanaged DB view.
-    GroupEndowmentSerializer uses fields = '__all__', so we verify the full
-    field inventory, required-field enforcement, and optional-field behaviour.
+    GroupEndowment is an unmanaged DB view (managed=False, lives in
+    company_external).  All tests use unsaved instances — no DB writes.
+ 
+    ALL_MODEL_FIELDS is derived directly from the model definition so
+    test_output_contains_all_model_fields acts as a regression guard:
+    if a field is added or removed from the model/serializer the test fails.
     """
-
-    # ── complete field inventory ──────────────────────────────────────────────
-
-    # Every field defined on the model
+ 
+    # Every field defined on the actual GroupEndowment model
     ALL_MODEL_FIELDS = {
-        "register_no", "policy_no", "branch", "group_id", "doc", "term",
+        "register_no", "policy_no", "group_id", "doc", "term",
         "sum_assured", "premium", "fup", "maturity_date", "policy_status",
         "policy_type", "late_fine", "paid_date", "instalment", "paid_amount",
-        "batch_no", "details_remarks", "intrest", "claim_status",
-        "late_fine_percent", "reduced_instalment", "employee_id", "name",
-        "nep_name", "gender", "occupation", "dob", "age", "extra_premium",
-        "total_premium", "id_no", "id_type", "appointed_date",
-        "endowment_remarks", "address", "email", "mobile", "adb",
-        "previous_policy", "occ_extra_amount", "adb_discount", "father_name",
-        "mother_name", "nominee_name", "nominee_address",
-        "phone_number_residence", "transfer_date", "duplicate_policy_date",
-        "approved_date", "approved_by", "lapse_date", "lapse_active_date",
-        "doe", "approve_remarks", "modified_date", "basic_premium", "is_adb",
+        "batch_no", "intrest", "claim_status", "late_fine_percent",
+        "reduced_instalment", "employee_id", "name", "nep_name", "gender",
+        "occupation", "dob", "extra_premium", "total_premium", "address",
+        "email", "mobile", "adb", "occ_extra_amount", "adb_discount",
+        "father_name", "mother_name", "nominee_name", "nominee_address",
+        "transfer_date", "duplicate_policy_date", "lapse_date",
+        "lapse_active_date", "doe", "basic_premium", "is_adb",
         "after_dis_rebate_rate", "fiscal_year", "nominee_relationship",
-        "claim_date", "termination_date", "is_ind_issue", "province_id",
-        "district_id", "municipality_id", "ward_no", "age_proof_doc_type",
-        "age_proof_doc_no", "nep_address", "nep_father_name",
-        "nep_mother_name", "nep_nominee_name", "nep_nominee_address",
-        "nom_district_id", "nominee_ward_no", "nominee_phone", "plan_id",
-        "is_multiple_policy_issued", "terminate_by", "cancel_date",
-        "cancel_by", "active_date", "active_by", "terminate_remarks",
-        "cancel_remarks", "active_remarks", "lapse_by", "lapse_remarks",
+        "claim_date", "termination_date", "plan_id", "is_multiple_policy_issued",
     }
 
     def _serialize(self, **kwargs):
         instance = make_group_endowment(**kwargs)
         return GroupEndowmentSerializer(instance).data
-
+ 
     # ── output shape ──────────────────────────────────────────────────────────
-
+ 
     def test_output_contains_all_model_fields(self):
         data = self._serialize()
         self.assertEqual(set(data.keys()), self.ALL_MODEL_FIELDS)
-
+ 
     def test_output_has_no_unexpected_fields(self):
         data = self._serialize()
         for key in data.keys():
             self.assertIn(key, self.ALL_MODEL_FIELDS)
-
+ 
     # ── required fields ───────────────────────────────────────────────────────
-
+ 
     def test_register_no_present_in_output(self):
         data = self._serialize(register_no="REG001")
         self.assertEqual(data["register_no"], "REG001")
-
+ 
     def test_policy_no_present_in_output(self):
         data = self._serialize(policy_no="POL001")
         self.assertEqual(data["policy_no"], "POL001")
-
+ 
     def test_serializer_input_requires_register_no(self):
-        """register_no is the PK and not nullable — missing it is invalid."""
+        """register_no is the PK — missing it must be invalid."""
         s = GroupEndowmentSerializerNoDBValidation(data={"policy_no": "POL001"})
         self.assertFalse(s.is_valid())
         self.assertIn("register_no", s.errors)
-
+ 
     def test_serializer_input_requires_policy_no(self):
         s = GroupEndowmentSerializerNoDBValidation(data={"register_no": "REG001"})
         self.assertFalse(s.is_valid())
         self.assertIn("policy_no", s.errors)
-
+ 
     # ── optional fields default to None ──────────────────────────────────────
-
+ 
     def test_all_optional_fields_are_none_by_default(self):
         data = self._serialize()
         optional_nullable = self.ALL_MODEL_FIELDS - {"register_no", "policy_no"}
@@ -524,48 +516,48 @@ class TestGroupEndowmentSerializer(TestCase):
                 data[field],
                 msg=f"Expected {field} to be None for a minimal instance",
             )
-
+ 
     # ── max_length boundaries ─────────────────────────────────────────────────
-
+ 
     def test_register_no_at_max_length_50_is_valid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "R" * 50, "policy_no": "POL001"}
         )
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_register_no_exceeding_max_length_is_invalid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "R" * 51, "policy_no": "POL001"}
         )
         self.assertFalse(s.is_valid())
         self.assertIn("register_no", s.errors)
-
+ 
     def test_policy_no_at_max_length_50_is_valid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "REG001", "policy_no": "P" * 50}
         )
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_policy_no_exceeding_max_length_is_invalid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "REG001", "policy_no": "P" * 51}
         )
         self.assertFalse(s.is_valid())
         self.assertIn("policy_no", s.errors)
-
+ 
     def test_name_at_max_length_50_is_valid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "REG001", "policy_no": "POL001", "name": "N" * 50}
         )
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_name_exceeding_max_length_is_invalid(self):
         s = GroupEndowmentSerializerNoDBValidation(
             data={"register_no": "REG001", "policy_no": "POL001", "name": "N" * 51}
         )
         self.assertFalse(s.is_valid())
         self.assertIn("name", s.errors)
-
+ 
     def test_nominee_relationship_at_max_length_100_is_valid(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -573,7 +565,7 @@ class TestGroupEndowmentSerializer(TestCase):
             "nominee_relationship": "X" * 100,
         })
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_nominee_relationship_exceeding_max_length_is_invalid(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -582,26 +574,43 @@ class TestGroupEndowmentSerializer(TestCase):
         })
         self.assertFalse(s.is_valid())
         self.assertIn("nominee_relationship", s.errors)
-
-    def test_endowment_remarks_at_max_length_200_is_valid(self):
+ 
+    def test_fiscal_year_at_max_length_50_is_valid(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
             "policy_no": "POL001",
-            "endowment_remarks": "R" * 200,
+            "fiscal_year": "F" * 50,
         })
         self.assertTrue(s.is_valid(), s.errors)
-
-    def test_endowment_remarks_exceeding_max_length_is_invalid(self):
+ 
+    def test_fiscal_year_exceeding_max_length_is_invalid(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
             "policy_no": "POL001",
-            "endowment_remarks": "R" * 201,
+            "fiscal_year": "F" * 51,
         })
         self.assertFalse(s.is_valid())
-        self.assertIn("endowment_remarks", s.errors)
-
+        self.assertIn("fiscal_year", s.errors)
+ 
+    def test_policy_status_at_max_length_10_is_valid(self):
+        s = GroupEndowmentSerializerNoDBValidation(data={
+            "register_no": "REG001",
+            "policy_no": "POL001",
+            "policy_status": "A" * 10,
+        })
+        self.assertTrue(s.is_valid(), s.errors)
+ 
+    def test_policy_status_exceeding_max_length_is_invalid(self):
+        s = GroupEndowmentSerializerNoDBValidation(data={
+            "register_no": "REG001",
+            "policy_no": "POL001",
+            "policy_status": "A" * 11,
+        })
+        self.assertFalse(s.is_valid())
+        self.assertIn("policy_status", s.errors)
+ 
     # ── date / datetime fields ────────────────────────────────────────────────
-
+ 
     def test_doc_accepts_valid_date_string(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -609,7 +618,7 @@ class TestGroupEndowmentSerializer(TestCase):
             "doc": "2024-01-15",
         })
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_doc_rejects_invalid_date_string(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -618,7 +627,7 @@ class TestGroupEndowmentSerializer(TestCase):
         })
         self.assertFalse(s.is_valid())
         self.assertIn("doc", s.errors)
-
+ 
     def test_fup_accepts_valid_datetime_string(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -626,7 +635,7 @@ class TestGroupEndowmentSerializer(TestCase):
             "fup": "2024-01-15T10:30:00",
         })
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
     def test_fup_rejects_invalid_datetime_string(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -635,7 +644,7 @@ class TestGroupEndowmentSerializer(TestCase):
         })
         self.assertFalse(s.is_valid())
         self.assertIn("fup", s.errors)
-
+ 
     def test_maturity_date_accepts_valid_date(self):
         s = GroupEndowmentSerializerNoDBValidation(data={
             "register_no": "REG001",
@@ -643,56 +652,87 @@ class TestGroupEndowmentSerializer(TestCase):
             "maturity_date": "2030-06-30",
         })
         self.assertTrue(s.is_valid(), s.errors)
-
+ 
+    def test_claim_date_accepts_valid_date(self):
+        s = GroupEndowmentSerializerNoDBValidation(data={
+            "register_no": "REG001",
+            "policy_no": "POL001",
+            "claim_date": "2025-03-01",
+        })
+        self.assertTrue(s.is_valid(), s.errors)
+ 
     # ── optional CharField fields round-trip ──────────────────────────────────
-
-    def test_branch_round_trips(self):
-        data = self._serialize(branch="Kathmandu")
-        self.assertEqual(data["branch"], "Kathmandu")
-
+ 
     def test_gender_round_trips(self):
         data = self._serialize(gender="Male")
         self.assertEqual(data["gender"], "Male")
-
+ 
     def test_email_round_trips(self):
-        """email is a plain CharField on GroupEndowment, not EmailField."""
         data = self._serialize(email="test@example.com")
         self.assertEqual(data["email"], "test@example.com")
-
+ 
     def test_policy_status_round_trips(self):
         data = self._serialize(policy_status="Active")
         self.assertEqual(data["policy_status"], "Active")
-
+ 
+    def test_group_id_round_trips(self):
+        data = self._serialize(group_id="GRP099")
+        self.assertEqual(data["group_id"], "GRP099")
+ 
+    def test_employee_id_round_trips(self):
+        data = self._serialize(employee_id="EMP123")
+        self.assertEqual(data["employee_id"], "EMP123")
+ 
+    def test_fiscal_year_round_trips(self):
+        data = self._serialize(fiscal_year="2080/81")
+        self.assertEqual(data["fiscal_year"], "2080/81")
+ 
+    def test_batch_no_round_trips(self):
+        data = self._serialize(batch_no="BATCH-007")
+        self.assertEqual(data["batch_no"], "BATCH-007")
+ 
     # ── boolean optional field ────────────────────────────────────────────────
-
+ 
     def test_is_multiple_policy_issued_true_round_trips(self):
         data = self._serialize(is_multiple_policy_issued=True)
         self.assertTrue(data["is_multiple_policy_issued"])
-
+ 
     def test_is_multiple_policy_issued_false_round_trips(self):
         data = self._serialize(is_multiple_policy_issued=False)
         self.assertFalse(data["is_multiple_policy_issued"])
-
-    # ── small integer fields ──────────────────────────────────────────────────
-
+ 
+    # ── integer fields ────────────────────────────────────────────────────────
+ 
     def test_term_round_trips(self):
         data = self._serialize(term=20)
         self.assertEqual(data["term"], 20)
-
+ 
     def test_instalment_round_trips(self):
         data = self._serialize(instalment=12)
         self.assertEqual(data["instalment"], 12)
-
+ 
     def test_plan_id_round_trips(self):
         data = self._serialize(plan_id=5)
         self.assertEqual(data["plan_id"], 5)
-
+ 
+    def test_reduced_instalment_round_trips(self):
+        data = self._serialize(reduced_instalment=3)
+        self.assertEqual(data["reduced_instalment"], 3)
+ 
     # ── decimal fields ────────────────────────────────────────────────────────
-
+ 
     def test_sum_assured_round_trips(self):
         data = self._serialize(sum_assured="250000.0000")
         self.assertIsNotNone(data["sum_assured"])
-
+ 
     def test_premium_round_trips(self):
         data = self._serialize(premium="1500.5000")
         self.assertIsNotNone(data["premium"])
+ 
+    def test_late_fine_round_trips(self):
+        data = self._serialize(late_fine="50.0000")
+        self.assertIsNotNone(data["late_fine"])
+ 
+    def test_adb_round_trips(self):
+        data = self._serialize(adb="100.0000")
+        self.assertIsNotNone(data["adb"])
