@@ -222,7 +222,11 @@ async function fetchReportData(formData) {
             formData: formData
         };
     } catch (error) {
-        console.error('Error fetching report data:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Error: Please try again or contact support if the issue persists.',
+        });
         throw error;
     }
 }
@@ -287,12 +291,12 @@ function populateReportTable(transfers) {
 function updateReportSummary(data) {
     const summaryEl = document.getElementById('report-summary');
     if (!summaryEl) return; // Guard against missing element
- 
+
     const groupSelect = document.getElementById('group-id');
     const groupName = groupSelect.options[groupSelect.selectedIndex].text;
- 
+
     const dateTypeText = data.formData.dateType === 'ad' ? 'AD' : 'BS';
- 
+
     summaryEl.textContent = `Showing ${data.count} transfers between ${data.formData.fromDate} and ${data.formData.toDate} (${dateTypeText}) for Group: ${groupName}`;
 }
 
@@ -366,10 +370,7 @@ function showReportResults(data) {
 async function handleFormSubmit(event) {
     event.preventDefault();
 
-    console.log('Form submitted');
-
     const formData = getFormData();
-    console.log('Form data:', formData);
 
     const validation = validateForm(formData);
     if (!validation.valid) {
@@ -382,9 +383,6 @@ async function handleFormSubmit(event) {
 
     try {
         const reportData = await fetchReportData(formData);
-        console.log('Report data received:', reportData);
-        console.log('Transfers:', reportData.transfers);
-        console.log('Count:', reportData.count);
 
         if (!reportData.transfers) {
             throw new Error('No transfer data received from server');
@@ -394,7 +392,11 @@ async function handleFormSubmit(event) {
 
         showReportResults(reportData);
     } catch (error) {
-        console.error('Error generating report:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Error: Please try again or contact support if the issue persists.',
+        });
         showNotification('Failed to generate report: ' + error.message, 'error');
     } finally {
         setButtonLoading(submitButton, false);
@@ -409,7 +411,6 @@ async function handleFormSubmit(event) {
  * Handle download report
  */
 function handleDownloadReport() {
-    console.log("Global data:", groupTransferData);
 
     if (!groupTransferData || groupTransferData.length === 0) {
         showNotification('No data to download. Please generate a report first.', 'error');
@@ -456,9 +457,7 @@ function initializeEventListeners() {
  * Initialize the group transfer report page
  */
 function initialize() {
-    console.log('Group transfer report script loaded');
     initializeEventListeners();
-    console.log('Group transfer report initialized');
 }
 
 // Run initialization when DOM is ready

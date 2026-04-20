@@ -6,15 +6,15 @@ let rbMetaData = {};
 
 // Columns to display in the table (same for both NB and RB)
 const DISPLAY_COLUMNS = [
-    { key: 'PolicyNo',      label: 'Policy No'      },
-    { key: 'Name',          label: 'Name'            },
-    { key: 'SA',            label: 'Sum Assured'     },
-    { key: 'Premium',       label: 'Premium'         },
-    { key: 'Term',          label: 'Term'            },
-    { key: 'DOB',           label: 'Date of Birth'   },
-    { key: 'NextDueDate',   label: 'Next Due Date'   },
-    { key: 'MaturityDate',  label: 'Maturity Date'   },
-    { key: 'Status',        label: 'Status'          },
+    { key: 'PolicyNo', label: 'Policy No' },
+    { key: 'Name', label: 'Name' },
+    { key: 'SA', label: 'Sum Assured' },
+    { key: 'Premium', label: 'Premium' },
+    { key: 'Term', label: 'Term' },
+    { key: 'DOB', label: 'Date of Birth' },
+    { key: 'NextDueDate', label: 'Next Due Date' },
+    { key: 'MaturityDate', label: 'Maturity Date' },
+    { key: 'Status', label: 'Status' },
 ];
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -43,9 +43,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const flagKey = flag.toLowerCase();                  // 'nb' or 'rb'
             const formData = new FormData(this);
 
-            console.log(`Generating ${flag} business report...`);
-            console.log('Form Data:', Object.fromEntries(formData));
-
             generateReport(flag, flagKey, formData);
         });
     });
@@ -62,11 +59,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const reportResults = document.getElementById(`${flagKey}-report-results`);
 
         const requestData = {
-            group_id:  formData.get('group_id'),
-            flag:      flag,
+            group_id: formData.get('group_id'),
+            flag: flag,
             filter_by: formData.get('filter_by'),
             from_date: formData.get('from_date_ad'),
-            to_date:   formData.get('to_date_ad'),
+            to_date: formData.get('to_date_ad'),
         };
 
         fetch('/api/corporate/reports/group-business-detail/', {
@@ -84,23 +81,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(data => {
-                console.log(`${flag} business report data received:`, data);
 
                 // Store full response for download
                 if (flagKey === 'nb') {
                     nbReportData = data;
                     nbMetaData = {
                         from_date: requestData.from_date,
-                        to_date:   requestData.to_date,
-                        group_id:  requestData.group_id,
+                        to_date: requestData.to_date,
+                        group_id: requestData.group_id,
                         filter_by: requestData.filter_by,
                     };
                 } else {
                     rbReportData = data;
                     rbMetaData = {
                         from_date: requestData.from_date,
-                        to_date:   requestData.to_date,
-                        group_id:  requestData.group_id,
+                        to_date: requestData.to_date,
+                        group_id: requestData.group_id,
                         filter_by: requestData.filter_by,
                     };
                 }
@@ -117,7 +113,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 100);
             })
             .catch(error => {
-                console.error('Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Error: Please try again or contact support if the issue persists.',
+                });
+
                 alert(`Error generating ${flag} report: ${error.message}`);
             })
             .finally(() => {
@@ -142,15 +143,15 @@ document.addEventListener('DOMContentLoaded', function () {
         data.forEach(item => {
             const row = document.createElement('tr');
             row.innerHTML = `
-                <td>${item.PolicyNo       || '-'}</td>
-                <td>${item.Name           || '-'}</td>
+                <td>${item.PolicyNo || '-'}</td>
+                <td>${item.Name || '-'}</td>
                 <td>${formatCurrency(item.SA ?? 0)}</td>
                 <td>${formatCurrency(parseFloat(item.Premium) || 0)}</td>
-                <td>${item.Term           ?? '-'}</td>
-                <td>${item.DOB            || '-'}</td>
-                <td>${item.NextDueDate    || '-'}</td>
-                <td>${item.MaturityDate   || '-'}</td>
-                <td>${item.Status         || '-'}</td>
+                <td>${item.Term ?? '-'}</td>
+                <td>${item.DOB || '-'}</td>
+                <td>${item.NextDueDate || '-'}</td>
+                <td>${item.MaturityDate || '-'}</td>
+                <td>${item.Status || '-'}</td>
             `;
             tbody.appendChild(row);
         });
@@ -165,7 +166,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const tableId = `${flagKey}-report-table`;
 
         if (typeof $ === 'undefined' || typeof $.fn.DataTable === 'undefined') {
-            console.log('DataTables library not loaded');
             return;
         }
 
@@ -183,12 +183,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
             language: {
                 lengthMenu: 'Show _MENU_ entries',
-                search:     'Search:',
-                info:       'Showing _START_ to _END_ of _TOTAL_ entries',
+                search: 'Search:',
+                info: 'Showing _START_ to _END_ of _TOTAL_ entries',
                 paginate: {
-                    first:    'First',
-                    last:     'Last',
-                    next:     'Next',
+                    first: 'First',
+                    last: 'Last',
+                    next: 'Next',
                     previous: 'Previous',
                 },
             },
@@ -216,8 +216,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
     tabButtons.forEach(button => {
         button.addEventListener('shown.bs.tab', function (event) {
-            const targetId  = event.target.getAttribute('data-bs-target'); // e.g. '#nb'
-            const flagKey   = targetId.replace('#', '');                   // 'nb' or 'rb'
+            const targetId = event.target.getAttribute('data-bs-target'); // e.g. '#nb'
+            const flagKey = targetId.replace('#', '');                   // 'nb' or 'rb'
 
             hideAllReportTables();
 

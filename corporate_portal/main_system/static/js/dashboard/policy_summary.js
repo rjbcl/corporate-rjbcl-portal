@@ -52,7 +52,6 @@ $(document).ready(function () {
             }),
             success: function (response) {
                 policySummaryData = response;
-                console.log('Policy Summary Data:', policySummaryData);
 
                 if (policySummaryData && policySummaryData.length > 0) {
                     displayPolicySummary(policySummaryData);
@@ -431,7 +430,6 @@ $(document).ready(function () {
                     return;
                 }
                 loanData = results;
-                console.log('Loan Details:', loanData);
                 let rows = '';
                 results.forEach(function (loan) {
                     rows += `
@@ -504,7 +502,6 @@ $(document).ready(function () {
     const urlParams = new URLSearchParams(window.location.search);
     const autoPolicy = urlParams.get('policy_number');
     if (autoPolicy) {
-        console.log('Auto-searching for policy:', autoPolicy);
         $('#policy-number').val(autoPolicy);
         $('#policy-summary-report-form').trigger('submit');
     }

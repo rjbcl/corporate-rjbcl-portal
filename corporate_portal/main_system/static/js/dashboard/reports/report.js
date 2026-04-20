@@ -9,7 +9,6 @@
  * @param {string} filename 
  */
 function downloadCSV(data, filename) {
-    console.log("Download CSV called with:", { dataLength: data?.length, filename });
     
     // Validate data
     if (!data || data.length === 0) {
@@ -65,6 +64,5 @@ function downloadCSV(data, filename) {
     // Clean up
     URL.revokeObjectURL(url);
     
-    console.log(`CSV downloaded: ${filename}`);
 }
 

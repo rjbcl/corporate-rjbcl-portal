@@ -5,7 +5,7 @@ let deathMetaData = {};
 let maturityReportData = [];
 let maturityMetaData = {};
 
-let surrenderReportData =[];
+let surrenderReportData = [];
 let surrenderMetaData = {};
 
 
@@ -28,8 +28,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const claimType = this.getAttribute('data-claim-type');
             const formData = new FormData(this);
 
-            console.log(`Generating ${claimType} claim report...`);
-            console.log('Form Data:', Object.fromEntries(formData));
 
             // Generate report for the specific claim type
             generateReport(claimType, formData);
@@ -68,7 +66,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Death claim data received:', data);
 
                     deathReportData = data;
                     deathMetaData = {
@@ -95,7 +92,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }, 100);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops...',
+                        text: 'Error: Please try again or contact support if the issue persists.',
+                    });
                     alert(`Error generating ${claimType} report: ${error.message}`);
                 })
                 .finally(() => {
@@ -120,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Maturity claim data received:', data);
 
                     maturityReportData = data;
                     maturityMetaData = {
@@ -147,7 +147,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }, 100);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops...',
+                        text: 'Error: Please try again or contact support if the issue persists.',
+                    });
                     alert(`Error generating ${claimType} report: ${error.message}`);
                 })
                 .finally(() => {
@@ -171,7 +175,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Surrender claim data received:', data);
 
                     surrenderReportData = data;
                     surrenderMetaData = {
@@ -198,7 +201,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     }, 100);
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops...',
+                        text: 'Error: Please try again or contact support if the issue persists.',
+                    });
                     alert(`Error generating ${claimType} report: ${error.message}`);
                 })
                 .finally(() => {
@@ -221,7 +228,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const row = document.createElement('tr');
 
             if (claimType === 'maturity') {
-                console.log('Populating maturity row:', item);
                 row.innerHTML = `
                     <td>${item.PolicyNo || '-'}</td>
                     <td>${item.Name || '-'}</td>
@@ -269,7 +275,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Check if jQuery and DataTables are available
         if (typeof $ === 'undefined' || typeof $.fn.DataTable === 'undefined') {
-            console.log('DataTables library not loaded');
             return;
         }
 

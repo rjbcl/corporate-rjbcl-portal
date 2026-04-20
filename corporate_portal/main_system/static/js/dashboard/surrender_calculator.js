@@ -95,12 +95,10 @@ $(document).ready(function () {
     // ── Display Results ──────────────────────────────────────────────────────
 
     function displaySurrenderCalculator(data) {
-        console.log('Surrender Calculator Data:', data);
         const today = formatTodayDate();
         const surrenderAmount = data.SurrenderValue || 0;
         const loanAmount = surrenderAmount * 0.9;
         const hasActiveLoan = data.HasActiveLoan;
-        console.log(hasActiveLoan);
 
         // Surrender card
         $('#surrender-value').text(formatCurrency(surrenderAmount));

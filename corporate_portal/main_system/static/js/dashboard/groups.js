@@ -1,6 +1,6 @@
 // groups.js - Handle group information display
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     loadGroups();
 });
 
@@ -10,10 +10,10 @@ document.addEventListener('DOMContentLoaded', function() {
 function loadGroups() {
     // Show loading state
     showLoading();
-    
+
     // API endpoint
     const apiUrl = '/api/corporate/groups/';
-    
+
     // Fetch groups
     fetch(apiUrl, {
         method: 'GET',
@@ -23,26 +23,27 @@ function loadGroups() {
         },
         credentials: 'include'
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Groups data:', data);
-        
-        if (data.count === 0 || !data.results || data.results.length === 0) {
-            showEmptyState();
-        } else {
-            renderGroups(data.results);
-            showGroups();
-        }
-    })
-    .catch(error => {
-        console.error('Error loading groups:', error);
-        showError('Failed to load groups: ' + error.message);
-    });
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.count === 0 || !data.results || data.results.length === 0) {
+                showEmptyState();
+            } else {
+                renderGroups(data.results);
+                showGroups();
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'Error loading groups. Please try again or contact support if the issue persists.'
+            });
+        });
 }
 
 /**
@@ -51,7 +52,7 @@ function loadGroups() {
 function renderGroups(groups) {
     const accordion = document.getElementById('groups-accordion');
     accordion.innerHTML = '';
-    
+
     groups.forEach((group, index) => {
         const groupHtml = createGroupAccordion(group, index);
         accordion.innerHTML += groupHtml;
@@ -67,16 +68,16 @@ function createGroupAccordion(group, index) {
     const groupNameNepali = group.group_name_nepali || '';
     const groupId = group.group_id || 'N/A';
     const isActive = group.is_active;
-    const statusBadge = isActive 
-        ? '<span class="status-badge status-active">Active</span>' 
+    const statusBadge = isActive
+        ? '<span class="status-badge status-active">Active</span>'
         : '<span class="status-badge status-inactive">Inactive</span>';
-    
+
     // Statistics
     const totalMembers = formatNumber(group.total_members_count || 0);
     const activePolicies = formatNumber(group.total_active_policies || 0);
     const totalPremium = formatCurrency(group.total_premium || 0);
     const totalSA = formatCurrency(group.total_sa || 0);
-    
+
     // Claims
     const deathClaims = formatNumber(group.death_claim || 0);
     const surrenderClaims = formatNumber(group.surrender_claim || 0);
@@ -84,7 +85,7 @@ function createGroupAccordion(group, index) {
     const transferClaims = formatNumber(group.transfer_claim || 0);
     const terminateClaims = formatNumber(group.terminate_claim || 0);
     const cancelClaims = formatNumber(group.cancel_claim || 0);
-    
+
     return `
         <div class="accordion__item">
             <div class="accordion__header collapsed" data-toggle="collapse" data-target="#${collapseId}" aria-expanded="false">

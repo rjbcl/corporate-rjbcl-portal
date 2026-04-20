@@ -12,7 +12,11 @@ function updateStatistics(summary) {
         document.getElementById('active-policies').textContent = summary.activePolicies || 0;
         document.getElementById('total-premium').textContent = formatCurrency(summary.totalPremium || 0);
     } catch (error) {
-        console.error('Error updating statistics:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error updating statistics. Please try again or contact support'
+        });
     }
 }
 
@@ -20,7 +24,11 @@ function populatePoliciesTable(policies) {
     const tbody = document.getElementById('policies-tbody');
 
     if (!tbody) {
-        console.error('Policies table body not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'Policies table body not found'
+        });
         return;
     }
 
@@ -99,7 +107,7 @@ async function initializeDashboard() {
         const data = await fetchPolicies(companyId);
         updateStatistics(data.summary);
         populatePoliciesTable(data.latest_policies);
-        populateFupTimeline(data.fup_data);  
+        populateFupTimeline(data.fup_data);
         initializeFupScrollbar();
     } catch (error) {
         showErrorState('Error loading policies: ' + error.message);
@@ -132,7 +140,11 @@ function populateFupTimeline(fupData) {
     const timeline = document.getElementById('fup-timeline');
 
     if (!timeline) {
-        console.error('FUP timeline element not found');
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: 'FUP timeline element not found'
+        });
         return;
     }
 

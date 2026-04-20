@@ -253,7 +253,11 @@ async function fetchReportData(formData) {
             formData: formData
         };
     } catch (error) {
-        console.error('Error fetching report data:', error);
+        Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Error: Please try again or contact support if the issue persists.',
+                });
         throw error;
     }
 }
@@ -442,11 +446,8 @@ var maturityForcastingData; // Global variable to store report data
 async function handleFormSubmit(event) {
     event.preventDefault();
 
-    console.log('Form submitted');
-
     // Get form data
     const formData = getFormData();
-    console.log('Form data:', formData);
 
     // Validate form
     const validation = validateForm(formData);
@@ -462,9 +463,6 @@ async function handleFormSubmit(event) {
     try {
         // Fetch report data
         const reportData = await fetchReportData(formData);
-        console.log('Report data received:', reportData);
-        console.log('Policies:', reportData.policies);
-        console.log('Count:', reportData.count);
 
         // Check if we have valid data
         if (!reportData.policies) {
@@ -474,10 +472,11 @@ async function handleFormSubmit(event) {
         // Show results
         showReportResults(reportData);
     } catch (error) {
-        console.error('Error generating report:', error);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-        showNotification('Failed to generate report: ' + error.message, 'error');
+        Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Error: Please try again or contact support if the issue persists.',
+                });
     } finally {
         setButtonLoading(submitButton, false);
     }
@@ -511,12 +510,10 @@ function initializeEventListeners() {
  * Initialize the maturity report page
  */
 function initialize() {
-    console.log('Maturity report script loaded');
 
     // Initialize event listeners
     initializeEventListeners();
 
-    console.log('Maturity report initialized');
 }
 
 // Run initialization when DOM is ready
@@ -535,7 +532,6 @@ if (document.readyState === 'loading') {
  * Handle download report
  */
 function handleDownloadReport() {
-    console.log("Global data:", maturityForcastingData);
     
     if (!maturityForcastingData || maturityForcastingData.length === 0) {
         showNotification('No data to download. Please generate a report first.', 'error');

@@ -227,7 +227,11 @@ async function fetchReportData(formData) {
             formData: formData
         };
     } catch (error) {
-        console.error('Error fetching report data:', error);
+        Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Error: Please try again or contact support if the issue persists.',
+                });
         throw error;
     }
 }
@@ -366,10 +370,10 @@ function showReportResults(data) {
 async function handleFormSubmit(event) {
     event.preventDefault();
 
-    console.log('Form submitted');
+
 
     const formData = getFormData();
-    console.log('Form data:', formData);
+
 
     const validation = validateForm(formData);
     if (!validation.valid) {
@@ -382,9 +386,6 @@ async function handleFormSubmit(event) {
 
     try {
         const reportData = await fetchReportData(formData);
-        console.log('Report data received:', reportData);
-        console.log('Repayments:', reportData.repayments);
-        console.log('Count:', reportData.count);
 
         if (!reportData.repayments) {
             throw new Error('No repayment data received from server');
@@ -393,7 +394,11 @@ async function handleFormSubmit(event) {
         loanRepaymentData = reportData.repayments; // Store globally for download
         showReportResults(reportData);
     } catch (error) {
-        console.error('Error generating report:', error);
+        Swal.fire({
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Error generating report. Please try again or contact support if the issue persists.',
+                });
         showNotification('Failed to generate report: ' + error.message, 'error');
     } finally {
         setButtonLoading(submitButton, false);
@@ -408,7 +413,6 @@ async function handleFormSubmit(event) {
  * Handle download report as CSV
  */
 function handleDownloadReport() {
-    console.log('Global data:', loanRepaymentData);
 
     if (!loanRepaymentData || loanRepaymentData.length === 0) {
         showNotification('No data to download. Please generate a report first.', 'error');
@@ -475,9 +479,8 @@ function initializeEventListeners() {
 }
 
 function initialize() {
-    console.log('Loan repayment report script loaded');
     initializeEventListeners();
-    console.log('Loan repayment report initialized');
+
 }
 
 if (document.readyState === 'loading') {
