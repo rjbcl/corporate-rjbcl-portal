@@ -4,7 +4,7 @@ from .models import AuditLog
 import json
 from django.core.exceptions import ValidationError, PermissionDenied #type: ignore
 from .models import Company, Group, Account, Individual
-
+ 
 class PermissionMixin:
     """Mixin for permission checking"""
     
@@ -28,7 +28,7 @@ class PermissionMixin:
             raise PermissionDenied(f"You don't have permission: {permission_string}")
         
         return has_perm
-
+ 
 class CompanyService(PermissionMixin):
     
     @staticmethod
@@ -59,15 +59,13 @@ class CompanyService(PermissionMixin):
     
     @staticmethod
     @transaction.atomic
-    def create_company(username, password, company_data, group_ids, groups_lookup, user=None):
+    @staticmethod
+    def create_company(company_data, group_ids, groups_lookup, user=None):
         """Create a new company with permission check"""
         from .models import AuditLog
         
         # ENFORCE permission check in service layer
         CompanyService.check_permission(user, 'main_system.add_company')
-        
-        if not username or not password:
-            raise ValidationError("Username and password are required")
         
         # Validate groups
         conflicts = CompanyService.validate_group_availability(group_ids)
@@ -79,49 +77,54 @@ class CompanyService(PermissionMixin):
             raise ValidationError(
                 f"The following groups are already assigned to other companies: {', '.join(conflict_msgs)}"
             )
-        
-        # Create account with hashed password
-        account = Account.objects.create_user(
-            username=username,
-            password=password
-        )
-        
-        # Add audit fields to account
-        if user:
-            account.created_by = user.username
-            account.modified_by = user.username
-            account.save()
 
         # Add audit fields
         if user:
             company_data['created_by'] = user.username
             company_data['modified_by'] = user.username
         
-        # Create company
-        company = Company.objects.create(
-            username=account,
-            **company_data
-        )
+        # Create company first
+        company = Company.objects.create(**company_data)
         
-        # Create groups with audit info
+        # Create or reassign groups
         for gid in group_ids:
-            group_data = {
-                'company_id': company,
-                'group_id': gid,
-                'group_name': groups_lookup.get(gid, ''),
-                'isactive': company.isactive
-            }
-            if user:
-                group_data['created_by'] = user.username
-                group_data['modified_by'] = user.username
+            group_name = groups_lookup.get(gid, '')
             
-            Group.objects.create(**group_data)
+            # Check if a soft-deleted record exists anywhere
+            orphaned_group = Group.objects.filter(
+                group_id=gid,
+                isdeleted=True
+            ).first()
+            
+            if orphaned_group:
+                # Reassign and resurrect
+                orphaned_group.company_id = company
+                orphaned_group.isdeleted = False
+                orphaned_group.isactive = company.isactive
+                orphaned_group.group_name = group_name
+                if user:
+                    orphaned_group.modified_by = user.username
+                orphaned_group.save()
+            
+            else:
+                # Truly new, safe to create
+                group_data = {
+                    'company_id': company,
+                    'group_id': gid,
+                    'group_name': group_name,
+                    'isactive': company.isactive
+                }
+                if user:
+                    group_data['created_by'] = user.username
+                    group_data['modified_by'] = user.username
+                
+                Group.objects.create(**group_data)
         
         # Log company creation
         if user:
             AuditLog.create_log(
                 action='create',
-                target_username=account.username,
+                target_username=user.username,
                 target_type='company',
                 performed_by=user.username,
                 details=json.dumps({
@@ -131,10 +134,10 @@ class CompanyService(PermissionMixin):
             )
         
         return company
-    
+
     @staticmethod
     @transaction.atomic
-    def update_company(company, username=None, password=None, company_data=None, group_ids=None, groups_lookup=None, user=None):
+    def update_company(company, company_data=None, group_ids=None, groups_lookup=None, user=None):
         """Update existing company with permission check"""
         from .models import AuditLog
         import json
@@ -142,7 +145,6 @@ class CompanyService(PermissionMixin):
         # ENFORCE permission check in service layer
         CompanyService.check_permission(user, 'main_system.change_company')
         
-        account = company.username
         changes = {}
         
         # Validate groups
@@ -157,47 +159,25 @@ class CompanyService(PermissionMixin):
                     f"The following groups are already assigned to other companies: {', '.join(conflict_msgs)}"
                 )
         
-        # Update username if provided and different
-        if username and username != account.username:
-            old_username = account.username
-            old_account = account
-            account = Account.objects.create_user(
-                username=username,
-                password=old_account.password
-            )
-            account.password = old_account.password
-            account.save()
-            company.username = account
-            old_account.delete()
-            changes['username'] = {'old': old_username, 'new': username}
-        
-        # Update password if provided
-        if password:
-            account.set_password(password)
-            account.save()
-            changes['password'] = 'changed'
-        
         # Track company data changes BEFORE adding modified_by
         if company_data:
             for field, new_value in company_data.items():
-                # Skip audit fields
                 if field in ['modified_by', 'created_by']:
                     continue
                 
                 old_value = getattr(company, field, None)
-           
-                # Handle boolean comparison properly
+        
                 if isinstance(old_value, bool) and isinstance(new_value, bool):
                     if old_value != new_value:
                         changes[field] = {'old': old_value, 'new': new_value}
-                # Handle None values
                 elif old_value is None and new_value is None:
                     continue
                 elif old_value is None or new_value is None:
                     if old_value != new_value:
-                        changes[field] = {'old': str(old_value) if old_value is not None else 'None', 
-                                        'new': str(new_value) if new_value is not None else 'None'}
-                # Regular comparison
+                        changes[field] = {
+                            'old': str(old_value) if old_value is not None else 'None', 
+                            'new': str(new_value) if new_value is not None else 'None'
+                        }
                 elif str(old_value).strip() != str(new_value).strip():
                     changes[field] = {'old': str(old_value), 'new': str(new_value)}
         
@@ -210,17 +190,25 @@ class CompanyService(PermissionMixin):
                 setattr(company, field, value)
             company.save()
         
-        # If company is inactive, mark all its groups as inactive
+        # If company is set to inactive, mark all its groups and accounts as inactive
         if company_data and not company.isactive:
             Group.objects.filter(company_id=company).update(
                 isactive=False,
                 modified_by=user.username if user else None
             )
+            Account.objects.filter(company_id=company).update(
+                is_active=False,
+                modified_by=user.username if user else None
+            )
         
         # Track group changes
         if group_ids is not None and groups_lookup is not None:
-            old_groups = list(Group.objects.filter(company_id=company, isdeleted=False).values_list('group_id', flat=True))
+            old_groups = list(
+                Group.objects.filter(company_id=company, isdeleted=False)
+                .values_list('group_id', flat=True)
+            )
             
+            # Soft delete all current groups for this company first
             Group.objects.filter(company_id=company).update(
                 isdeleted=True,
                 isactive=False,
@@ -230,30 +218,51 @@ class CompanyService(PermissionMixin):
             for gid in group_ids:
                 group_name = groups_lookup.get(gid, '')
                 
+                # 1. Check under this same company (was just soft-deleted above)
                 existing_group = Group.objects.filter(
                     company_id=company,
                     group_id=gid
                 ).first()
                 
                 if existing_group:
+                    # Resurrect under same company
                     existing_group.isdeleted = False
                     existing_group.isactive = company.isactive
                     existing_group.group_name = group_name
                     if user:
                         existing_group.modified_by = user.username
                     existing_group.save()
+                
                 else:
-                    group_data = {
-                        'company_id': company,
-                        'group_id': gid,
-                        'group_name': group_name,
-                        'isactive': company.isactive
-                    }
-                    if user:
-                        group_data['created_by'] = user.username
-                        group_data['modified_by'] = user.username
+                    # 2. Check under any other company, but only if isdeleted=True
+                    orphaned_group = Group.objects.filter(
+                        group_id=gid,
+                        isdeleted=True
+                    ).exclude(company_id=company).first()
                     
-                    Group.objects.create(**group_data)
+                    if orphaned_group:
+                        # Reassign and resurrect
+                        orphaned_group.company_id = company
+                        orphaned_group.isdeleted = False
+                        orphaned_group.isactive = company.isactive
+                        orphaned_group.group_name = group_name
+                        if user:
+                            orphaned_group.modified_by = user.username
+                        orphaned_group.save()
+                    
+                    else:
+                        # 3. Truly new group, safe to create
+                        group_data = {
+                            'company_id': company,
+                            'group_id': gid,
+                            'group_name': group_name,
+                            'isactive': company.isactive
+                        }
+                        if user:
+                            group_data['created_by'] = user.username
+                            group_data['modified_by'] = user.username
+                        
+                        Group.objects.create(**group_data)
             
             new_groups = list(group_ids)
             if set(old_groups) != set(new_groups):
@@ -263,7 +272,7 @@ class CompanyService(PermissionMixin):
         if changes and user:
             AuditLog.create_log(
                 action='update',
-                target_username=company.username.username,
+                target_username=company.company_name,
                 target_type='company',
                 performed_by=user.username,
                 details=json.dumps(changes)
@@ -280,6 +289,7 @@ class CompanyService(PermissionMixin):
         # ENFORCE permission check in service layer
         CompanyService.check_permission(user, 'main_system.soft_delete_company')
         
+        # Soft delete company
         company.isactive = False
         if user:
             company.modified_by = user.username
@@ -287,20 +297,16 @@ class CompanyService(PermissionMixin):
         
         # Cascade soft delete to groups
         Group.objects.filter(company_id=company).update(
-                    isactive=False, 
-                    isdeleted=True,
-                    modified_by=user.username if user else None
-                )        
-        # Soft delete account
-        company.username.is_active = False
-        company.username.modified_by = user.username if user else None
-        company.username.save()
+            isactive=False,
+            isdeleted=True,
+            modified_by=user.username if user else None
+        )
         
         # Audit log
         if user:
             AuditLog.create_log(
                 action='soft_delete',
-                target_username=company.username.username,
+                target_username=company.company_name,
                 target_type='company',
                 performed_by=user.username,
                 details=f"Company '{company.company_name}' soft deleted"
@@ -311,32 +317,34 @@ class CompanyService(PermissionMixin):
     @staticmethod
     @transaction.atomic
     def hard_delete_company(company, user=None):
-        """Hard delete company (Admin only)"""
+        """Hard delete company and all linked accounts (Admin only)"""
         from .models import AuditLog
         import json
         
         # ENFORCE permission check in service layer - Admin only
         CompanyService.check_permission(user, 'main_system.delete_company')
         
-        account = company.username
         company_name = company.company_name
-        username = account.username
-        
+        company_id = company.company_id
+ 
         # Log before deleting
         if user:
             AuditLog.create_log(
                 action='hard_delete',
-                target_username=username,
+                target_username=company_name,
                 target_type='company',
                 performed_by=user.username,
                 details=json.dumps({
                     'company_name': company_name,
-                    'company_id': company.company_id
+                    'company_id': company_id
                 })
             )
         
+        # Delete all accounts linked to this company
+        Account.objects.filter(company_id=company).delete()
+ 
+        # Delete company (cascades to groups)
         company.delete()
-        account.delete()
         
         return True
     
@@ -360,12 +368,8 @@ class CompanyService(PermissionMixin):
             modified_by=user.username if user else None
         )
         
-        # Activate account
-        company.username.is_active = True
-        company.username.save()
-        
         return company
-
+ 
 class AccountService(PermissionMixin):
     
     @staticmethod
@@ -420,7 +424,7 @@ class AccountService(PermissionMixin):
             )
         
         return account
-
+ 
 class IndividualService(PermissionMixin):
     
     @staticmethod

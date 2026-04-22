@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth import update_session_auth_hash
 from .forms import ChangePasswordForm
 from main_system.models import AuditLog  # adjust import path if needed
-
+ 
 def user_login(request):
     """Single login view for all user types"""
     if request.user.is_authenticated:
@@ -30,7 +30,7 @@ def user_login(request):
             # Check if company account is inactive
             user_type = user.get_user_type()
             if user_type == 'company':
-                if not user.company_profile.isactive:
+                if not user.company_id.isactive:
                     messages.error(request, 'Your company account is inactive. Please contact support.')
                     return render(request, 'login.html')
             
@@ -55,8 +55,8 @@ def user_login(request):
             messages.error(request, 'Invalid username or password.')
     
     return render(request, 'login.html')
-
-
+ 
+ 
 @login_required
 def dashboard(request):
     """Route users to appropriate dashboard based on their role"""
@@ -79,16 +79,16 @@ def dashboard(request):
         messages.error(request, 'Account type not recognized.')
         logout(request)
         return redirect('login')
-
+ 
 # ================================
 # COMPANY VIEWS
 # ================================
-
+ 
 @login_required
 @company_required
 def company_dashboard(request):
     """Dashboard for company users"""
-    company = request.user.company_profile
+    company = request.user.company_id
     
     # Get total groups count
     total_groups = Group.objects.filter(
@@ -100,10 +100,9 @@ def company_dashboard(request):
         'company': company,
         'total_groups': total_groups,
     }
-    # return render(request, 'Dashboard/Company/company_dashboard.html', context)
     return render(request, 'Dashboard/Company/dashboard.html', context)
-
-
+ 
+ 
 @login_required
 def company_groups(request):
     """Policies page for company users"""
@@ -111,14 +110,14 @@ def company_groups(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     context = {
         'company': company,
     }
     return render(request, 'Dashboard/Company/groups.html', context)
-
-
+ 
+ 
 # ================================
 # COMPANY REPORTS VIEWS
 # ================================
@@ -129,7 +128,7 @@ def maturity_forecasting_report(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     # Get groups for dropdown
     groups = Group.objects.filter(
@@ -142,7 +141,7 @@ def maturity_forecasting_report(request):
         'groups': groups,
     }
     return render(request, 'Dashboard/Company/reports/maturity_forecasting_report.html', context)
-
+ 
 @login_required
 def transfer_report(request):
     """Group transfer report for company users"""
@@ -150,7 +149,7 @@ def transfer_report(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     # Get groups for dropdown
     groups = Group.objects.filter(
@@ -163,7 +162,7 @@ def transfer_report(request):
         'groups': groups,
     }
     return render(request, 'Dashboard/Company/reports/Transfer_report.html', context)
-
+ 
 @login_required
 def claim_report(request):
     """
@@ -173,7 +172,7 @@ def claim_report(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     # Get groups for dropdown
     groups = Group.objects.filter(
@@ -186,7 +185,7 @@ def claim_report(request):
         'groups': groups,
     }
     return render(request, 'Dashboard/Company/reports/claim_report.html', context)
-
+ 
 @login_required
 def business_detail_report(request):
     """
@@ -195,21 +194,21 @@ def business_detail_report(request):
     if request.user.get_user_type() != 'company':
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-
-    company = request.user.company_profile
-
+ 
+    company = request.user.company_id
+ 
     # Get groups for dropdown
     groups = Group.objects.filter(
         company_id=company,
         isdeleted=False
     ).values('group_id', 'group_name')
-
+ 
     context = {
         'company': company,
         'groups': groups,
     }
     return render(request, 'Dashboard/Company/reports/Business_detail_report.html', context)
-
+ 
 @login_required
 def loan_repayment_report(request):
     """Loan repayment report for company users"""
@@ -217,7 +216,7 @@ def loan_repayment_report(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     # Get groups for dropdown
     groups = Group.objects.filter(
@@ -230,21 +229,22 @@ def loan_repayment_report(request):
         'groups': groups,
     }
     return render(request, 'Dashboard/Company/reports/group_loan_report.html', context)
-
-
+ 
+ 
 @login_required
 def policy_summary(request):
     """Policy summary report for company users"""
     if request.user.get_user_type() != 'company':
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
-    company = request.user.company_profile
+ 
+    company = request.user.company_id
     
     context = {
         'company': company,
     }
-    return render(request, 'Dashboard/Company/policy_summary_report.html',context)
-
+    return render(request, 'Dashboard/Company/policy_summary_report.html', context)
+ 
 @login_required
 def surrender_calculator(request):
     """Surrender calculator for company users"""
@@ -252,15 +252,15 @@ def surrender_calculator(request):
         messages.error(request, 'Access denied.')
         return redirect('dashboard')
     
-    company = request.user.company_profile
+    company = request.user.company_id
     
     context = {
         'company': company,
     }
-    return render(request, 'Dashboard/Company/surrender_calculator.html',context)
-
-
-
+    return render(request, 'Dashboard/Company/surrender_calculator.html', context)
+ 
+ 
+ 
 @login_required
 def individual_dashboard(request):
     """Dashboard for individual users"""
@@ -274,8 +274,8 @@ def individual_dashboard(request):
         'individual': individual,
     }
     return render(request, 'individual_dashboard.html', context)
-
-
+ 
+ 
 @login_required
 @require_POST
 def change_password(request):
@@ -288,21 +288,21 @@ def change_password(request):
         }, status=400)
     
     user = request.user
-
+ 
     if not user.check_password(form.cleaned_data['current_password']):
         return JsonResponse({
             'success': False,
             'errors': {'current_password': ['Incorrect current password.']}
         }, status=400)
-
+ 
     # Set the new password
     user.set_password(form.cleaned_data['new_password'])
     user.modified_by = user.username  # your AuditBase field
     user.save()
-
+ 
     # Keep the user logged in after password change
     update_session_auth_hash(request, user)
-
+ 
     # Write to your AuditLog model
     AuditLog.create_log(
         action='password_reset',
@@ -312,12 +312,12 @@ def change_password(request):
         details='User changed their own password.',
         ip_address=request.META.get('REMOTE_ADDR')
     )
-
+ 
     return JsonResponse({
         'success': True,
         'message': 'Password changed successfully.'
     })
-
+ 
 def user_logout(request):
     """Logout view for all users"""
     logout(request)

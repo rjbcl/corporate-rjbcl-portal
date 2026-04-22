@@ -72,7 +72,7 @@ def log_report_access(
     has_error = status == ReportAccessLog.Status.ERROR or exc is not None
 
     ReportAccessLog.objects.create(
-        generator_company=request.user.username,
+        generator=request.user.username,
         report_type=report_type.strip(),
         query=formatted_query,
         status=status,

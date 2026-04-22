@@ -9,6 +9,29 @@ class AuditBase(models.Model):
     class Meta:
         abstract = True
 
+
+class Company(AuditBase):
+    company_id = models.AutoField(primary_key=True)
+    company_name = models.CharField(max_length=200)
+    nepali_name = models.CharField(max_length=200, blank=True, null=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    telephone_number = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    isactive = models.BooleanField(default=True)
+    remarks = models.TextField(blank=True, null=True)
+    blank_col1 = models.CharField(max_length=200, blank=True, null=True)
+    blank_col2 = models.CharField(max_length=200, blank=True, null=True)
+
+    class Meta:
+        db_table = 'copo_company'
+        permissions = [
+            ('soft_delete_company', 'Can soft delete company'),
+        ]
+
+    def __str__(self):
+        return self.company_name
+
+
 class AccountManager(BaseUserManager):
     def create_user(self, username, password=None, **extra_fields):
         if not username:
@@ -31,8 +54,17 @@ class AccountManager(BaseUserManager):
         
         return self.create_user(username, password, **extra_fields)
 
+
 class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     username = models.CharField(max_length=100, unique=True, primary_key=True)
+    company_id = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        db_column='company_id',
+        related_name='accounts',
+        null=True,
+        blank=True
+    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
@@ -53,15 +85,15 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
         return self.username
     
     def get_user_type(self):
-        """Returns 'staff', 'company', or 'individual'"""
+        """Returns 'admin', 'staff', 'company', or 'individual'"""
         if self.is_superuser:
             return 'admin'
         
         if self.is_staff:
             return 'staff'
         
-        # Check if linked to Company
-        if hasattr(self, 'company_profile'):
+        # Check if linked to a Company
+        if self.company_id is not None:
             return 'company'
         
         # Check if linked to Individual
@@ -75,7 +107,7 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
         user_type = self.get_user_type()
         
         if user_type == 'company':
-            return self.company_profile.company_name
+            return self.company_id.company_name
         elif user_type == 'individual':
             return self.individual_profile.user_full_name or self.username
         else:
@@ -87,35 +119,7 @@ class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     def has_module_perms(self, app_label):
         return super().has_module_perms(app_label)
 
-    
-class Company(AuditBase):
-    company_id = models.AutoField(primary_key=True)
-    username = models.OneToOneField(
-        Account,
-        on_delete=models.CASCADE,
-        to_field='username',
-        db_column='username',
-        related_name='company_profile'
-    )
-    company_name = models.CharField(max_length=200)
-    nepali_name = models.CharField(max_length=200, blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, null=True)
-    telephone_number = models.CharField(max_length=20, blank=True, null=True)
-    email = models.EmailField(blank=True, null=True)
-    isactive = models.BooleanField(default=True)
-    remarks = models.TextField(blank=True, null=True)
-    blank_col1 = models.CharField(max_length=200, blank=True, null=True)
-    blank_col2 = models.CharField(max_length=200, blank=True, null=True)
 
-    class Meta:
-        db_table = 'copo_company'
-        permissions = [
-            ('soft_delete_company', 'Can soft delete company'),
-        ]
-
-    def __str__(self):
-        return self.company_name
-    
 class Group(AuditBase):
     row_id = models.AutoField(primary_key=True)
     company_id = models.ForeignKey(
@@ -137,6 +141,7 @@ class Group(AuditBase):
     
     def __str__(self):
         return self.group_name or f"Group {self.group_id}"
+
 
 class Individual(AuditBase):
     user_id = models.AutoField(primary_key=True)
@@ -164,7 +169,8 @@ class Individual(AuditBase):
 
     def __str__(self):
         return self.user_full_name or self.username.username
-    
+
+
 class Policy(models.Model):
     row_id = models.AutoField(primary_key=True)
     policy_number = models.CharField(max_length=50, unique=True) 
@@ -180,6 +186,7 @@ class Policy(models.Model):
 
     def __str__(self):
         return f"Policy {self.policy_number} for User {self.user_id_id}"
+
 
 class ReportAccessLog(models.Model):
     """
@@ -206,10 +213,11 @@ class ReportAccessLog(models.Model):
     )
  
     # ── Who ───────────────────────────────────────────────────────────────────
-    generator_company = models.CharField(
+    generator = models.CharField(
         max_length=150,
+        db_column='generator_company',
         default='unknown',
-        help_text="Username of the company user who triggered the report.",
+        help_text="Username of the user who triggered the report.",
     )
  
     # ── What ──────────────────────────────────────────────────────────────────
@@ -275,6 +283,7 @@ class ReportAccessLog(models.Model):
                 [:total - self.MAX_LOGS]
             )
             ReportAccessLog.objects.filter(row_id__in=list(oldest_ids)).delete()
+
 
 class AuditLog(models.Model):
     ACTION_CHOICES = [

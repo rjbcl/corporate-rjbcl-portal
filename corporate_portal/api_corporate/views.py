@@ -64,7 +64,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             )
         
         # Check if company account is active
-        if not user.company_profile.isactive:
+        if not user.company_id or not user.company_id.isactive:
             return Response(
                 {'error': 'Company account is inactive'},
                 status=status.HTTP_403_FORBIDDEN
@@ -109,7 +109,7 @@ def maturity_forecasting_report(request):
     
     # Security: Verify the logged-in user owns this group
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -265,7 +265,7 @@ def group_transfer_report(request):
     print(f"Report request - Group: {group_id}, From: {transfer_date_from}, To: {transfer_date_to}, Type: {date_type}")
 
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -418,7 +418,7 @@ def loan_repayment_report(request):
 
     # Security: Verify the logged-in user owns this group
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -574,7 +574,7 @@ def death_claim_report(request):
         }, status=400)
     
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -703,7 +703,7 @@ def maturity_claim_report(request):
         }, status=400)
     
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -890,7 +890,7 @@ def group_business_detail_report(request):
     # --- Group access check ---
 
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -1007,7 +1007,7 @@ def surrender_claim_report(request):
         }, status=400)
     
     if not request.user.is_superuser and not request.user.is_staff:
-        company = request.user.company_profile
+        company = request.user.company_id
         group_exists = PortalGroup.objects.filter(
             company_id=company,
             group_id=group_id,
@@ -1129,7 +1129,7 @@ def policy_summary_report(request):
             isdeleted=False
         ).values_list('group_id', flat=True))
     else:
-        company = request.user.company_profile
+        company = request.user.company_id
         
         # Check if company account is active
         if not company.isactive:
@@ -1258,7 +1258,7 @@ def surrender_calculator(request):
             isdeleted=False
         ).values_list('group_id', flat=True))
     else:
-        company = request.user.company_profile
+        company = request.user.company_id
 
         if not company.isactive:
             log_report_access(
@@ -1378,7 +1378,7 @@ def policy_search(request):
             ).values_list('group_id', flat=True))
         else:
             try:
-                company = request.user.company_profile
+                company = request.user.company_id
 
                 if not company.isactive:
                     return Response({'error': 'Company account is inactive'}, status=403)
@@ -1455,7 +1455,7 @@ def policy_loans(request):
             ).values_list('group_id', flat=True))
         else:
             try:
-                company = request.user.company_profile
+                company = request.user.company_id
 
                 if not company.isactive:
                     log_report_access(
@@ -1605,7 +1605,7 @@ def company_policies_web(request):
         }, status=400)
 
     if not request.user.is_superuser and not request.user.is_staff:
-        user_company_id = request.user.company_profile.company_id
+        user_company_id = request.user.company_id_id
         if user_company_id != company_id:
             return Response({
                 'error': 'You can only access your own company data'
@@ -1703,7 +1703,7 @@ class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         
         # Get company from authenticated user
-        company = user.company_profile
+        company = user.company_id
         
         # Get all group IDs for this company
         group_ids = list(PortalGroup.objects.filter(
@@ -1831,7 +1831,7 @@ def group_information(request):
     else:
         # Regular company user - get their own company's groups
         try:
-            company = user.company_profile
+            company = user.company_id
             
             # Check if company account is active
             if not company.isactive:
