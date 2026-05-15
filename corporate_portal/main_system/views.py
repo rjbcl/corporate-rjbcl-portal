@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth import update_session_auth_hash
 from .forms import ChangePasswordForm
 from main_system.models import AuditLog  # adjust import path if needed
+from .utils import validate_password_strength
  
 def user_login(request):
     """Single login view for all user types"""
@@ -280,43 +281,42 @@ def individual_dashboard(request):
 @require_POST
 def change_password(request):
     form = ChangePasswordForm(request.POST)
-    
+
     if not form.is_valid():
-        return JsonResponse({
-            'success': False,
-            'errors': form.errors
-        }, status=400)
-    
+        return JsonResponse({'success': False, 'errors': form.errors}, status=400)
+
     user = request.user
- 
+
     if not user.check_password(form.cleaned_data['current_password']):
         return JsonResponse({
             'success': False,
             'errors': {'current_password': ['Incorrect current password.']}
         }, status=400)
- 
-    # Set the new password
-    user.set_password(form.cleaned_data['new_password'])
-    user.modified_by = user.username  # your AuditBase field
+
+    new_password = form.cleaned_data['new_password']
+    strength_errors = validate_password_strength(new_password)
+    if strength_errors:
+        return JsonResponse({
+            'success': False,
+            'errors': {'new_password': [f"Password must contain: {', '.join(strength_errors)}."]}
+        }, status=400)
+
+    user.set_password(new_password)
+    user.modified_by = user.username
     user.save()
- 
-    # Keep the user logged in after password change
+
     update_session_auth_hash(request, user)
- 
-    # Write to your AuditLog model
+
     AuditLog.create_log(
         action='password_reset',
         target_username=user.username,
-        target_type=user.get_user_type(),   
+        target_type=user.get_user_type(),
         performed_by=user.username,
         details='User changed their own password.',
         ip_address=request.META.get('REMOTE_ADDR')
     )
- 
-    return JsonResponse({
-        'success': True,
-        'message': 'Password changed successfully.'
-    })
+
+    return JsonResponse({'success': True, 'message': 'Password changed successfully.'})
  
 def user_logout(request):
     """Logout view for all users"""

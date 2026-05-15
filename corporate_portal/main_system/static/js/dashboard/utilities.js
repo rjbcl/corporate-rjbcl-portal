@@ -26,47 +26,153 @@ function formatCurrency(amount) {
 // CHANGE PASSWORD
 // ================================
 
+// ── Password validation helpers ──────────────────────────────────────────────
+const PASSWORD_RULES = [
+  { test: (v) => v.length >= 8,           msg: 'At least 8 characters'             },
+  { test: (v) => /[A-Z]/.test(v),         msg: 'At least one uppercase letter'      },
+  { test: (v) => /[a-z]/.test(v),         msg: 'At least one lowercase letter'      },
+  { test: (v) => /[0-9]/.test(v),         msg: 'At least one number'                },
+  { test: (v) => /[^A-Za-z0-9]/.test(v), msg: 'At least one special character'     },
+];
+
+/**
+ * Validates a password value against all rules.
+ * Returns the first failing rule's message, or null if all pass.
+ */
+function getPasswordError(value) {
+  for (const rule of PASSWORD_RULES) {
+    if (!rule.test(value)) return rule.msg;
+  }
+  return null;
+}
+
+/**
+ * Shows or clears an error message beneath a given input.
+ * Adds/removes an `is-invalid` class on the input for Bootstrap styling.
+ */
+function setFieldError(input, message) {
+  // Find or create the sibling error element
+  let errorEl = input.parentElement.querySelector('.field-error');
+  if (!errorEl) {
+    errorEl = document.createElement('span');
+    errorEl.className = 'field-error form-text mt-1';
+    errorEl.style.cssText = 'color:#e74c3c; font-size:0.82rem;';
+    input.after(errorEl);
+  }
+
+  if (message) {
+    errorEl.textContent = '⚠ ' + message;
+    input.classList.add('is-invalid');
+    input.style.borderColor = '#e74c3c';
+  } else {
+    errorEl.textContent = '';
+    input.classList.remove('is-invalid');
+    input.style.borderColor = '';
+  }
+}
+
+// ── Live validation for #newPassword ─────────────────────────────────────────
+const newPasswordInput     = document.getElementById('newPassword');
+const confirmPasswordInput = document.getElementById('confirmPassword');
+
+function validateNewPassword() {
+  const val   = newPasswordInput.value;
+  const error = val ? getPasswordError(val) : null;   // silent while still empty
+  setFieldError(newPasswordInput, error);
+
+  // Re-run confirm check whenever new-password changes
+  validateConfirmPassword();
+}
+
+function validateConfirmPassword() {
+  const newVal     = newPasswordInput.value;
+  const confirmVal = confirmPasswordInput.value;
+
+  if (!confirmVal) {
+    setFieldError(confirmPasswordInput, null);   // silent while still empty
+    return;
+  }
+
+  if (newVal !== confirmVal) {
+    setFieldError(confirmPasswordInput, 'Passwords do not match');
+  } else {
+    setFieldError(confirmPasswordInput, null);
+  }
+}
+
+if (newPasswordInput) {
+  newPasswordInput.addEventListener('input', validateNewPassword);
+  newPasswordInput.addEventListener('blur',  validateNewPassword);
+}
+
+if (confirmPasswordInput) {
+  confirmPasswordInput.addEventListener('input', validateConfirmPassword);
+  confirmPasswordInput.addEventListener('blur',  validateConfirmPassword);
+}
+
+// ── Submit handler ────────────────────────────────────────────────────────────
 const changePasswordForm = document.getElementById('changePasswordForm');
+
 if (changePasswordForm) {
   changePasswordForm.addEventListener('submit', function (e) {
     e.preventDefault();
 
-    const form = this;
+    const form      = this;
     const submitBtn = document.getElementById('submitBtn');
-    const alert = document.getElementById('passwordAlert');
+    const alertEl   = document.getElementById('passwordAlert');
     const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
 
-    alert.className = 'alert d-none';
-    alert.textContent = '';
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
+    // ── Client-side guard: run all validations before hitting the server ──
+    const newVal     = newPasswordInput.value;
+    const confirmVal = confirmPasswordInput.value;
 
-    fetch("/change_password/", {
-      method: 'POST',
+    const passwordError = getPasswordError(newVal);
+    if (passwordError) {
+      setFieldError(newPasswordInput, passwordError);
+      newPasswordInput.focus();
+      return;                         // block submit
+    }
+
+    if (newVal !== confirmVal) {
+      setFieldError(confirmPasswordInput, 'Passwords do not match');
+      confirmPasswordInput.focus();
+      return;                         // block submit
+    }
+
+    // ── All good — proceed with fetch ─────────────────────────────────────
+    alertEl.className   = 'alert d-none';
+    alertEl.textContent = '';
+    submitBtn.disabled    = true;
+    submitBtn.textContent = 'Submitting…';
+
+    fetch('/change_password/', {
+      method:  'POST',
       headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken':   csrfToken,
+        'Content-Type':  'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams(new FormData(form)),
     })
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.success) {
-          alert.className = 'alert alert-success';
-          alert.textContent = data.message;
+          alertEl.className   = 'alert alert-success';
+          alertEl.textContent = data.message;
           form.reset();
+          // Clear any lingering error states after reset
+          [newPasswordInput, confirmPasswordInput].forEach((el) => setFieldError(el, null));
         } else {
-          const messages = Object.values(data.errors).flat().join(' ');
-          alert.className = 'alert alert-danger';
-          alert.textContent = messages;
+          const messages      = Object.values(data.errors).flat().join(' ');
+          alertEl.className   = 'alert alert-danger';
+          alertEl.textContent = messages;
         }
       })
       .catch(() => {
-        alert.className = 'alert alert-danger';
-        alert.textContent = 'A network error occurred. Please try again.';
+        alertEl.className   = 'alert alert-danger';
+        alertEl.textContent = 'A network error occurred. Please try again.';
       })
       .finally(() => {
-        submitBtn.disabled = false;
+        submitBtn.disabled    = false;
         submitBtn.textContent = 'Submit';
       });
   });

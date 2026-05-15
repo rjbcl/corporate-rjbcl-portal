@@ -41,6 +41,10 @@
                             <span class="ml-2">{{ company.company_name }}</span>
                         </a>
                         <div class="dropdown-menu dropdown-menu-right">
+                            <div class="dropdown-item-text text-center">
+                                <i class="bi bi-person"></i><strong> {{ request.user.username }}</strong>
+                            </div>
+                            <div class="dropdown-divider"></div>
                             <button type="button" class="btn dropdown-item" data-toggle="modal"
                                 data-target="#exampleModalCenter">
                                 <i class="bi bi-key"></i>

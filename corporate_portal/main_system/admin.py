@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from django.http import JsonResponse #type: ignore
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  #type: ignore
 from django.contrib import admin #type: ignore
@@ -14,6 +15,7 @@ from django.contrib.auth.models import Group as AuthGroup #type: ignore
 from .utils import GroupAPIService
 from django.shortcuts import redirect #type: ignore
 from django.contrib.admin.views.decorators import staff_member_required #type: ignore
+from .utils import validate_password_strength
 
 
 admin.site.site_header = "Corporate Portal"
@@ -197,7 +199,6 @@ class CompanyAccountForm(forms.ModelForm):
         self.fields['company_id'].required = True
         self.fields['company_id'].label = "Company"
 
-        # Remove related widget buttons
         widget = self.fields['company_id'].widget
         while widget is not None:
             for attr in ('can_add_related', 'can_change_related', 'can_delete_related', 'can_view_related'):
@@ -205,22 +206,30 @@ class CompanyAccountForm(forms.ModelForm):
                     setattr(widget, attr, False)
             widget = getattr(widget, 'widget', None)
 
-        if self.instance and self.instance.pk:
+        # ← Guard: username may not be present if it's in readonly_fields
+        if 'username' in self.fields and self.instance and self.instance.pk:
             self.fields['username'].disabled = True
             self.fields['username'].help_text = "Username cannot be changed after creation."
 
     def clean(self):
         cleaned_data = super().clean()
+        password = cleaned_data.get('password', '').strip()
 
         # Password required on create
         if not self.instance.pk:
-            if not cleaned_data.get('password'):
+            if not password:
                 raise forms.ValidationError("Password is required for new accounts.")
             username = cleaned_data.get('username', '').strip()
             if not username:
                 raise forms.ValidationError("Username is required.")
             if Account.objects.filter(username=username).exists():
                 self.add_error('username', "This username is already in use.")
+
+        # Password strength check
+        if password:
+            errors = validate_password_strength(password)
+            if errors:
+                raise forms.ValidationError(f"Password must contain: {', '.join(errors)}.")
 
         return cleaned_data
 
@@ -816,26 +825,37 @@ class CompanyAccountAdmin(admin.ModelAdmin):
     search_fields = ('username', 'company_id__company_name')
     actions = ['soft_delete_selected', 'reset_password_action']
 
+    fieldsets = (
+        (None, {'fields': ('username', 'company_id', 'is_active', 'password')}),
+    )
+    add_fieldsets = (
+        (None, {'classes': ('wide',), 'fields': ('username', 'company_id', 'is_active', 'password')}),
+    )
+
+    def get_fieldsets(self, request, obj=None):
+        if not obj:
+            return self.add_fieldsets
+        return self.fieldsets
+
     def get_form(self, request, obj=None, **kwargs):
         FormClass = super().get_form(request, obj, **kwargs)
 
         class FormWithRequest(FormClass):
-            def __new__(cls, *args, **kwargs):
-                kwargs['request'] = request
-                return FormClass(*args, **kwargs)
+            def __new__(cls, *args, **kw):
+                kw['request'] = request
+                return FormClass(*args, **kw)
 
         form = FormWithRequest
 
-        # Remove the add/change/delete shortcuts from the company_id widget
         if 'company_id' in form.base_fields:
-            form.base_fields['company_id'].widget.can_add_related = False
-            form.base_fields['company_id'].widget.can_change_related = False
-            form.base_fields['company_id'].widget.can_delete_related = False
+            widget = form.base_fields['company_id'].widget
+            for attr in ('can_add_related', 'can_change_related', 'can_delete_related'):
+                if hasattr(widget, attr):
+                    setattr(widget, attr, False)
 
         return form
 
     def get_queryset(self, request):
-        """Only show accounts that are linked to a company"""
         qs = super().get_queryset(request).filter(
             company_id__isnull=False
         ).select_related('company_id')

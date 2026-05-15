@@ -7,8 +7,8 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+ENFORCE_PASSWORD_STRENGTH = False  
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-y$n++q=nf#wue3!%v54xyv5q%3c-v8%-s%p^emtuki*0e4-1if'
@@ -121,6 +121,7 @@ DATABASES = {
         "PORT": config("DB_PORT"),
         "OPTIONS": {
             "sslmode": "require",
+            'options': '-c timezone=Asia/Kathmandu'
         },
     },
     'company_external': {
@@ -179,11 +180,11 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kathmandu'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
