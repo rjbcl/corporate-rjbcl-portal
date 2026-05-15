@@ -1,12 +1,12 @@
 import traceback
 from main_system.models import ReportAccessLog
- 
- 
+
+
 def _format_query(sql_template: str, params: list) -> str:
     """
     Substitutes %s placeholders in the SQL template with their actual
     parameter values to produce a single human-readable query string.
- 
+
     Strings and dates are wrapped in single quotes.
     None becomes NULL.
     Numbers are left unquoted.
@@ -22,15 +22,15 @@ def _format_query(sql_template: str, params: list) -> str:
             # and escape any internal single quotes
             escaped = str(param).replace("'", "''")
             formatted_params.append(f"'{escaped}'")
- 
+
     # Replace each %s in order with its formatted value
     result = sql_template
     for value in formatted_params:
         result = result.replace('%s', value, 1)
- 
+
     return result.strip()
- 
- 
+
+
 def _format_error(exc: Exception) -> str:
     """
     Combines the exception message and full traceback into one string.
@@ -38,8 +38,8 @@ def _format_error(exc: Exception) -> str:
     exc_message = str(exc)
     exc_traceback = traceback.format_exc()
     return f"Exception: {exc_message}\n\nTraceback:\n{exc_traceback}".strip()
- 
- 
+
+
 def log_report_access(
     request,
     report_type: str,
@@ -51,7 +51,7 @@ def log_report_access(
 ):
     """
     Creates a ReportAccessLog entry.
- 
+
     Args:
         request      : The DRF request object (used to extract username).
         report_type  : Human-readable report name e.g. 'Death Claim Report'.
@@ -61,22 +61,35 @@ def log_report_access(
         exc          : The caught exception, if any. Used to populate error_message.
         remarks      : Optional free-form note to store alongside the log entry.
     """
-    # Only store the generated SQL query for error outcomes.
-    # For successful operations, store a placeholder and drop parameters.
+    # Only store the generated SQL query for non-success outcomes.
     if status == ReportAccessLog.Status.SUCCESS:
         formatted_query = ''
     else:
         formatted_query = _format_query(sql_template, params)
 
-    # Set has_error flag: 1 if error exists, 0 if no error
     has_error = status == ReportAccessLog.Status.ERROR or exc is not None
 
-    ReportAccessLog.objects.create(
-        generator=request.user.username,
-        report_type=report_type.strip(),
-        query=formatted_query,
-        status=status,
-        has_error=has_error,
-        error_message=_format_error(exc) if exc is not None else None,
-        remarks=remarks.strip() if remarks else None,
-    )
+    try:
+        ReportAccessLog.objects.create(
+            generator=request.user.username,
+            report_type=report_type.strip(),
+            query=formatted_query,
+            status=status,
+            has_error=has_error,
+            error_message=_format_error(exc) if exc is not None else None,
+            remarks=remarks.strip() if remarks else None,
+        )
+    except Exception as log_exc:
+        # The logger itself failed — print everything to console so it's
+        # never silently lost, then re-raise so the caller knows.
+        print(
+            f"[log_report_access] FAILED TO WRITE LOG ENTRY\n"
+            f"  report_type : {report_type}\n"
+            f"  status      : {status}\n"
+            f"  generator   : {getattr(request.user, 'username', 'unknown')}\n"
+            f"  query       : {formatted_query}\n"
+            f"  original exc: {exc}\n"
+            f"  log exc     : {log_exc}\n"
+            f"{traceback.format_exc()}"
+        )
+        raise

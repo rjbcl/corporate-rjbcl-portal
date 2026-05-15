@@ -215,7 +215,7 @@ class ReportAccessLog(models.Model):
     # ── Who ───────────────────────────────────────────────────────────────────
     generator = models.CharField(
         max_length=150,
-        db_column='generator_company',
+        db_column='generator',
         default='unknown',
         help_text="Username of the user who triggered the report.",
     )
@@ -267,7 +267,7 @@ class ReportAccessLog(models.Model):
         verbose_name_plural = 'Report Generation Logs'
  
     def __str__(self):
-        return f"[{self.generated_at}] {self.generator_company} → {self.report_type} ({self.status})"
+        return f"[{self.generated_at}] {self.generator} → {self.report_type} ({self.status})"
  
     def save(self, *args, **kwargs):
         # Save the new log entry first

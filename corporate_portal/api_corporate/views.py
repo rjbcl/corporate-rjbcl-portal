@@ -1164,6 +1164,8 @@ def policy_summary_report(request):
     
     try:
         results = []
+        sql = ''
+        params = []
         
         with connections['company_external'].cursor() as cursor:
             placeholders = ','.join(['%s'] * len(group_ids))
