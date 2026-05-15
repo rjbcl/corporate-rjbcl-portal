@@ -18,7 +18,7 @@ from main_system.models import Account, Company, Group, AuditLog
 class BaseTestCase(TestCase):
     """
     Creates the three user types used across all test classes.
-    - company_user  : linked to a Company profile
+    - company_user  : linked to a Company profile via Account.company_id FK
     - staff_user    : is_staff=True, no company/individual profile
     - admin_user    : is_superuser=True
     """
@@ -40,14 +40,17 @@ class BaseTestCase(TestCase):
         )
 
         # --- Company account + profile ---
+        # Company no longer holds a FK to Account; Account holds a FK to Company.
+        # Step 1: create the Company (no account link needed on Company itself)
+        self.company = Company.objects.create(
+            company_name='Test Corp',
+            isactive=True,
+        )
+        # Step 2: create the Account and point its company_id FK at the company
         self.company_account = Account.objects.create_user(
             username='companyuser',
             password='CompanyPass123',
-        )
-        self.company = Company.objects.create(
-            username=self.company_account,
-            company_name='Test Corp',
-            isactive=True,
+            company_id=self.company,
         )
 
     # -- convenience login helpers --
@@ -82,7 +85,6 @@ class LoginViewTests(BaseTestCase):
     def test_authenticated_user_redirects_to_dashboard(self):
         self.login_as_company()
         response = self.client.get(self.url)
-        # dashboard itself redirects further, so don't follow the chain
         self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
 
     # POST - failure cases -----------------------------------------------
@@ -107,8 +109,6 @@ class LoginViewTests(BaseTestCase):
         })
         self.assertEqual(response.status_code, 200)
         messages = list(response.context['messages'])
-        # Django's ModelBackend rejects inactive users before the view runs,
-        # so authenticate() returns None → the generic 'Invalid' message fires.
         self.assertTrue(any('Invalid' in str(m) for m in messages))
 
     def test_post_inactive_company_profile_blocked(self):
@@ -130,7 +130,6 @@ class LoginViewTests(BaseTestCase):
             'username': 'companyuser',
             'password': 'CompanyPass123',
         })
-        # dashboard redirects onward; don't follow the chain
         self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
 
     def test_post_valid_staff_login_redirects_to_dashboard(self):
@@ -138,7 +137,6 @@ class LoginViewTests(BaseTestCase):
             'username': 'staffuser',
             'password': 'StaffPass123',
         })
-        # dashboard redirects onward; don't follow the chain
         self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
 
 
@@ -182,7 +180,6 @@ class CompanyDashboardTests(BaseTestCase):
         super().setUp()
         self.url = reverse('company_dashboard')
 
-        # Create a group so total_groups count is testable
         Group.objects.create(
             company_id=self.company,
             group_id='GRP001',
@@ -211,7 +208,6 @@ class CompanyDashboardTests(BaseTestCase):
     def test_staff_user_redirected_by_decorator(self):
         self.login_as_staff()
         response = self.client.get(self.url)
-        # decorator redirects to dashboard which itself redirects; don't follow
         self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
 
     def test_deleted_group_not_counted(self):
@@ -223,7 +219,6 @@ class CompanyDashboardTests(BaseTestCase):
         )
         self.login_as_company()
         response = self.client.get(self.url)
-        # Only the non-deleted group from setUp should be counted
         self.assertEqual(response.context['total_groups'], 1)
 
 
@@ -250,7 +245,6 @@ class CompanyGroupsViewTests(BaseTestCase):
     def test_staff_user_denied_and_redirected_to_dashboard(self):
         self.login_as_staff()
         response = self.client.get(self.url)
-        # dashboard itself redirects; don't follow the chain
         self.assertRedirects(response, reverse('dashboard'), fetch_redirect_response=False)
         messages = list(response.wsgi_request._messages)
         self.assertTrue(any('Access denied' in str(m) for m in messages))
@@ -281,7 +275,6 @@ class CompanyReportViewTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        # Provide at least one group so dropdowns aren't empty
         Group.objects.create(
             company_id=self.company,
             group_id='GRP001',
@@ -310,17 +303,14 @@ class CompanyReportViewTests(BaseTestCase):
             msg=f"[{url_name}] company user should get 200",
         )
         self.assertTemplateUsed(response, template)
-        # Context must include company and groups
         self.assertIn('company', response.context)
         if 'groups' in response.context:
-            # Views that pass a groups queryset: confirm it's non-empty
             self.assertGreaterEqual(len(response.context['groups']), 1)
         self.client.logout()
 
         # 3. Staff user (non-company) denied
         self.login_as_staff()
         response = self.client.get(url)
-        # dashboard itself redirects onward; don't follow the chain
         self.assertRedirects(
             response,
             reverse('dashboard'),
@@ -424,8 +414,6 @@ class ChangePasswordViewTests(BaseTestCase):
             'new_password':     'NewStrongPass123',
             'confirm_password': 'NewStrongPass123',
         })
-        # dashboard always redirects (302) based on user type — that's expected.
-        # What we verify is that the redirect is NOT back to login (session still valid).
         response = self.client.get(reverse('dashboard'))
         self.assertEqual(response.status_code, 302)
         self.assertNotIn(reverse('login'), response['Location'])
@@ -462,6 +450,5 @@ class LogoutViewTests(BaseTestCase):
     def test_session_cleared_after_logout(self):
         self.login_as_company()
         self.client.get(self.url)
-        # After logout, dashboard should redirect to login
         response = self.client.get(reverse('dashboard'))
         self.assertRedirects(response, f"{reverse('login')}?next={reverse('dashboard')}")

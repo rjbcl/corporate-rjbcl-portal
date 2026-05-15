@@ -49,9 +49,13 @@ def make_account(username="testuser", password="testpass123", **kwargs):
     return Account.objects.create_user(username=username, password=password, **kwargs)
 
 
-def make_company(account, name="Test Corp", **kwargs):
-    """Create a Company linked to *account*."""
-    return Company.objects.create(username=account, company_name=name, **kwargs)
+def make_company(account=None, name="Test Corp", **kwargs):
+    """Create a Company and optionally link *account* to it via Account.company_id."""
+    company = Company.objects.create(company_name=name, **kwargs)
+    if account is not None:
+        account.company_id = company
+        account.save()
+    return company
 
 
 def make_group(company, group_id="GRP001", group_name="Test Group", **kwargs):
@@ -209,14 +213,16 @@ class TestAccountModel(TestCase):
         self.assertEqual(staff.get_user_type(), "staff")
 
     def test_get_user_type_company(self):
+        # Account.get_user_type() checks self.company_id (the FK field on Account).
+        # Create the Company first, then point the account's FK at it.
+        company = Company.objects.create(company_name="Temp Corp")
         account = make_account("company_user")
-        make_company(account, "Corp Ltd")
-        # Refresh to load the reverse relation
+        account.company_id = company
+        account.save()
         account = Account.objects.get(pk="company_user")
         self.assertEqual(account.get_user_type(), "company")
 
     def test_get_user_type_individual(self):
-        # Set up the full chain: company account → company → group → individual account
         company_account = make_account("indiv_company")
         company = make_company(company_account, "Corp For Individual")
         group = make_group(company)
@@ -234,8 +240,11 @@ class TestAccountModel(TestCase):
         self.assertEqual(staff.get_display_name(), "display_staff")
 
     def test_get_display_name_for_company(self):
+        # Create the Company first, then point the account's FK at it.
+        company = Company.objects.create(company_name="Display Corp")
         account = make_account("display_company")
-        make_company(account, "Display Corp")
+        account.company_id = company
+        account.save()
         account = Account.objects.get(pk="display_company")
         self.assertEqual(account.get_display_name(), "Display Corp")
 
@@ -285,20 +294,17 @@ class TestCompanyModel(TestCase):
         self.assertIsNone(self.company.email)
         self.assertIsNone(self.company.remarks)
 
-    def test_one_to_one_link_to_account(self):
-        self.assertEqual(self.company.username, self.account)
+    def test_account_linked_to_company_via_fk(self):
+        # The link is on Account.company_id, not on Company.
+        # Verify the account set up in setUp has the correct FK.
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.company_id, self.company)
 
-    def test_reverse_relation_from_account(self):
-        self.assertEqual(self.account.company_profile, self.company)
-
-    def test_one_account_cannot_have_two_companies(self):
-        with self.assertRaises(Exception):
-            make_company(self.account, "Duplicate Corp")
-
-    def test_cascade_delete_account_deletes_company(self):
+    def test_deleting_account_does_not_delete_company(self):
+        # Account.company_id is SET_NULL on delete — Company survives.
         company_id = self.company.company_id
         self.account.delete()
-        self.assertFalse(Company.objects.filter(company_id=company_id).exists())
+        self.assertTrue(Company.objects.filter(company_id=company_id).exists())
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -342,10 +348,10 @@ class TestGroupModel(TestCase):
         self.company.delete()
         self.assertFalse(Group.objects.filter(row_id=group_pk).exists())
 
-    def test_cascade_delete_account_deletes_group(self):
-        """Full chain: Account → Company → Group."""
+    def test_cascade_delete_company_deletes_group_via_account_fk(self):
+        """Deleting account nulls company_id FK (SET_NULL); deleting company cascades to group."""
         group_pk = self.group.row_id
-        self.account.delete()
+        self.company.delete()
         self.assertFalse(Group.objects.filter(row_id=group_pk).exists())
 
 
@@ -396,10 +402,10 @@ class TestIndividualModel(TestCase):
         self.indiv_account.delete()
         self.assertFalse(Individual.objects.filter(user_id=indiv_pk).exists())
 
-    def test_full_cascade_from_company_account(self):
-        """Account → Company → Group → Individual all deleted."""
+    def test_full_cascade_from_company_delete(self):
+        """Company → Group → Individual all deleted when company is deleted."""
         indiv_pk = self.individual.user_id
-        self.company_account.delete()
+        self.company.delete()
         self.assertFalse(Individual.objects.filter(user_id=indiv_pk).exists())
 
 
@@ -445,10 +451,10 @@ class TestPolicyModel(TestCase):
         self.indiv_account.delete()
         self.assertFalse(Policy.objects.filter(row_id=policy_pk).exists())
 
-    def test_full_cascade_chain_from_company_account(self):
-        """Account → Company → Group → Individual → Policy (all gone)."""
+    def test_full_cascade_chain_from_company_delete(self):
+        """Company → Group → Individual → Policy all deleted when company is deleted."""
         policy_pk = self.policy.row_id
-        self.company_account.delete()
+        self.company.delete()
         self.assertFalse(Policy.objects.filter(row_id=policy_pk).exists())
 
 
@@ -458,12 +464,13 @@ class TestPolicyModel(TestCase):
 
 class TestReportAccessLog(TestCase):
 
-    def _make_log(self, n=1, company="test_company", report="Death Claim Report"):
+    # CHANGED: field renamed from generator_company → generator throughout
+    def _make_log(self, n=1, generator="test_company", report="Death Claim Report"):
         """Bulk-create *n* log entries and return the last one."""
         log = None
         for i in range(n):
             log = ReportAccessLog.objects.create(
-                generator_company=company,
+                generator=generator,
                 report_type=report,
                 status=ReportAccessLog.Status.SUCCESS,
             )
@@ -471,7 +478,8 @@ class TestReportAccessLog(TestCase):
 
     def test_creation_stores_fields(self):
         log = self._make_log()
-        self.assertEqual(log.generator_company, "test_company")
+        # CHANGED: generator_company → generator
+        self.assertEqual(log.generator, "test_company")
         self.assertEqual(log.report_type, "Death Claim Report")
         self.assertEqual(log.status, ReportAccessLog.Status.SUCCESS)
 
@@ -508,7 +516,7 @@ class TestReportAccessLog(TestCase):
         ]
         for status in valid_statuses:
             log = ReportAccessLog.objects.create(
-                generator_company="tester",
+                generator="tester",
                 report_type="Test Report",
                 status=status,
             )
@@ -531,12 +539,13 @@ class TestReportAccessLog(TestCase):
             ReportAccessLog.objects.filter(row_id=last.row_id).exists()
         )
 
-    def test_generator_company_defaults_to_unknown(self):
+    def test_generator_defaults_to_unknown(self):
+        # CHANGED: field is generator (default='unknown'), not generator_company
         log = ReportAccessLog.objects.create(
             report_type="Some Report",
             status=ReportAccessLog.Status.SUCCESS,
         )
-        self.assertEqual(log.generator_company, "unknown")
+        self.assertEqual(log.generator, "unknown")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -632,3 +641,5 @@ class TestAuditLog(TestCase):
             last = self._create_log(target=f"order_user_{i}")
         newest = AuditLog.objects.first()
         self.assertEqual(newest.log_id, last.log_id)
+
+        #519.2 + 4200 + 3840 + 38 +  70 + 884 
