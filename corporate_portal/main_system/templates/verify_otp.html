@@ -1,0 +1,272 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>Mobile OTP Verification - Corporate Portal</title>
+    <link href="{% static 'bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/login.css' %}" rel="stylesheet">
+    <link rel="icon" href="{% static 'images/favicon-logo.png' %}" type="image/x-icon" />
+    <link rel="stylesheet" href="{% static 'css/all.css' %}" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" />
+    <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap-login-form.min.css' %}" />
+    <style>
+        .otp-inputs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .otp-inputs input {
+            width: 48px;
+            height: 56px;
+            text-align: center;
+            font-size: 1.4rem;
+            font-weight: 600;
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .otp-inputs input:focus {
+            border-color: #ee7724;
+            box-shadow: 0 0 0 3px rgba(238, 119, 36, 0.15);
+        }
+        .otp-inputs input.filled {
+            border-color: #d8363a;
+            background: #fff8f7;
+        }
+        .masked-mobile {
+            font-weight: 600;
+            color: #d8363a;
+        }
+        .resend-timer {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+
+<body>
+    <section class="gradient-form" style="background-color: #eee;">
+        <div class="container py-5 h-100">
+            <div class="row d-flex justify-content-center align-items-center h-100">
+                <div class="col-xl-10">
+                    <div class="card rounded-3 text-black">
+                        <div class="row g-0">
+
+                            <!-- LEFT PANEL -->
+                            <div class="col-lg-6">
+                                <div class="card-body p-md-5 mx-md-4">
+
+                                    <div class="text-center">
+                                        <img class="img-fluid w-100 mb-4"
+                                            src="{% static 'images/rjbclogo.png' %}"
+                                            style="width: 185px;" alt="logo">
+                                    </div>
+
+                                    {% if messages %}
+                                        {% for message in messages %}
+                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                            {{ message }}
+                                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                        </div>
+                                        {% endfor %}
+                                    {% endif %}
+
+                                    <h5 class="mb-1 fw-semibold">Mobile OTP Verification</h5>
+
+                                    {% if not otp_sent %}
+                                    <!-- ── SEND OTP STATE ── -->
+                                    <p class="text-muted small mb-4">
+                                        Click below to send a one-time password to your registered mobile number.
+                                    </p>
+
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="send">
+                                        <div class="text-center pt-1 mb-3">
+                                            <button class="btn btn-primary btn-block fa-lg gradient-custom-2 mb-2"
+                                                type="submit">
+                                                <i class="fas fa-paper-plane me-2"></i> Send OTP
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    {% else %}
+                                    <!-- ── VERIFY OTP STATE ── -->
+                                    <p class="text-muted small mb-4">
+                                        Enter the 6-digit code sent to your registered mobile number.
+                                        Code expires in <strong>{{ otp_expire_seconds|default:120 }} seconds</strong>.
+                                    </p>
+
+                                    <!-- OTP digit inputs -->
+                                    <form method="post" id="otp-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="verify">
+                                        <input type="hidden" name="code" id="otp-hidden">
+
+                                        <div class="otp-inputs mb-4">
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                            <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]" class="otp-digit" />
+                                        </div>
+
+                                        <div class="text-center pt-1 mb-3">
+                                            <button class="btn btn-primary btn-block fa-lg gradient-custom-2 mb-2"
+                                                type="submit"
+                                                id="verify-btn"
+                                                disabled>
+                                                Verify OTP
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    <!-- Resend -->
+                                    <div class="text-center mb-3">
+                                        <span class="resend-timer" id="resend-area">
+                                            Resend OTP in <span id="resend-countdown">120</span>s
+                                        </span>
+                                    </div>
+
+                                    {% endif %}
+
+                                    <!-- Back to authenticator -->
+                                    <div class="d-flex align-items-center justify-content-center mb-2">
+                                        <p class="mb-0 me-2 small text-muted">Have your authenticator app?</p>
+                                        <a href="{% url 'verify_2fa' %}" class="btn btn-outline-secondary btn-sm">
+                                            Use Authenticator
+                                        </a>
+                                    </div>
+
+                                    <!-- Back to login -->
+                                    <div class="text-center mt-2">
+                                        <a href="{% url 'login' %}" class="text-muted small">
+                                            <i class="fas fa-arrow-left me-1"></i> Back to Login
+                                        </a>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- RIGHT PANEL -->
+                            <div class="col-lg-6 d-flex align-items-center gradient-custom-2">
+                                <div class="text-white px-3 py-4 p-md-5 mx-md-4">
+                                    <h4 class="mb-4">Mobile Verification</h4>
+                                    <p class="small mb-3">
+                                        A one-time password has been sent to your registered mobile number.
+                                        This code is valid for {{ otp_expire_seconds|default:120 }} seconds.
+                                    </p>
+                                    <p class="small mb-3">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        Never share your OTP with anyone, including RJBCL staff.
+                                    </p>
+                                    <p class="small mb-0">
+                                        <i class="fas fa-clock me-2"></i>
+                                        If your code expires, you can request a new one.
+                                    </p>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="{% static 'js/mdb.min.js' %}"></script>
+    <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+
+    <script>
+        {% if otp_sent %}
+
+        // ── OTP digit input navigation ──
+        const digits = document.querySelectorAll('.otp-digit');
+        const hiddenInput = document.getElementById('otp-hidden');
+        const verifyBtn = document.getElementById('verify-btn');
+
+        digits.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                // Allow digits only
+                input.value = input.value.replace(/[^0-9]/g, '');
+
+                if (input.value) {
+                    input.classList.add('filled');
+                    // Move to next
+                    if (index < digits.length - 1) {
+                        digits[index + 1].focus();
+                    }
+                } else {
+                    input.classList.remove('filled');
+                }
+                syncHidden();
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !input.value && index > 0) {
+                    digits[index - 1].focus();
+                    digits[index - 1].value = '';
+                    digits[index - 1].classList.remove('filled');
+                    syncHidden();
+                }
+            });
+
+            // Handle paste on any digit
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+                pasted.split('').forEach((char, i) => {
+                    if (digits[i]) {
+                        digits[i].value = char;
+                        digits[i].classList.add('filled');
+                    }
+                });
+                const nextEmpty = [...digits].findIndex(d => !d.value);
+                if (nextEmpty !== -1) digits[nextEmpty].focus();
+                else digits[5].focus();
+                syncHidden();
+            });
+        });
+
+        function syncHidden() {
+            const code = [...digits].map(d => d.value).join('');
+            hiddenInput.value = code;
+            verifyBtn.disabled = code.length !== 6;
+        }
+
+        // Auto focus first digit
+        digits[0].focus();
+
+        // ── Resend countdown ──
+        let resendSeconds = {{ otp_expire_seconds|default:120 }};
+        const resendArea = document.getElementById('resend-area');
+        const resendCountdown = document.getElementById('resend-countdown');
+
+        const resendTimer = setInterval(() => {
+            resendSeconds--;
+            if (resendSeconds <= 0) {
+                clearInterval(resendTimer);
+                resendArea.innerHTML = `
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="send">
+                        <button type="submit" class="btn btn-link p-0 text-decoration-none" style="font-size:0.85rem;">
+                            <i class="fas fa-redo me-1"></i> Resend OTP
+                        </button>
+                    </form>
+                `;
+            } else {
+                resendCountdown.textContent = resendSeconds;
+            }
+        }, 1000);
+
+        {% endif %}
+    </script>
+</body>
+</html>

@@ -8,7 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 ENFORCE_PASSWORD_STRENGTH = False  
-
+HASH_OTP = False
+OTP_EXPIRE_SECONDS = 120
+OTP_MAX_ATTEMPTS = 3
+OTP_TIMEOUT_MINUTES = 15
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-y$n++q=nf#wue3!%v54xyv5q%3c-v8%-s%p^emtuki*0e4-1if'
@@ -184,7 +187,7 @@ TIME_ZONE = 'Asia/Kathmandu'
 
 USE_I18N = True
 
-USE_TZ = False
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -192,6 +195,9 @@ USE_TZ = False
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 
 LOGIN_URL = 'login'

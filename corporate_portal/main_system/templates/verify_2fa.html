@@ -1,0 +1,272 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>Two-Factor Authentication - Corporate Portal</title>
+    <link href="{% static 'bootstrap/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'css/login.css' %}" rel="stylesheet">
+    <link rel="icon" href="{% static 'images/favicon-logo.png' %}" type="image/x-icon" />
+    <link rel="stylesheet" href="{% static 'css/all.css' %}" />
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap" />
+    <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap-login-form.min.css' %}" />
+    <style>
+        .qr-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            display: inline-block;
+        }
+
+        .secret-box {
+            background: #f1f3f5;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+            word-break: break-all;
+        }
+
+        .step-badge {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(to right, #ee7724, #d8363a, #dd3675, #b44593);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .timer-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: #dee2e6;
+            overflow: hidden;
+        }
+
+        .timer-fill {
+            height: 100%;
+            background: linear-gradient(to right, #ee7724, #d8363a);
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+
+<body>
+    <section class="gradient-form" style="background-color: #eee;">
+        <div class="container py-5 h-100">
+            <div class="row d-flex justify-content-center align-items-center h-100">
+                <div class="col-xl-10">
+                    <div class="card rounded-3 text-black">
+                        <div class="row g-0">
+
+                            <!-- LEFT PANEL -->
+                            <div class="col-lg-6">
+                                <div class="card-body p-md-5 mx-md-4">
+
+                                    <div class="text-center">
+                                        <img class="img-fluid w-100 mb-4" src="{% static 'images/rjbclogo.png' %}"
+                                            style="width: 185px;" alt="logo">
+                                    </div>
+
+                                    {% if messages %}
+                                    {% for message in messages %}
+                                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show"
+                                        role="alert">
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    </div>
+                                    {% endfor %}
+                                    {% endif %}
+
+                                    {% if is_setup %}
+                                    <p class="text-muted small mb-4">
+                                        Scan the QR code below with your authenticator app, then enter the 6-digit code
+                                        to confirm setup.
+                                    </p>
+
+
+                                    <!-- QR Code -->
+                                    <div class="text-center mb-3">
+                                        <div class="qr-container">
+                                            <img src="data:image/png;base64,{{ qr_base64 }}" alt="TOTP QR Code"
+                                                style="width: 180px; height: 180px;">
+                                        </div>
+                                    </div>
+
+                                    <!-- Manual entry fallback -->
+                                    <div class="mb-4">
+                                        <p class="text-muted small mb-1 text-center">Can't scan? Enter this code
+                                            manually:</p>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="secret-box flex-grow-1" id="totp-secret">{{ totp_secret }}</div>
+                                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                onclick="copySecret()" title="Copy secret">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                        <p class="text-muted" style="font-size:0.7rem; margin-top:4px;">
+                                            * Keep this secret safe. Do not share it with anyone.
+                                        </p>
+                                    </div>
+
+                                    <!-- Code input -->
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <div class="form-outline mb-4">
+                                            <input type="text" id="code" name="code" class="form-control"
+                                                placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric"
+                                                pattern="[0-9]{6}" autocomplete="one-time-code" required />
+                                            <label class="form-label" for="code">Verification Code</label>
+                                        </div>
+                                        <div class="text-center pt-1 mb-3">
+                                            <button class="btn btn-primary btn-block fa-lg gradient-custom-2 mb-2"
+                                                type="submit">
+                                                Confirm Setup
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    {% else %}
+                                    <!-- ── NORMAL TOTP VERIFICATION ── -->
+                                    <h5 class="mb-1 fw-semibold">Two-Factor Authentication</h5>
+                                    <p class="text-muted small mb-4">
+                                        Enter the 6-digit code from your authenticator app.
+                                    </p>
+
+                                    <!-- Timer bar -->
+                                    <div class="timer-bar mb-1">
+                                        <div class="timer-fill" id="timer-fill"></div>
+                                    </div>
+                                    <p class="text-muted small mb-4" id="timer-text">Code refreshes in <span
+                                            id="timer-seconds">30</span>s</p>
+
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <div class="form-outline mb-4">
+                                            <input type="text" id="code" name="code" class="form-control"
+                                                placeholder="Enter 6-digit code" maxlength="6" inputmode="numeric"
+                                                pattern="[0-9]{6}" autocomplete="one-time-code" autofocus required />
+                                            <label class="form-label" for="code">Authenticator Code</label>
+                                        </div>
+                                        <div class="text-center pt-1 mb-3">
+                                            <button class="btn btn-primary btn-block fa-lg gradient-custom-2 mb-2"
+                                                type="submit">
+                                                Verify
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    {% if has_mobile %}
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <p class="mb-0 me-2 small text-muted">Don't have access to your app?</p>
+                                        <a href="{% url 'verify_otp' %}" class="btn btn-outline-secondary btn-sm">
+                                            Use Mobile OTP
+                                        </a>
+                                    </div>
+                                    {% endif %}
+
+                                    {% endif %}
+
+                                    <!-- Back to login -->
+                                    <div class="text-center mt-3">
+                                        <a href="{% url 'login' %}" class="text-muted small">
+                                            <i class="fas fa-arrow-left me-1"></i> Back to Login
+                                        </a>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <!-- RIGHT PANEL -->
+                            <div class="col-lg-6 d-flex align-items-center gradient-custom-2">
+                                <div class="text-white px-3 py-4 p-md-5 mx-md-4">
+                                    {% if is_setup %}
+                                    <h4 class="mb-4">Secure Your Account</h4>
+                                    <p class="small mb-3">
+                                        Two-factor authentication adds an extra layer of security to your account.
+                                        Even if someone knows your password, they won't be able to log in without your
+                                        authenticator app.
+                                    </p>
+                                    <p class="small mb-3">
+                                        <i class="fas fa-shield-alt me-2"></i> Your account is protected by RJBCL
+                                        Corporate Portal security standards.
+                                    </p>
+                                    <p class="small mb-0">
+                                        <i class="fas fa-mobile-alt me-2"></i> Supported apps: Google Authenticator,
+                                        Microsoft Authenticator, Authy.
+                                    </p>
+                                    {% else %}
+
+                                    <h4 class="mb-4">Two-Factor Authentication Required</h4>
+                                    <p class="small mb-0"> Please open the authenticator app and RJBCL-CorporatePortal
+                                        on your registered device
+                                        to retrieve your 6-digit verification code. Enter the code to complete
+                                        your login. <br> <br>
+                                        कृपया आफ्नो लगइन प्रक्रिया पूरा गर्नका लागि आफ्नो मोबाइलमा
+                                        'अथेन्टिकेटर एप' (Authenticator App) खोली RJBCL-CorporatePortalमा उपलब्ध ६ अंकको प्रमाणिकरण कोड
+                                        यहाँ राख्नुहोस्।
+                                    </p>
+
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="{% static 'js/mdb.min.js' %}"></script>
+    <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <script>
+        // ── Copy TOTP secret ──
+        function copySecret() {
+            const secret = document.getElementById('totp-secret').innerText.trim();
+            navigator.clipboard.writeText(secret).then(() => {
+                const btn = document.querySelector('[onclick="copySecret()"]');
+                btn.innerHTML = '<i class="fas fa-check"></i>';
+                btn.classList.replace('btn-outline-secondary', 'btn-outline-success');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
+                    btn.classList.replace('btn-outline-success', 'btn-outline-secondary');
+                }, 2000);
+            });
+        }
+
+        // ── TOTP 30s countdown timer ──
+        {% if not is_setup %}
+        function updateTimer() {
+            const now = Math.floor(Date.now() / 1000);
+            const secondsLeft = 30 - (now % 30);
+            const pct = (secondsLeft / 30) * 100;
+
+            document.getElementById('timer-seconds').textContent = secondsLeft;
+            document.getElementById('timer-fill').style.width = pct + '%';
+
+            // Warn when < 5 seconds
+            const fill = document.getElementById('timer-fill');
+            if (secondsLeft <= 5) {
+                fill.style.background = '#dc3545';
+            } else {
+                fill.style.background = 'linear-gradient(to right, #ee7724, #d8363a)';
+            }
+        }
+        updateTimer();
+        setInterval(updateTimer, 1000);
+        {% endif %}
+    </script>
+</body>
+
+</html>

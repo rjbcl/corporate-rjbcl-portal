@@ -293,6 +293,7 @@ if (searchToggle) {
 // Close search panel when clicking outside
 document.addEventListener('click', function (e) {
   if (!e.target.closest('.search_bar')) {
-    document.getElementById('search-panel').style.display = 'none';
+    const panel = document.getElementById('search-panel');
+    if (panel) panel.style.display = 'none';
   }
 });
