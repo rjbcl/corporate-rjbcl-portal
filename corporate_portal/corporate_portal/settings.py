@@ -135,7 +135,8 @@ DATABASES = {
         'HOST': config('COMPANY_DB_HOST'),
         'PORT': config('COMPANY_DB_PORT'),
         'OPTIONS': {
-            "sslmode": "require",
+            "driver":"ODBC Driver 18 for SQL Server",
+            'extra_params': 'TrustServerCertificate=yes;Encrypt=yes;',
         },
     }
 }
