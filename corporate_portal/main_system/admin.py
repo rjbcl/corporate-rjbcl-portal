@@ -5,9 +5,12 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  # type: ignore
 from django.contrib.auth.models import Group as AuthGroup  # type: ignore
 from django.contrib.admin.views.decorators import staff_member_required  # type: ignore
 from django.core.exceptions import ValidationError, PermissionDenied  # type: ignore
+from django.utils.html import format_html
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect  # type: ignore
 from django import forms  # type: ignore
-
+from django.urls import path, reverse
+from api_corporate.models import APIKey
 from .models import (
     AuditLog, Company, CompanyDocument, Group,
     Account, CompanyAccount, UserVerification,
@@ -15,7 +18,7 @@ from .models import (
 from .services import CompanyService, CompanyAccountService
 from .utils import GroupAPIService, validate_password_strength
 
-from django_select2.forms import Select2MultipleWidget  # type: ignore
+from django_select2.forms import Select2MultipleWidget, reverse  # type: ignore
 
 
 admin.site.site_header = "Corporate Portal"
@@ -641,19 +644,80 @@ class AccountAdmin(BaseUserAdmin):
 
 
 # ============================================================
-# COMPANY ADMIN
+# API KEY INLINE
 # ============================================================
-
+ 
+class APIKeyInline(admin.StackedInline):
+    """
+    Read-only inline showing API key status on the Company change page.
+    Visible to superadmin and Admin group only.
+    Key generation is handled via the 'Generate API Key' button
+    injected into the change page — superadmin only.
+    """
+    model = APIKey
+    extra = 0
+    can_delete = False
+    show_change_link = False
+    verbose_name = 'API Key'
+    verbose_name_plural = 'API Access'
+ 
+    readonly_fields = [
+        'key_preview',
+        'is_active',
+        'created_by',
+        'created_at',
+        'last_used_at',
+    ]
+    # Exclude key_hash — never show the raw hash in the UI
+    fields = [
+        'key_preview',
+        'is_active',
+        'created_by',
+        'created_at',
+        'last_used_at',
+    ]
+ 
+    def has_add_permission(self, request, obj=None):
+        # Key creation is only done via generate_api_key_view
+        return False
+ 
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser or _is_admin_group(request.user)
+ 
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser or _is_admin_group(request.user)
+ 
+    def has_delete_permission(self, request, obj=None):
+        return False
+ 
+    @admin.display(description='Key Hash Preview')
+    def key_preview(self, obj):
+        if not obj.key_hash:
+            return '—'
+        return f"{obj.key_hash[:12]}…  (full key not recoverable)"
+ 
+ 
+# ============================================================
+# HELPER
+# ============================================================
+ 
+def _is_admin_group(user):
+    """Returns True if user belongs to the Admin group (not superuser check)."""
+    return user.groups.filter(name='Admin').exists()
+ 
+ 
+# ============================================================
+# UPDATED CompanyAdmin
+# ============================================================
+ 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
     form = CompanyAdminForm
-    inlines = [CompanyDocumentInline]
     list_display = ('company_name', 'isactive', 'get_account_count')
     list_filter = ('isactive',)
     search_fields = ('company_name',)
-    actions = ['soft_delete_selected']
+    actions = ['soft_delete_selected', 'generate_api_key']
 
-    # Two fieldsets — Company Information and Primary Contact
     fieldsets = (
         ('Company Information', {
             'fields': (
@@ -688,6 +752,71 @@ class CompanyAdmin(admin.ModelAdmin):
             'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js',
         )
 
+    def get_inlines(self, request, obj=None):
+        """
+        Only show APIKeyInline on existing companies (not add page)
+        and only to superadmin + Admin group.
+        """
+        inlines = [CompanyDocumentInline]
+        if obj and (request.user.is_superuser or _is_admin_group(request.user)):
+            inlines.append(APIKeyInline)
+        return inlines
+
+    def generate_api_key(self, request, queryset):
+        """
+        Generates a new API key for the selected company.
+        Superadmin only. Works on exactly one company at a time.
+        Raw key is shown once in a success message.
+        """
+        if not request.user.is_superuser:
+            self.message_user(
+                request,
+                'Only superadmins can generate API keys.',
+                level=messages.ERROR,
+            )
+            return
+
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                'Select exactly one company to generate an API key.',
+                level=messages.WARNING,
+            )
+            return
+
+        company = queryset.first()
+
+        try:
+            raw_key = APIKey.generate_key(
+                company=company,
+                created_by=request.user.username,
+            )
+            self.message_user(
+                request,
+                format_html(
+                    '<strong>API key generated for {}.</strong> '
+                    'Copy this key now — it will <strong>never be shown again</strong>:<br><br>'
+                    '<code style="font-size:1.05em; background:#f4f4f4; '
+                    'padding:6px 10px; border-radius:4px; '
+                    'border:1px solid #ddd; display:inline-block;">{}</code>',
+                    company.company_name,
+                    raw_key,
+                ),
+                level=messages.SUCCESS,
+            )
+        except ValueError as e:
+            self.message_user(request, str(e), level=messages.ERROR)
+
+    generate_api_key.short_description = 'Generate API key for selected company'
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        if _is_viewer_or_approver(request.user):
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_and_add_another'] = False
+        return super().change_view(request, object_id, form_url, extra_context)
+
     def get_form(self, request, obj=None, **kwargs):
         FormClass = super().get_form(request, obj, **kwargs)
 
@@ -700,17 +829,15 @@ class CompanyAdmin(admin.ModelAdmin):
 
     def get_account_count(self, obj):
         return CompanyAccount.objects.filter(company=obj).count()
-    get_account_count.short_description = "Linked Accounts"
+    get_account_count.short_description = 'Linked Accounts'
 
     def get_readonly_fields(self, request, obj=None):
         if _is_viewer_or_approver(request.user):
-            # Everything readonly for viewers/approvers
             model_fields = [
                 f.name for f in self.model._meta.fields
                 if f.name != 'company_id'
             ]
             return tuple(set(model_fields + ['group_ids']))
-
         return super().get_readonly_fields(request, obj)
 
     def has_add_permission(self, request):
@@ -733,7 +860,7 @@ class CompanyAdmin(admin.ModelAdmin):
             messages.success(request, f"{queryset.count()} companies soft deleted successfully.")
         except PermissionDenied as e:
             messages.error(request, str(e))
-    soft_delete_selected.short_description = "Soft delete selected companies"
+    soft_delete_selected.short_description = 'Soft delete selected companies'
 
     def delete_model(self, request, obj):
         CompanyService.hard_delete_company(obj, user=request.user)
@@ -746,16 +873,9 @@ class CompanyAdmin(admin.ModelAdmin):
         actions = super().get_actions(request)
         if not request.user.has_perm('main_system.soft_delete_company'):
             actions.pop('soft_delete_selected', None)
+        if not request.user.is_superuser:
+            actions.pop('generate_api_key', None)
         return actions
-
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        extra_context = extra_context or {}
-        if _is_viewer_or_approver(request.user):
-            extra_context['show_save'] = False
-            extra_context['show_save_and_continue'] = False
-            extra_context['show_save_and_add_another'] = False
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
-
 
 # ============================================================
 # COMPANY ACCOUNT ADMIN

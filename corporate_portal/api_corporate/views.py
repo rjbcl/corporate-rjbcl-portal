@@ -1,75 +1,23 @@
-from rest_framework import viewsets, filters, status, serializers  # type: ignore
-from rest_framework.permissions import IsAuthenticated, AllowAny  # type: ignore
+from rest_framework import viewsets, filters, status  # type: ignore
+from rest_framework.permissions import IsAuthenticated  # type: ignore
 from rest_framework.decorators import action, api_view, permission_classes, authentication_classes  # type: ignore
 from rest_framework.response import Response  # type: ignore
-from rest_framework.authentication import SessionAuthentication  # type: ignore
-from rest_framework_simplejwt.views import TokenObtainPairView  # type: ignore
-from rest_framework_simplejwt.authentication import JWTAuthentication  # type: ignore
-from django_filters.rest_framework import DjangoFilterBackend  # type: ignore
+from rest_framework.authentication import SessionAuthentication  # type: ignore 
 import django_filters  # type: ignore
 
 from django.db import connections  # type: ignore
 
 from main_system.models import Group as PortalGroup
 from main_system.models import ReportAccessLog
+from .authentication import APIKeyAuthentication
 from .models import GroupEndowment, GroupInformation
-from .serializers import (
-    GroupEndowmentSerializer,
-    GroupInformationSerializer,
-    CustomTokenObtainPairSerializer,
-)
+from .serializers import GroupEndowmentSerializer, GroupInformationSerializer
 from .permissions import IsCompanyUser
 from .utils import log_report_access
 
 
-# ============================================================
-# AUTH
-# ============================================================
-
-class CustomTokenObtainPairView(TokenObtainPairView):
-    """
-    Custom login view that returns JWT tokens with user info.
-    Only company users can authenticate via this endpoint.
-    """
-    permission_classes = (AllowAny,)
-    serializer_class = CustomTokenObtainPairSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-
-        try:
-            serializer.is_valid(raise_exception=True)
-        except serializers.ValidationError as e:
-            return Response(
-                {'error': 'Invalid credentials', 'details': str(e)},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-        except Exception as e:
-            return Response(
-                {'error': 'Invalid credentials', 'details': str(e)},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
-
-        user = serializer.user
-        user_type = user.get_user_type()
-
-        if user_type != 'company':
-            return Response(
-                {'error': 'Only company accounts can access the API'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        if not hasattr(user, 'company_profile') or not user.company_profile.company.isactive:
-            return Response(
-                {'error': 'Company account is inactive'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        return Response({
-            'access':   serializer.validated_data.get('access'),
-            'refresh':  serializer.validated_data.get('refresh'),
-            'username': serializer.validated_data.get('username'),
-        }, status=status.HTTP_200_OK)
+# Shorthand — every API view uses these two authenticators
+_AUTH = [APIKeyAuthentication, SessionAuthentication]
 
 
 # ============================================================
@@ -135,7 +83,7 @@ def _verify_group_access(request, group_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def maturity_forecasting_report(request):
     """POST /api/corporate/reports/maturity-forecasting/"""
     group_id  = request.data.get('group_id')
@@ -193,7 +141,7 @@ def maturity_forecasting_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def group_transfer_report(request):
     """POST /api/corporate/reports/group-transfer/"""
     group_id           = request.data.get('group_id')
@@ -259,7 +207,7 @@ def group_transfer_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def loan_repayment_report(request):
     """POST /api/corporate/reports/loan-repayment/"""
     group_id  = request.data.get('group_id')
@@ -320,7 +268,133 @@ def loan_repayment_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
+def policy_detail(request):
+    """POST /api/corporate/policy-detail/"""
+    policy_no = request.data.get('policy_no')
+
+    if not policy_no:
+        log_report_access(request=request, report_type='Policy Detail',
+                          sql_template='', params=[],
+                          status=ReportAccessLog.Status.INVALID_INPUT)
+        return Response({'error': 'policy_no is required'}, status=400)
+
+    # ── Resolve group_ids (identical pattern to policy_loans) ──────────────
+    group_ids = request.session.get('company_group_ids')
+
+    if not group_ids:
+        if request.user.is_superuser or request.user.is_staff:
+            group_ids = list(PortalGroup.objects.filter(
+                isdeleted=False
+            ).values_list('group_id', flat=True))
+        else:
+            try:
+                company = request.user.company_profile.company
+                if not company.isactive:
+                    log_report_access(request=request, report_type='Policy Detail',
+                                      sql_template='', params=[],
+                                      status=ReportAccessLog.Status.FORBIDDEN)
+                    return Response({'error': 'Company account is inactive'}, status=403)
+                group_ids = list(PortalGroup.objects.filter(
+                    company=company, isdeleted=False
+                ).values_list('group_id', flat=True))
+            except AttributeError:
+                log_report_access(request=request, report_type='Policy Detail',
+                                  sql_template='', params=[],
+                                  status=ReportAccessLog.Status.FORBIDDEN)
+                return Response({'error': 'User is not associated with a company'}, status=403)
+
+        if not group_ids:
+            log_report_access(request=request, report_type='Policy Detail',
+                              sql_template='', params=[],
+                              status=ReportAccessLog.Status.FORBIDDEN)
+            return Response({'error': 'No groups found for your company'}, status=403)
+
+        request.session['company_group_ids'] = group_ids
+
+    # ── Queries ────────────────────────────────────────────────────────────
+    verify_sql  = ''
+    summary_sql = ''
+    loan_sql    = ''
+    params      = []
+
+    try:
+        with connections['company_external'].cursor() as cursor:
+            placeholders = ','.join(['%s'] * len(group_ids))
+
+            # 1. Access check
+            verify_sql = f"""
+                SELECT COUNT(1) FROM tblGroupEndowment
+                WHERE policyNo = %s AND groupId IN ({placeholders})
+            """
+            cursor.execute(verify_sql, [policy_no] + group_ids)
+            if cursor.fetchone()[0] == 0:
+                log_report_access(request=request, report_type='Policy Detail',
+                                  sql_template=verify_sql,
+                                  params=[policy_no] + group_ids,
+                                  status=ReportAccessLog.Status.FORBIDDEN)
+                return Response({'error': 'Policy not found or access denied'}, status=403)
+
+            # 2. Policy summary
+            summary_sql = f"""
+                SELECT * FROM view_copo_policySummary
+                WHERE PolicyNo = %s AND GroupId IN ({placeholders})
+            """
+            params = [policy_no] + group_ids
+            cursor.execute(summary_sql, params)
+            summary_rows = []
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                for row in cursor.fetchall():
+                    summary_rows.append(_serialize_row(columns, row))
+
+            # 3. Loan details
+            loan_sql = """
+                SELECT PolicyNo, loanID, LoanDate, LoanAmount, InterestRate,
+                       Instalment, Status, LastPaidDate, VoucherNo
+                FROM tblGroupPolicyLoanDetail
+                WHERE policyNo = %s
+            """
+            cursor.execute(loan_sql, [policy_no])
+            loan_rows = []
+            if cursor.description:
+                columns = [col[0] for col in cursor.description]
+                for row in cursor.fetchall():
+                    loan_rows.append(_serialize_row(columns, row))
+
+        status_val = (
+            ReportAccessLog.Status.NO_DATA
+            if not summary_rows and not loan_rows
+            else ReportAccessLog.Status.SUCCESS
+        )
+        log_report_access(request=request, report_type='Policy Detail',
+                          sql_template=summary_sql, params=params,
+                          status=status_val)
+
+        return Response({
+            'success': True,
+            'policy_no': policy_no,
+            'summary': summary_rows,
+            'loans': loan_rows,
+        }, status=200)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        log_report_access(request=request, report_type='Policy Detail',
+                          sql_template=summary_sql or verify_sql,
+                          params=params,
+                          status=ReportAccessLog.Status.ERROR, exc=e)
+        return Response({
+            'error': f'Failed to fetch policy detail: {str(e)}',
+            'details': error_details if request.user.is_superuser else None,
+        }, status=500)
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes(_AUTH)
 def death_claim_report(request):
     """POST /api/corporate/reports/death-claim/"""
     group_id  = request.data.get('group_id')
@@ -377,7 +451,7 @@ def death_claim_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def maturity_claim_report(request):
     """POST /api/corporate/reports/maturity-claim/"""
     group_id  = request.data.get('group_id')
@@ -437,7 +511,7 @@ VALID_FILTER_BY = {'PaidDate', 'ValueDate'}
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def group_business_detail_report(request):
     """POST /api/corporate/reports/group-business-detail/"""
     group_id  = request.data.get('group_id')
@@ -520,7 +594,7 @@ def group_business_detail_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def surrender_claim_report(request):
     """POST /api/corporate/reports/surrender-claim/"""
     group_id  = request.data.get('group_id')
@@ -576,7 +650,7 @@ def surrender_claim_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def policy_summary_report(request):
     """POST /api/corporate/reports/policy-summary/"""
     policy_no = request.data.get('policy_no')
@@ -644,10 +718,10 @@ def policy_summary_report(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def surrender_calculator(request):
     """POST /api/corporate/surrender-calculator/"""
-    policy_no = request.data.get('policy_no')
+    policy_no  = request.data.get('policy_no')
     claim_date = request.data.get('claim_date')
 
     if not policy_no:
@@ -683,13 +757,10 @@ def surrender_calculator(request):
             if claim_date:
                 sql = "EXEC proc_copo_surrender_calculator @PolicyNo = %s, @ClaimDate = %s"
                 params = [policy_no, claim_date]
-                
             else:
                 sql = "EXEC proc_copo_surrender_calculator @PolicyNo = %s"
                 params = [policy_no]
-            
-            print(f"Executing SQL: {sql} | params: {params}")
-                
+
             cursor.execute(sql, params)
 
             row = cursor.fetchone()
@@ -721,7 +792,7 @@ def surrender_calculator(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def policy_search(request):
     """POST /api/corporate/reports/policy-search/"""
     query = request.data.get('q', '').strip()
@@ -780,7 +851,7 @@ def policy_search(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def policy_loans(request):
     """POST /api/corporate/reports/policy-loans/"""
     policy_no = request.data.get('policy_no')
@@ -866,6 +937,7 @@ def policy_loans(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@authentication_classes(_AUTH)
 def company_policies_web(request):
     """GET /api/corporate/endowments/by_company/?company_id=<id>"""
     company_id = request.query_params.get('company_id')
@@ -883,7 +955,6 @@ def company_policies_web(request):
         if user_company_id != company_id:
             return Response({'error': 'You can only access your own company data'}, status=403)
 
-    # Fixed: company FK is now named 'company', filter via company__company_id
     portal_groups = PortalGroup.objects.filter(
         company__company_id=company_id,
         isdeleted=False,
@@ -933,13 +1004,12 @@ def company_policies_web(request):
 class CompanyPoliciesViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Read-only API endpoint for company users to access their policies.
-    JWT authentication only.
     """
     serializer_class = GroupEndowmentSerializer
     permission_classes = [IsAuthenticated, IsCompanyUser]
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = _AUTH
 
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['policy_status', 'fiscal_year', 'gender', 'policy_type',
                         'is_adb', 'employee_id', 'claim_status']
     search_fields = ['name', 'nep_name', 'policy_no', 'employee_id', 'mobile', 'email']
@@ -988,7 +1058,7 @@ class GroupInformationFilter(django_filters.FilterSet):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-@authentication_classes([JWTAuthentication, SessionAuthentication])
+@authentication_classes(_AUTH)
 def group_information(request):
     """GET /api/corporate/groups/"""
     user = request.user
@@ -1046,8 +1116,9 @@ class GroupEndowmentViewSet(viewsets.ReadOnlyModelViewSet):
     """Read-only API endpoint for Group Endowment from view_copo_groupEndowment."""
     queryset = GroupEndowment.objects.using('company_external').all()
     serializer_class = GroupEndowmentSerializer
+    authentication_classes = _AUTH
 
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['group_id', 'policy_status', 'fiscal_year', 'gender',
                         'policy_type', 'is_adb', 'register_no', 'employee_id', 'claim_status']
     search_fields = ['name', 'nep_name', 'policy_no', 'employee_id',
@@ -1068,7 +1139,6 @@ class GroupEndowmentViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError:
             return Response({'error': 'company_id must be a valid integer'}, status=400)
 
-        # Fixed: company FK is now named 'company'
         group_ids = list(PortalGroup.objects.filter(
             company__company_id=company_id,
             isdeleted=False,
