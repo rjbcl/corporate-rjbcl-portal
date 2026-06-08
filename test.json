@@ -1,0 +1,52 @@
+{
+    "success": true,
+    "policy_no": "POL123",
+    "summary": [
+        {
+            "PolicyNo": "POL123",
+            "Branch": "300",
+            "Name": "SITA RAM SIGDEL",
+            "NepName": null,
+            "GroupId": "052",
+            "DOB": "1975-04-25T00:00:00",
+            "Gender": null,
+            "Address": null,
+            "Email": null,
+            "Mobile": null,
+            "FatherName": null,
+            "MotherName": null,
+            "NomineeName": null,
+            "NomineeRelationship": null,
+            "ClaimDate": null,
+            "DistrictID": null,
+            "WardNo": null,
+            "NomineePhone": null,
+            "NomineeAddress": null,
+            "Occupation": "A",
+            "Sumassured": "176400.0000",
+            "DOC": "2003-11-23",
+            "PaidDate": "2022-12-20T00:00:00",
+            "FUP": "2023-11-23T00:00:00",
+            "Term": 20,
+            "Premium": "8096.7400",
+            "Instalment": 20,
+            "PaidAmount": "161934.8000",
+            "maturitydate": "2023-11-23",
+            "PolicyStatus": "M",
+            "PolicyType": null
+        }
+    ],
+    "loans": [
+        {
+            "PolicyNo": "POL123",
+            "loanID": "1227",
+            "LoanDate": "2010-08-31T00:00:00",
+            "LoanAmount": "100500.00",
+            "InterestRate": null,
+            "Instalment": null,
+            "Status": "Cleared",
+            "LastPaidDate": "2017-12-20T00:00:00",
+            "VoucherNo": null
+        }
+    ]
+}
