@@ -1,0 +1,33 @@
+{# templates/admin/main_system/company/change_form.html #}
+{# Extends the default admin change form and injects the Generate API Key button #}
+
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    {% if show_generate_api_key %}
+        <li>
+            <a
+                href="{{ generate_api_key_url }}"
+                class="historylink"
+                style="
+                    background: #417690;
+                    color: #fff;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                    text-decoration: none;
+                    display: inline-block;
+                "
+                onclick="return confirm(
+                    'Generate a new API key for this company?\n\n'
+                    + 'Any existing key will be revoked immediately.\n'
+                    + 'The new key will be shown ONCE — copy it before leaving this page.'
+                );"
+            >
+                🔑 Generate API Key
+            </a>
+        </li>
+    {% endif %}
+{% endblock %}

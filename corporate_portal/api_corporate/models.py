@@ -1,4 +1,8 @@
-from django.db import models #type: ignore
+import os
+import hashlib
+ 
+from django.db import models  # type: ignore
+from main_system.models import Company
 
 
 class GroupInformation(models.Model):
@@ -421,5 +425,98 @@ class GroupEndowment(models.Model):
     def __str__(self):
         return f"{self.name or 'Unnamed'} - {self.policy_no}"
     
+class APIKey(models.Model):
+    """
+    API key for 3rd party server-to-server authentication.
+    One active key per company at any time.
+ 
+    The raw key is shown once at generation and never stored.
+    Only the SHA-256 hash is persisted.
+ 
+    Flow:
+      1. Superadmin calls APIKey.generate_key(company, created_by)
+         → returns raw key (show once), saves hash to DB.
+      2. 3rd party sends raw key in X-API-Key header on every request.
+      3. APIKeyAuthentication hashes the incoming key and looks up key_hash.
+    """
+ 
+    company = models.OneToOneField(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='api_key',
+        db_column='company_id',
+    )
+    key_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_by = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+ 
+    class Meta:
+        db_table = 'copo_api_keys'
+        verbose_name = 'API Key'
+        verbose_name_plural = 'API Keys'
+ 
+    def __str__(self):
+        status = 'active' if self.is_active else 'revoked'
+        return f"API Key for {self.company.company_name} ({status})"
+ 
+    @staticmethod
+    def _hash_key(raw_key: str) -> str:
+        return hashlib.sha256(raw_key.encode()).hexdigest()
+ 
+    @classmethod
+    def generate_key(cls, company, created_by: str) -> str:
+        """
+        Generates a new API key for the given company.
+        - Blocks generation if company has no primary CompanyAccount.
+        - Revokes any existing key before issuing a new one.
+        - Returns the raw key (caller must show it once — never retrievable again).
+ 
+        Raises ValueError if no primary account exists for the company.
+        """
+        from main_system.models import CompanyAccount
+ 
+        primary_exists = CompanyAccount.objects.filter(
+            company=company,
+            is_primary=True,
+            is_approved=True,
+        ).exists()
+ 
+        if not primary_exists:
+            raise ValueError(
+                f"Cannot generate API key for '{company.company_name}': "
+                "no approved primary account exists."
+            )
+ 
+        # Revoke existing key if present
+        cls.objects.filter(company=company).delete()
+ 
+        raw_key = 'copo_' + os.urandom(32).hex()
+        key_hash = cls._hash_key(raw_key)
+ 
+        cls.objects.create(
+            company=company,
+            key_hash=key_hash,
+            created_by=created_by,
+            is_active=True,
+        )
+ 
+        return raw_key
+ 
+    @classmethod
+    def lookup(cls, raw_key: str):
+        """
+        Looks up an APIKey instance by raw key.
+        Returns the APIKey instance or None if not found.
+        """
+        key_hash = cls._hash_key(raw_key)
+        try:
+            return cls.objects.select_related(
+                'company'
+            ).get(key_hash=key_hash, is_active=True)
+        except cls.DoesNotExist:
+            return None
+
 
 

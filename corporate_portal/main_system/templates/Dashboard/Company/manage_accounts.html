@@ -1,0 +1,417 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}Manage Accounts — {{ company.company_name }}{% endblock %}
+
+{% block content %}
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Manage Accounts</h4>
+            <p class="mb-0">View and create staff accounts for your company</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item active">Manage Accounts</li>
+        </ol>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- ── Account Slot Stats ──────────────────────────────────── -->
+<div class="row mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="h3 mb-1 text-primary font-weight-bold">{{ stats.total }}</div>
+                <div class="text-muted small">Total Accounts</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="h3 mb-1 text-success font-weight-bold">{{ stats.approved }}</div>
+                <div class="text-muted small">Approved</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="h3 mb-1 text-warning font-weight-bold">{{ stats.pending }}</div>
+                <div class="text-muted small">Pending Approval</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="h3 mb-1 {% if stats.remaining == 0 %}text-danger{% else %}text-info{% endif %} font-weight-bold">
+                    {{ stats.remaining }}
+                </div>
+                <div class="text-muted small">Slots Remaining (max {{ stats.limit }})</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Accounts Table ─────────────────────────────────────── -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="card-title mb-0">
+                    <i class="bi bi-people mr-2"></i>Company Accounts
+                </h4>
+                {% if stats.remaining > 0 %}
+                <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#createAccountModal">
+                    <i class="bi bi-person-plus mr-1"></i> Add Account
+                </button>
+                {% else %}
+                <span class="text-danger small">
+                    <i class="bi bi-exclamation-circle mr-1"></i>Account limit reached
+                </span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Designation</th>
+                                <th>Department</th>
+                                <th>Mobile</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in accounts %}
+                            <tr>
+                                <td><strong>{{ account.account.username }}</strong></td>
+                                <td>{{ account.full_name|default:"—" }}</td>
+                                <td>{{ account.designation|default:"—" }}</td>
+                                <td>{{ account.department|default:"—" }}</td>
+                                <td>{{ account.mobile|default:"—" }}</td>
+                                <td>
+                                    {% if account.is_primary %}
+                                    <span class="badge badge-primary">Primary</span>
+                                    {% else %}
+                                    <span class="badge badge-secondary">Staff</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if account.is_approved %}
+                                    <span class="badge badge-success">Approved</span>
+                                    {% else %}
+                                    <span class="badge badge-warning">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not account.is_primary %}
+                                    <button
+                                        class="btn btn-outline-warning btn-sm"
+                                        onclick="openResetModal('{{ account.account.id }}', '{{ account.account.username }}')">
+                                        <i class="bi bi-key mr-1"></i>Reset Password
+                                    </button>
+                                    {% else %}
+                                    <span class="text-muted small">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="8" class="text-center text-muted py-4">
+                                    No accounts found. Add your first staff account.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Create Account Modal ───────────────────────────────── -->
+<div class="modal fade" id="createAccountModal" tabindex="-1" role="dialog" aria-labelledby="createAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form method="post" action="{% url 'manage_accounts' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createAccountModalLabel">
+                        <i class="bi bi-person-plus mr-2"></i>Create New Account
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+
+                    <div class="alert alert-info py-2 small">
+                        <i class="bi bi-info-circle mr-1"></i>
+                        New accounts require administrator approval before they can log in.
+                        You have <strong>{{ stats.remaining }}</strong> slot(s) remaining.
+                    </div>
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Username <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="username" required
+                                placeholder="e.g. john.doe">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Password <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="password" id="modalPassword" required
+                                    placeholder="Enter password">
+                                <div class="input-group-append">
+                                    <button class="btn btn-outline-secondary" type="button" id="toggleModalPassword">
+                                        <i class="bi bi-eye" id="toggleModalIcon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Full Name</label>
+                            <input type="text" class="form-control" name="full_name"
+                                placeholder="Full name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Mobile</label>
+                            <input type="text" class="form-control" name="mobile"
+                                placeholder="98XXXXXXXX">
+                        </div>
+                    </div>
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Email</label>
+                            <input type="email" class="form-control" name="email"
+                                placeholder="staff@example.com">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Designation</label>
+                            <input type="text" class="form-control" name="designation"
+                                placeholder="e.g. Manager">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Department</label>
+                            <input type="text" class="form-control" name="department"
+                                placeholder="e.g. Finance">
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-person-check mr-1"></i> Create Account
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ── Reset Password Modal ───────────────────────────────── -->
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetPasswordModalLabel">
+                    <i class="bi bi-key mr-2"></i>Reset Password
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <p class="mb-3">
+                    Setting new password for:
+                    <strong id="resetTargetUsername"></strong>
+                </p>
+
+                <div id="resetErrorMsg" class="alert alert-danger py-2 small d-none"></div>
+
+                <div class="form-group mb-3">
+                    <label class="font-weight-bold">New Password <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="resetNewPassword" placeholder="Enter new password">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleResetPassword">
+                                <i class="bi bi-eye" id="toggleResetIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-0">
+                    <label class="font-weight-bold">Confirm Password <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="resetConfirmPassword" placeholder="Confirm new password">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="toggleResetConfirm">
+                                <i class="bi bi-eye" id="toggleResetConfirmIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="submitResetPassword">
+                    <i class="bi bi-key mr-1"></i> Reset Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ── Create account modal: password visibility toggle ──────
+    document.getElementById('toggleModalPassword').addEventListener('click', function () {
+        const input = document.getElementById('modalPassword');
+        const icon  = document.getElementById('toggleModalIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+
+    // Re-open create modal if there was an error on POST
+    {% if has_form_error %}
+    $('#createAccountModal').modal('show');
+    {% endif %}
+
+
+    // ── Reset password modal ──────────────────────────────────
+    let resetTargetId = null;
+
+    function openResetModal(accountId, username) {
+        resetTargetId = accountId;
+        document.getElementById('resetTargetUsername').textContent = username;
+        document.getElementById('resetNewPassword').value = '';
+        document.getElementById('resetConfirmPassword').value = '';
+        document.getElementById('resetErrorMsg').textContent = '';
+        document.getElementById('resetErrorMsg').classList.add('d-none');
+        $('#resetPasswordModal').modal('show');
+    }
+
+    // Password visibility toggles for reset modal
+    document.getElementById('toggleResetPassword').addEventListener('click', function () {
+        const input = document.getElementById('resetNewPassword');
+        const icon  = document.getElementById('toggleResetIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+
+    document.getElementById('toggleResetConfirm').addEventListener('click', function () {
+        const input = document.getElementById('resetConfirmPassword');
+        const icon  = document.getElementById('toggleResetConfirmIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('bi-eye', 'bi-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+
+    document.getElementById('submitResetPassword').addEventListener('click', function () {
+        const newPassword     = document.getElementById('resetNewPassword').value;
+        const confirmPassword = document.getElementById('resetConfirmPassword').value;
+        const errorEl         = document.getElementById('resetErrorMsg');
+        const btn             = document.getElementById('submitResetPassword');
+
+        errorEl.classList.add('d-none');
+
+        if (!newPassword || !confirmPassword) {
+            errorEl.textContent = 'Both password fields are required.';
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            errorEl.textContent = 'Passwords do not match.';
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm mr-1"></span> Resetting...';
+
+        fetch(`/company/accounts/${resetTargetId}/reset-password/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: `new_password=${encodeURIComponent(newPassword)}&confirm_password=${encodeURIComponent(confirmPassword)}`
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                $('#resetPasswordModal').modal('hide');
+                // Show a success message by injecting a dismissible alert at the top of the page
+                const alertHtml = `
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        ${data.message}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>`;
+                document.querySelector('.row.page-titles').insertAdjacentHTML('afterend', alertHtml);
+            } else {
+                errorEl.textContent = data.error;
+                errorEl.classList.remove('d-none');
+            }
+        })
+        .catch(() => {
+            errorEl.textContent = 'A network error occurred. Please try again.';
+            errorEl.classList.remove('d-none');
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-key mr-1"></i> Reset Password';
+        });
+    });
+</script>
+{% endblock %}

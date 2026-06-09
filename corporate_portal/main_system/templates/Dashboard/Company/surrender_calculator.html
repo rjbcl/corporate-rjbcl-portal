@@ -121,9 +121,9 @@
                         <div class="form-row">
                             <!-- From Date Column -->
                             <div class="form-group col-md-7">
-                                <label>Policy Number<span class="text-danger">*</span></label>
                                 <div class="row">
-                                    <div class="col-md-6 mb-6 pe-4 mb-md-0" style="position: relative;">
+                                    <div class="col-md-6 mb-3 pe-4" style="position: relative;">
+                                        <label>Policy Number <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control" id="policy-number" name="policy_number"
                                             placeholder="Enter Policy Number or Name or Employee ID" autocomplete="off">
                                         <div id="policy-search-dropdown" class="dropdown-menu"
@@ -131,9 +131,13 @@
                                             <!-- Results will be populated here -->
                                         </div>
                                     </div>
+                                    <div class="col-md-6 mb-3 pe-4">
+                                        <label>Claim Date <span class="text-muted" style="font-size:12px;">(optional —
+                                                defaults to today)</span></label>
+                                        <input type="date" class="form-control" id="claim-date" name="claim_date">
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
 
                         <!-- Form Actions -->
@@ -154,7 +158,8 @@
         <div class="card">
             <div class="card-header d-block">
                 <h4 class="card-title">Calculations</h4>
-                <p class="m-0 subtitle" id="surrender-calculator-subtitle">The surrender and Loan calculations for policy number: <b id="surrender-calculator-policy-number">POL123</b></p>
+                <p class="m-0 subtitle" id="surrender-calculator-subtitle">The surrender and Loan calculations for
+                    policy number: <b id="surrender-calculator-policy-number">POL123</b></p>
             </div>
             <div class="card-body d-flex">
                 <div class="col-xl-6 col-xxl-6 col-lg-6 col-sm-6 ">
@@ -162,8 +167,10 @@
                         <div class="card-header">
                             <h5 class="card-title">Surrender Value</h5>
                         </div>
-                        <div class="card-body"> 
-                            <p class="card-text">The Calculated surrender value is <span class = 'fw-bold' id="surrender-value">100</span> for <span id="surrender-date">April 7, 2026</span></p>
+                        <div class="card-body">
+                            <p class="card-text">The Calculated surrender value is <span class='fw-bold'
+                                    id="surrender-value">100</span> for <span id="surrender-date">April 7, 2026</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -173,7 +180,9 @@
                             <h5 class="card-title">Loan Value</h5>
                         </div>
                         <div class="card-body">
-                            <p id = 'loan-value-text' class="card-text">The Calculated loan value is approximately <span class = 'fw-bold' id="loan-value">100</span> for <span id="loan-date">April 7, 2026</span></p>
+                            <p id='loan-value-text' class="card-text">The Calculated loan value is approximately <span
+                                    class='fw-bold' id="loan-value">100</span> for <span id="loan-date">April 7,
+                                    2026</span></p>
                         </div>
                     </div>
                 </div>

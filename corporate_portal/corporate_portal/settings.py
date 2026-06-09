@@ -1,14 +1,19 @@
 import os
 from pathlib import Path
-from decouple import config  #type: ignore
-from datetime import timedelta
+from decouple import config  # type: ignore
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+ENFORCE_PASSWORD_STRENGTH = False
+HASH_OTP = False
+OTP_EXPIRE_SECONDS = 120
+OTP_MAX_ATTEMPTS = 3
+OTP_TIMEOUT_MINUTES = 15
+
+# API rate limiting — max requests per minute per API key
+API_RATE_LIMIT = 60
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-y$n++q=nf#wue3!%v54xyv5q%3c-v8%-s%p^emtuki*0e4-1if'
@@ -36,13 +41,14 @@ INSTALLED_APPS = [
     'django_select2',
     'api_corporate',
     'rest_framework',
-    'rest_framework_simplejwt',
 ]
+
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'api_corporate.authentication.APIKeyAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -53,30 +59,6 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
     ],
-}
-
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),  # Token expires in 30 minutes
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': False,
-
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUDIENCE': None,
-    'ISSUER': None,
-
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'username',
-    'USER_ID_CLAIM': 'user_id',
-
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-
-    'JTI_CLAIM': 'jti',
 }
 
 MIDDLEWARE = [
@@ -111,8 +93,6 @@ WSGI_APPLICATION = 'corporate_portal.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -123,6 +103,7 @@ DATABASES = {
         "PORT": config("DB_PORT"),
         "OPTIONS": {
             "sslmode": "require",
+            'options': '-c timezone=Asia/Kathmandu'
         },
     },
     'company_external': {
@@ -133,7 +114,8 @@ DATABASES = {
         'HOST': config('COMPANY_DB_HOST'),
         'PORT': config('COMPANY_DB_PORT'),
         'OPTIONS': {
-            "sslmode": "require",
+            "driver": "ODBC Driver 18 for SQL Server",
+            'extra_params': 'TrustServerCertificate=yes;Encrypt=yes;',
         },
     }
 }
@@ -144,16 +126,14 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
-        'TIMEOUT': 86400,  # 24 hours in seconds
+        'TIMEOUT': 86400,  # 24 hours
     }
 }
+
 CORPORATE_API_BASE_URL = 'http://localhost:8000/api/corporate'
-CORPORATE_API_TIMEOUT = 30  
+CORPORATE_API_TIMEOUT = 30
 
-# Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
-# Authentication backends
+# Authentication
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
@@ -161,39 +141,26 @@ AUTHENTICATION_BACKENDS = [
 AUTH_USER_MODEL = 'main_system.Account'
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/6.0/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
+TIME_ZONE = 'Asia/Kathmandu'
 USE_I18N = True
-
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
+# Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'mediafiles'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

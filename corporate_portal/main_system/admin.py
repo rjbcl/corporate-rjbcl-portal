@@ -1,551 +1,529 @@
 import json
-import os
-from django.http import JsonResponse #type: ignore
-from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  #type: ignore
-from django.contrib import admin #type: ignore
-from django import forms #type: ignore
-from django.conf import settings #type: ignore
-from django_select2.forms import Select2MultipleWidget #type: ignore
-from django.core.exceptions import ValidationError, PermissionDenied #type: ignore
-from .services import CompanyService, IndividualService
-from .models import AuditLog, Company, Group, Individual, Account
-from django.contrib import messages  #type: ignore
-from django.contrib.auth.models import Group as AuthGroup #type: ignore
-from .utils import GroupAPIService
-from django.shortcuts import redirect #type: ignore
-from django.contrib.admin.views.decorators import staff_member_required #type: ignore
+
+from django.contrib import admin, messages  # type: ignore
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin  # type: ignore
+from django.contrib.auth.models import Group as AuthGroup  # type: ignore
+from django.contrib.admin.views.decorators import staff_member_required  # type: ignore
+from django.core.exceptions import ValidationError, PermissionDenied  # type: ignore
+from django.utils.html import format_html
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect  # type: ignore
+from django import forms  # type: ignore
+from django.urls import path, reverse
+from api_corporate.models import APIKey
+from .models import (
+    AuditLog, Company, CompanyDocument, Group,
+    Account, CompanyAccount, UserVerification,
+)
+from .services import CompanyService, CompanyAccountService
+from .utils import GroupAPIService, validate_password_strength
+
+from django_select2.forms import Select2MultipleWidget, reverse  # type: ignore
+
+
+admin.site.site_header = "Corporate Portal"
+admin.site.site_title = "Corporate Portal"
+admin.site.index_title = "Welcome to Corporate Portal"
+
+
+# ============================================================
+# HELPERS
+# ============================================================
+
+def _is_admin_or_super(user):
+    return user.is_superuser or user.groups.filter(name='Admin').exists()
+
+def _is_editor_or_above(user):
+    return user.is_superuser or user.groups.filter(name__in=['Admin', 'Editor']).exists()
+
+def _is_viewer_or_approver(user):
+    return (
+        not user.is_superuser and
+        user.groups.filter(name__in=['Viewer', 'Approver']).exists()
+    )
+
+
+# ============================================================
+# CACHE REFRESH VIEW
+# ============================================================
 
 @staff_member_required
 def refresh_groups_cache_view(request):
-    """Admin view to manually refresh groups cache - Superuser and Admin only"""
-    
-    # Check permissions
-    if not request.user.is_superuser:
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        if 'Admin' not in user_groups:
-            messages.error(request, "You don't have permission to refresh groups cache.")
-            return redirect('admin:main_system_group_changelist')
-    
+    """Admin view to manually refresh groups cache — superuser and Admin only."""
+    if not _is_admin_or_super(request.user):
+        messages.error(request, "You don't have permission to refresh groups cache.")
+        return redirect('admin:main_system_group_changelist')
+
     try:
         groups = GroupAPIService.refresh_cache()
-        messages.success(request, f'Successfully refreshed {len(groups)} groups from API')
+        messages.success(request, f'Successfully refreshed {len(groups)} groups from API.')
     except Exception as e:
         messages.error(request, f'Failed to refresh cache: {str(e)}')
-    
+
     return redirect('admin:main_system_group_changelist')
 
+
+# ============================================================
+# COMPANY DOCUMENT INLINE
+# ============================================================
+
+class CompanyDocumentInline(admin.StackedInline):
+    """
+    Inline for CompanyDocument under CompanyAdmin.
+    Documents are submitted by the primary company user via the portal,
+    but Admin/Editor/superuser can also manage them here.
+
+    Permissions:
+      Superuser / Admin : full edit + add + delete
+      Editor            : add + edit (no delete)
+      Viewer / Approver : readonly
+    """
+    model = CompanyDocument
+    extra = 0
+    can_delete = False  # controlled per-role in has_delete_permission
+
+    fields = (
+        'authorized_by',
+        'business_purpose',
+        'signature',
+        'stamp',
+        'official_request_letter',
+    )
+
+    readonly_fields_for_viewer = (
+        'authorized_by',
+        'business_purpose',
+        'signature',
+        'stamp',
+        'official_request_letter',
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if _is_viewer_or_approver(request.user):
+            return self.readonly_fields_for_viewer
+        return ()
+
+    def has_add_permission(self, request, obj=None):
+        return _is_editor_or_above(request.user)
+
+    def has_change_permission(self, request, obj=None):
+        return _is_editor_or_above(request.user) or _is_viewer_or_approver(request.user)
+
+    def has_delete_permission(self, request, obj=None):
+        return _is_admin_or_super(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_staff
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user.username
+        obj.modified_by = request.user.username
+        super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for instance in instances:
+            if not instance.pk:
+                instance.created_by = request.user.username
+            instance.modified_by = request.user.username
+            instance.save()
+        formset.save_m2m()
+
+
+# ============================================================
+# COMPANY ADMIN FORM
+# ============================================================
+
 class CompanyAdminForm(forms.ModelForm):
-    username = forms.CharField(
-        max_length=100, 
-        required=False,
-        help_text="Leave blank to keep current username"
-    )
-    password = forms.CharField(
-        widget=forms.PasswordInput(render_value=False),
-        required=False,
-        help_text="Leave blank to keep current password"
-    )
     group_ids = forms.MultipleChoiceField(
         required=False,
         widget=Select2MultipleWidget(attrs={
             'data-placeholder': 'Search and select groups...',
-            'style': 'width: 100%;'
+            'style': 'width: 100%;',
         }),
-        help_text="Search and select groups for this company"
+        help_text="Search and select groups for this company.",
     )
 
     class Meta:
         model = Company
         fields = [
-            'company_name', 
-            'nepali_name', 
-            'phone_number', 
-            'telephone_number', 
-            'email', 
+            # Company Information fieldset
+            'company_name',
+            'nepali_name',
+            'phone_number',
+            'telephone_number',
+            'email',
             'isactive',
-            'remarks',           
-            'blank_col1',        
-            'blank_col2'         
+            'remarks',
+            'blankcol',
+            # Primary Contact fieldset
+            'pan_number',
+            'primary_contact_person',
+            'primary_person_mobile',
+            'primary_person_email',
         ]
-        exclude = ['username']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
-        
-        # Load groups from API cache
+
         try:
             groups_data = GroupAPIService.get_groups()
         except Exception as e:
-            # Fallback to empty list if API fails
             groups_data = []
             if self.request:
                 messages.warning(
-                    self.request, 
+                    self.request,
                     f"Failed to load groups from API: {str(e)}. Please try again later."
                 )
-        
-        # Store groups lookup for later
+
         self.groups_lookup = {g['groupid']: g['groupname'] for g in groups_data}
-        
-        # Only set choices if group_ids field exists (not in readonly)
+
         if 'group_ids' in self.fields:
-            # Create choices
-            choices = [(g['groupid'], f"{g['groupname']} ({g['groupid']})") for g in groups_data]
-            self.fields['group_ids'].choices = choices
-            
-            # If editing, pre-populate fields
+            self.fields['group_ids'].choices = [
+                (g['groupid'], f"{g['groupname']} ({g['groupid']})")
+                for g in groups_data
+            ]
+
             if self.instance and self.instance.pk:
-                existing_groups = Group.objects.filter(company_id=self.instance, isdeleted=False)
-                selected = [g.group_id for g in existing_groups if g.group_id]
-                self.fields['group_ids'].initial = selected
-                
-                # Make group_ids readonly for Viewer and Approver
-                if self.request and not self.request.user.is_superuser:
-                    user_groups = self.request.user.groups.values_list('name', flat=True)
-                    if 'Viewer' in user_groups or 'Approver' in user_groups:
-                        self.fields['group_ids'].disabled = True
-                        self.fields['group_ids'].help_text = "You don't have permission to modify groups"
-        
-        # Set username field if it exists
-        if 'username' in self.fields and self.instance and self.instance.pk:
-            self.fields['username'].initial = self.instance.username.username
-            self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
+                self.fields['group_ids'].initial = [
+                    g.group_id
+                    for g in Group.objects.filter(company=self.instance, isdeleted=False)
+                    if g.group_id
+                ]
+
+                if self.request and _is_viewer_or_approver(self.request.user):
+                    self.fields['group_ids'].disabled = True
+                    self.fields['group_ids'].help_text = (
+                        "You don't have permission to modify groups."
+                    )
+
+    def clean_group_ids(self):
+        selected_group_ids = self.cleaned_data.get('group_ids', [])
+
+        if selected_group_ids:
+            existing_groups = Group.objects.filter(
+                group_id__in=selected_group_ids,
+                isdeleted=False,
+            )
+            if self.instance.pk:
+                existing_groups = existing_groups.exclude(company=self.instance)
+
+            if existing_groups.exists():
+                conflicts = [
+                    f"{g.group_id} ({g.group_name}) - already assigned to "
+                    f"{g.company.company_name}"
+                    for g in existing_groups
+                ]
+                raise forms.ValidationError(
+                    f"The following groups are already assigned to other companies: "
+                    f"{', '.join(conflicts)}"
+                )
+
+        return selected_group_ids
 
     def save(self, commit=True):
-        username = self.cleaned_data.get('username', '').strip()
-        password = self.cleaned_data.get('password', '').strip()
         group_ids = self.cleaned_data.get('group_ids', [])
-        
         company_data = {
-            'company_name': self.cleaned_data.get('company_name'),
-            'nepali_name': self.cleaned_data.get('nepali_name'),
-            'phone_number': self.cleaned_data.get('phone_number'),
-            'telephone_number': self.cleaned_data.get('telephone_number'),
-            'email': self.cleaned_data.get('email'),
-            'isactive': self.cleaned_data.get('isactive'),
-            'remarks': self.cleaned_data.get('remarks'),           
-            'blank_col1': self.cleaned_data.get('blank_col1'),     
-            'blank_col2': self.cleaned_data.get('blank_col2'), 
+            'company_name':           self.cleaned_data.get('company_name'),
+            'nepali_name':            self.cleaned_data.get('nepali_name'),
+            'phone_number':           self.cleaned_data.get('phone_number'),
+            'telephone_number':       self.cleaned_data.get('telephone_number'),
+            'email':                  self.cleaned_data.get('email'),
+            'isactive':               self.cleaned_data.get('isactive'),
+            'remarks':                self.cleaned_data.get('remarks'),
+            'blankcol':               self.cleaned_data.get('blankcol'),
+            'pan_number':             self.cleaned_data.get('pan_number'),
+            'primary_contact_person': self.cleaned_data.get('primary_contact_person'),
+            'primary_person_mobile':  self.cleaned_data.get('primary_person_mobile'),
+            'primary_person_email':   self.cleaned_data.get('primary_person_email'),
         }
-        
+
         try:
             user = self.request.user if self.request else None
 
-            if self.instance.pk:  # Update
-                # Fetch fresh instance from DB to get old values
+            if self.instance.pk:
                 fresh_instance = Company.objects.get(pk=self.instance.pk)
-                
                 company = CompanyService.update_company(
-                    company=fresh_instance,  # Pass fresh instance from DB
-                    username=username or None,
-                    password=password or None,
+                    company=fresh_instance,
                     company_data=company_data,
                     group_ids=group_ids,
                     groups_lookup=self.groups_lookup,
-                    user=user
+                    user=user,
                 )
-            else:  # Create
+            else:
                 company = CompanyService.create_company(
-                    username=username,
-                    password=password,
                     company_data=company_data,
                     group_ids=group_ids,
                     groups_lookup=self.groups_lookup,
-                    user=user
+                    user=user,
                 )
         except (ValidationError, PermissionDenied) as e:
             self.add_error(None, str(e))
             raise
-        
+
         return company
 
-    def clean(self):
-        cleaned_data = super().clean()
-        username = cleaned_data.get('username', '').strip()
-        
-        # Validate for new companies
-        if not self.instance.pk:
-            if not username:
-                raise forms.ValidationError("Username is required for new companies")
-            if not cleaned_data.get('password'):
-                raise forms.ValidationError("Password is required for new companies")
-            
-            # Check if username already exists
-            if Account.objects.filter(username=username).exists():
-                self.add_error('username', "This username is already in use.")
-        else:
-            # For existing companies, check if new username conflicts
-            if username:
-                current_username = self.instance.username.username
-                if username != current_username:
-                    if Account.objects.filter(username=username).exists():
-                        self.add_error('username', "This username is already in use.")
-        
-        return cleaned_data
-    
-    def clean_group_ids(self):
-        selected_group_ids = self.cleaned_data.get('group_ids', [])
-        
-        if selected_group_ids:
-            existing_groups = Group.objects.filter(
-                group_id__in=selected_group_ids,
-                isdeleted=False
-            )
-            
-            if self.instance.pk:
-                existing_groups = existing_groups.exclude(company_id=self.instance)
-            
-            if existing_groups.exists():
-                conflicts = []
-                for group in existing_groups:
-                    conflicts.append(
-                        f"{group.group_id} ({group.group_name}) - already assigned to {group.company_id.company_name}"
-                    )
-                
-                raise forms.ValidationError(
-                    f"The following groups are already assigned to other companies: {', '.join(conflicts)}"
-                )
-        
-        return selected_group_ids
-    
     def save_m2m(self):
         pass
 
-class IndividualAdminForm(forms.ModelForm):
-    username = forms.CharField(
-        max_length=100, 
-        required=False,
-        help_text="Leave blank to keep current username"
-    )
+
+# ============================================================
+# COMPANY ACCOUNT ADMIN FORM
+# ============================================================
+
+class CompanyAccountAdminForm(forms.ModelForm):
+    """
+    Form for creating and editing company staff accounts.
+    Manages Account (username, is_active, password) and
+    CompanyAccount (profile fields) together.
+    """
+    username = forms.CharField(max_length=100, required=True)
     password = forms.CharField(
         widget=forms.PasswordInput(render_value=False),
         required=False,
-        help_text="Leave blank to keep current password"
+        help_text="Required for new accounts. Leave blank to keep current password.",
     )
+    is_active = forms.BooleanField(required=False, initial=True)
 
     class Meta:
-        model = Individual
-        fields = ['group_id', 'user_full_name']
-        exclude = ['username']
+        model = CompanyAccount
+        fields = [
+            'company',
+            'full_name',
+            'mobile',
+            'email',
+            'designation',
+            'department',
+            'is_primary',
+            'is_approved',
+        ]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
-        
-        # Set username field if it exists
-        if 'username' in self.fields and self.instance and self.instance.pk:
-            self.fields['username'].initial = self.instance.username.username
-            self.fields['username'].help_text = f"Current: {self.instance.username.username}. Leave blank to keep it."
+
+        self.fields['company'].queryset = Company.objects.filter(isactive=True)
+        self.fields['company'].required = True
+
+        widget = self.fields['company'].widget
+        for attr in ('can_add_related', 'can_change_related',
+                     'can_delete_related', 'can_view_related'):
+            if hasattr(widget, attr):
+                setattr(widget, attr, False)
+
+        if self.instance and self.instance.pk:
+            account = self.instance.account
+            self.initial['username'] = account.username
+            self.initial['is_active'] = account.is_active
+            if 'username' in self.fields:
+                self.fields['username'].disabled = True
+                self.fields['username'].help_text = "Username cannot be changed after creation."
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username', '').strip()
+        if self.instance and self.instance.pk:
+            return self.instance.account.username
+        if Account.objects.filter(username=username).exists():
+            raise forms.ValidationError("This username is already in use.")
+        return username
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password', '').strip()
+        if not self.instance.pk and not password:
+            raise forms.ValidationError("Password is required for new accounts.")
+        if password:
+            errors = validate_password_strength(password)
+            if errors:
+                raise forms.ValidationError(
+                    f"Password must contain: {', '.join(errors)}."
+                )
+        return password
 
     def save(self, commit=True):
-        username = self.cleaned_data.get('username', '').strip()
+        user = self.request.user if self.request else None
         password = self.cleaned_data.get('password', '').strip()
-        
-        individual_data = {
-            'group_id': self.cleaned_data.get('group_id'),
-            'user_full_name': self.cleaned_data.get('user_full_name'),
+        is_active = self.cleaned_data.get('is_active', True)
+
+        profile_data = {
+            'company':     self.cleaned_data.get('company'),
+            'full_name':   self.cleaned_data.get('full_name'),
+            'mobile':      self.cleaned_data.get('mobile'),
+            'email':       self.cleaned_data.get('email'),
+            'designation': self.cleaned_data.get('designation'),
+            'department':  self.cleaned_data.get('department'),
+            'is_primary':  self.cleaned_data.get('is_primary', False),
         }
-        
+
         try:
-            user = self.request.user if self.request else None
-            
-            if self.instance.pk:  # Update
-                individual = IndividualService.update_individual(
-                    individual=self.instance,
-                    username=username or None,
+            if self.instance.pk:
+                company_account = CompanyAccountService.update_company_account(
+                    company_account=self.instance,
                     password=password or None,
-                    individual_data=individual_data,
-                    user=user
+                    profile_data=profile_data,
+                    user=user,
                 )
-            else:  # Create
-                individual = IndividualService.create_individual(
-                    username=username,
+                if company_account.account.is_active != is_active:
+                    company_account.account.is_active = is_active
+                    if user:
+                        company_account.account.modified_by = user.username
+                    company_account.account.save()
+            else:
+                company_account = CompanyAccountService.create_company_account(
+                    username=self.cleaned_data.get('username'),
                     password=password,
-                    individual_data=individual_data,
-                    user=user
+                    profile_data=profile_data,
+                    user=user,
                 )
+                if not is_active:
+                    company_account.account.is_active = False
+                    company_account.account.save()
+
         except (ValidationError, PermissionDenied) as e:
             self.add_error(None, str(e))
             raise
-        
-        return individual
 
-    def clean(self):
-        cleaned_data = super().clean()
-        username = cleaned_data.get('username', '').strip()
-        
-        # Validate for new individuals
-        if not self.instance.pk:
-            if not username:
-                raise forms.ValidationError("Username is required for new individuals")
-            if not cleaned_data.get('password'):
-                raise forms.ValidationError("Password is required for new individuals")
-            
-            # Check if username already exists
-            if Account.objects.filter(username=username).exists():
-                self.add_error('username', "This username is already in use.")
-        else:
-            # For existing individuals, check if new username conflicts
-            if username:
-                current_username = self.instance.username.username
-                if username != current_username:
-                    if Account.objects.filter(username=username).exists():
-                        self.add_error('username', "This username is already in use.")
-        
-        return cleaned_data
+        return company_account
 
     def save_m2m(self):
         pass
 
+
+# ============================================================
+# ACCOUNT ADMIN  (staff and admin accounts only)
+# ============================================================
+
 @admin.register(Account)
 class AccountAdmin(BaseUserAdmin):
-    list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_user_type', 'get_groups')
+    list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_groups')
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups')
-    
+
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
     )
-    
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'password1', 'password2', 'is_staff', 'groups'),
+            'fields': ('username', 'password1', 'password2', 'groups'),
         }),
     )
-    
+
     filter_horizontal = ('groups',)
     search_fields = ('username',)
     ordering = ('username',)
     actions = ['reset_password_action']
-    
+
     def get_queryset(self, request):
-        qs = super().get_queryset(request)
-        qs = qs.select_related('company_profile', 'individual_profile')
-        
+        """Staff and admin accounts only — company accounts have their own section."""
+        qs = super().get_queryset(request).filter(is_staff=True)
+
         if not request.user.is_superuser:
             user_groups = list(request.user.groups.values_list('name', flat=True))
-            
-            # Viewer and Approver can only see their own account
             if 'Viewer' in user_groups or 'Approver' in user_groups:
                 return qs.filter(username=request.user.username)
-            
-            # Editor can only see company and individual accounts (not staff)
             if 'Editor' in user_groups:
-                return qs.filter(is_staff=False)
-        
+                return qs.filter(is_superuser=False)
+
         return qs
 
     def get_groups(self, obj):
-        groups = list(obj.groups.all())
-        return ", ".join([g.name for g in groups]) or '-'
+        return ", ".join(obj.groups.values_list('name', flat=True)) or '-'
     get_groups.short_description = 'Staff Roles'
-    
-    def get_user_type(self, obj):
-        return obj.get_user_type() or '-'
-    get_user_type.short_description = 'User Type'
-    
-    def get_groups(self, obj):
-        # Force evaluation to avoid cursor issues
-        groups = list(obj.groups.all())
-        return ", ".join([g.name for g in groups]) or '-'
-    get_groups.short_description = 'Staff Roles'
-    
+
     def get_form(self, request, obj=None, **kwargs):
-        """Customize form to filter groups based on user type"""
         form = super().get_form(request, obj, **kwargs)
-        
-        # Define staff role group names
         STAFF_ROLE_GROUPS = ['Viewer', 'Approver', 'Editor', 'Admin']
-        
-        if 'groups' in form.base_fields:            
-            if obj:
-                # For existing users
-                user_type = obj.get_user_type()
-                
-                if user_type in ['company', 'individual']:
-                    # Non-staff users should NOT have access to staff role groups
-                    form.base_fields['groups'].queryset = AuthGroup.objects.none()
-                    form.base_fields['groups'].help_text = "Staff roles cannot be assigned to company or individual accounts."
-                    form.base_fields['groups'].disabled = True
-                elif user_type in ['staff', 'admin']:
-                    # Staff users can only have staff role groups
-                    form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
-            else:
-                # For new users - they will choose is_staff first
-                form.base_fields['groups'].queryset = AuthGroup.objects.filter(name__in=STAFF_ROLE_GROUPS)
-                form.base_fields['groups'].help_text = "Only staff accounts can be assigned to these groups."
-        
+
+        if 'groups' in form.base_fields:
+            form.base_fields['groups'].queryset = AuthGroup.objects.filter(
+                name__in=STAFF_ROLE_GROUPS
+            )
+            form.base_fields['groups'].help_text = "Select a role for this staff account."
+
         return form
-    
+
     def get_fieldsets(self, request, obj=None):
-        """Different fieldsets based on role and whether adding or editing"""
-        # For new accounts, use add_fieldsets
         if not obj:
             return self.add_fieldsets
-        
-        # For existing accounts, customize based on role
+
         if request.user.is_superuser:
             return (
                 (None, {'fields': ('username', 'password')}),
                 ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups')}),
             )
-        else:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            
-            # Editor viewing staff account - hide password field entirely
-            if 'Editor' in user_groups and obj and obj.is_staff:
-                return (
-                    (None, {'fields': ('username',)}),
-                    ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
-                )
-            
-            # Non-superusers never see is_superuser
+
+        user_groups = request.user.groups.values_list('name', flat=True)
+        if 'Editor' in user_groups and obj and obj.is_staff:
             return (
-                (None, {'fields': ('username', 'password')}),
+                (None, {'fields': ('username',)}),
                 ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
             )
-    
+
+        return (
+            (None, {'fields': ('username', 'password')}),
+            ('Permissions', {'fields': ('is_active', 'is_staff', 'groups')}),
+        )
+
     def get_readonly_fields(self, request, obj=None):
-        """Make fields readonly based on role"""
         readonly = super().get_readonly_fields(request, obj)
-        # Username is always readonly when editing (it's the primary key)
-        if obj:  # Editing existing account
-            readonly = readonly + ('username',)
-            
-            # Make is_staff readonly for company/individual accounts
-            user_type = obj.get_user_type()
-            if user_type in ['company', 'individual']:
-                readonly = readonly + ('is_staff',)
-        
+
+        if obj:
+            readonly = readonly + ('username', 'is_staff')
+
         if not request.user.is_superuser:
             user_groups = request.user.groups.values_list('name', flat=True)
-            
-            # Editor: read-only for staff accounts
-            if 'Editor' in user_groups:
-                if obj and obj.is_staff:
-                    return readonly + ('username', 'is_active', 'is_staff', 'groups')
-            
-            # Viewer/Approver: everything readonly
+            if 'Editor' in user_groups and obj and obj.is_staff:
+                return readonly + ('username', 'is_active', 'is_staff', 'groups')
             if 'Viewer' in user_groups or 'Approver' in user_groups:
                 if obj:
                     return readonly + ('username', 'is_active', 'is_staff', 'groups')
-        
+
         return readonly
-    
+
     def has_add_permission(self, request):
-        """Only Admin can add staff accounts"""
-        return (request.user.is_superuser or 
-                request.user.groups.filter(name='Admin').exists())
-    
+        return _is_admin_or_super(request.user)
+
     def has_change_permission(self, request, obj=None):
-        """Role-based change permissions"""
         if request.user.is_superuser:
             return True
-        
         user_groups = request.user.groups.values_list('name', flat=True)
-        
-        # Admin can change all except superusers
         if 'Admin' in user_groups:
-            if obj and obj.is_superuser:
-                return False
-            return True
-        
-        # Editor can view accounts but not change staff accounts
+            return not (obj and obj.is_superuser)
         if 'Editor' in user_groups:
-            return True  # View only for staff (readonly fields handle this)
-        
-        # Viewer/Approver can only view their own
-        if 'Viewer' in user_groups or 'Approver' in user_groups:
-            if obj and obj.username == request.user.username:
-                return True
-        
-        return False
-    
-    def has_delete_permission(self, request, obj=None):
-        """Only superuser can hard delete accounts"""
-        if request.user.is_superuser:
             return True
+        if 'Viewer' in user_groups or 'Approver' in user_groups:
+            return obj and obj.username == request.user.username
         return False
-    
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
     def save_model(self, request, obj, form, change):
-        """Validate and prevent assigning staff roles to non-staff accounts"""
-        
-        # Define staff role group names
-        STAFF_ROLE_GROUPS = ['Viewer', 'Approver', 'Editor', 'Admin']
-        
-        # Track old values for audit log
-        old_is_staff = None
-        old_is_superuser = None
-        old_is_active = None
-        old_password_hash = None
+        old_is_staff = old_is_superuser = old_is_active = old_password_hash = None
 
         if change and obj.pk:
-            old_account = Account.objects.get(pk=obj.pk)
-            # Store old groups on the form for use in save_related
-            form._old_groups = list(old_account.groups.values_list('name', flat=True))
-            old_is_staff = old_account.is_staff
-            old_is_superuser = old_account.is_superuser
-            old_is_active = old_account.is_active
-            old_password_hash = old_account.password  # Store the old password hash
+            old = Account.objects.get(pk=obj.pk)
+            form._old_groups = list(old.groups.values_list('name', flat=True))
+            old_is_staff = old.is_staff
+            old_is_superuser = old.is_superuser
+            old_is_active = old.is_active
+            old_password_hash = old.password
         else:
             form._old_groups = []
-        
-        # If not superuser, prevent privilege escalation
+            obj.is_staff = True
+
         if not request.user.is_superuser:
             obj.is_superuser = False
-        
-        # PREVENT company/individual accounts from becoming superuser or staff
-        user_type = obj.get_user_type()
-        if user_type in ['company', 'individual']:
-            if obj.is_superuser or obj.is_staff:
-                messages.error(
-                    request,
-                    f"Cannot make {user_type} accounts into staff or superuser accounts. "
-                    f"These flags have been reset to False."
-                )
-                obj.is_superuser = False
-                obj.is_staff = False
-        
-        # Set modified_by
+
         obj.modified_by = request.user.username
-        
-        # Save the object first
         super().save_model(request, obj, form, change)
-        
 
-        # Check if password hash changed
-        password_changed = False
-        if change and old_password_hash and old_password_hash != obj.password:
-            password_changed = True
+        password_changed = (
+            change and old_password_hash and old_password_hash != obj.password
+        )
 
-
-        # Now validate groups
-        if 'groups' in form.cleaned_data:
-            selected_groups = form.cleaned_data['groups']
-            staff_role_groups = [g for g in selected_groups if g.name in STAFF_ROLE_GROUPS]
-            
-            # Check if user is trying to assign staff roles
-            if staff_role_groups:
-                user_type = obj.get_user_type()
-                
-                # If the account is company or individual, remove staff role groups
-                if user_type in ['company', 'individual']:
-                    obj.groups.remove(*staff_role_groups)
-                    messages.warning(
-                        request,
-                        f"Staff roles cannot be assigned to {user_type} accounts. Groups have been removed."
-                    )
-                # If is_staff is False but trying to assign staff roles
-                elif not obj.is_staff:
-                    obj.groups.remove(*staff_role_groups)
-                    messages.warning(
-                        request,
-                        "Staff roles can only be assigned to accounts with 'is_staff' enabled. Groups have been removed."
-                    )
-            
-            # Log permission changes (is_staff, is_superuser, is_active)
         if change:
             permission_changes = {}
             if old_is_staff != obj.is_staff:
@@ -554,530 +532,689 @@ class AccountAdmin(BaseUserAdmin):
                 permission_changes['is_superuser'] = {'old': old_is_superuser, 'new': obj.is_superuser}
             if old_is_active != obj.is_active:
                 permission_changes['is_active'] = {'old': old_is_active, 'new': obj.is_active}
-            
+
             if permission_changes:
-                print("Permission changes detected:", permission_changes)
                 AuditLog.create_log(
                     action='permission_change',
                     target_username=obj.username,
-                    target_type=obj.get_user_type() or 'unknown',
+                    target_type='staff',
                     performed_by=request.user.username,
                     details=json.dumps(permission_changes),
-                    ip_address=request.META.get('REMOTE_ADDR')
+                    ip_address=request.META.get('REMOTE_ADDR'),
                 )
-            
-            # Log password change via edit form
+
             if password_changed:
                 AuditLog.create_log(
                     action='password_reset',
                     target_username=obj.username,
-                    target_type=obj.get_user_type() or 'unknown',
+                    target_type='staff',
                     performed_by=request.user.username,
-                    details="Password changed via admin edit form",
-                    ip_address=request.META.get('REMOTE_ADDR')
+                    details="Password changed via admin edit form.",
+                    ip_address=request.META.get('REMOTE_ADDR'),
                 )
         else:
             AuditLog.create_log(
                 action='create',
                 target_username=obj.username,
-                target_type=obj.get_user_type() or 'account',
+                target_type='staff',
                 performed_by=request.user.username,
-                details=f"Account created via admin interface",
-                ip_address=request.META.get('REMOTE_ADDR')
+                details="Staff account created via admin interface.",
+                ip_address=request.META.get('REMOTE_ADDR'),
             )
-        
-    def user_change_password(self, request, id, form_url=''):
-        """Override to log password changes from the password change form"""
-        user = self.get_object(request, id)
-        
-        # Call the parent method to handle the password change
-        response = super().user_change_password(request, id, form_url)
-        
-        # If the response is a redirect (successful password change)
-        if response.status_code == 302:
-            # Log the password change
-            AuditLog.create_log(
-                action='password_reset',
-                target_username=user.username,
-                target_type=user.get_user_type() or 'unknown',
-                performed_by=request.user.username,
-                details="Password changed via admin password change form",
-                ip_address=request.META.get('REMOTE_ADDR')
-            )
-        
-        return response    
-    
-    def reset_password_action(self, request, queryset):
-        """Reset password action"""
-        
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        
-        for account in queryset:
-            # Prevent resetting own password
-            if account.username == request.user.username:
-                messages.warning(request, f"You cannot reset your own password: {account.username}")
-                continue
-            
-            # Check permissions
-            if account.is_staff:
-                # Only Admin and Superuser can reset staff passwords
-                if not (request.user.is_superuser or 'Admin' in user_groups):
-                    messages.error(request, f"You don't have permission to reset staff password: {account.username}")
-                    continue
-            else:
-                # Editor and Admin can reset individual/company passwords
-                if not (request.user.is_superuser or 'Editor' in user_groups or 'Admin' in user_groups):
-                    messages.error(request, f"You don't have permission to reset password: {account.username}")
-                    continue
-            
-            # Generate temporary password
-            temp_password = Account.objects.make_random_password()
-            account.set_password(temp_password)
-            account.modified_by = request.user.username
-            account.save()
-            
-            # Create audit log
-            AuditLog.create_log(
-                action='password_reset',
-                target_username=account.username,
-                target_type=account.get_user_type() or 'unknown',
-                performed_by=request.user.username,
-                details=f"Password reset via admin action. New temp password generated.",
-                ip_address=request.META.get('REMOTE_ADDR')
-            )
-            
-            messages.success(request, f"Password reset for {account.username}. New password: {temp_password}")
-    reset_password_action.short_description = "Reset password for selected accounts"
-    
-    def get_actions(self, request):
-        """Show actions based on permissions"""
-        actions = super().get_actions(request)
-        
-        user_groups = request.user.groups.values_list('name', flat=True)
-        
-        # Only Editor and Admin see reset password action
-        if not (request.user.is_superuser or 'Editor' in user_groups or 'Admin' in user_groups):
-            if 'reset_password_action' in actions:
-                del actions['reset_password_action']
-        
-        return actions
-    
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Customize change view to replace Save button with Back for Viewer/Approver"""
-        extra_context = extra_context or {}
-        
-        if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                extra_context['show_save'] = False
-                extra_context['show_save_and_continue'] = False
-                extra_context['show_save_and_add_another'] = False
-        
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     def save_related(self, request, form, formsets, change):
-        """Save related objects (groups) and log changes"""
-        # Save the related objects first
         super().save_related(request, form, formsets, change)
-        
-        # Now log role changes after groups are actually saved
+
         if change:
             obj = form.instance
             old_groups = getattr(form, '_old_groups', [])
             new_groups = list(obj.groups.values_list('name', flat=True))
-            
+
             if set(old_groups) != set(new_groups):
                 AuditLog.create_log(
                     action='role_change',
                     target_username=obj.username,
-                    target_type=obj.get_user_type() or 'unknown',
+                    target_type='staff',
                     performed_by=request.user.username,
                     details=json.dumps({
                         'old_groups': old_groups,
-                        'new_groups': new_groups
+                        'new_groups': new_groups,
                     }),
-                    ip_address=request.META.get('REMOTE_ADDR')
+                    ip_address=request.META.get('REMOTE_ADDR'),
                 )
 
+    def user_change_password(self, request, id, form_url=''):
+        user = self.get_object(request, id)
+        response = super().user_change_password(request, id, form_url)
+
+        if response.status_code == 302:
+            AuditLog.create_log(
+                action='password_reset',
+                target_username=user.username,
+                target_type='staff',
+                performed_by=request.user.username,
+                details="Password changed via admin password change form.",
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+
+        return response
+
+    def reset_password_action(self, request, queryset):
+        user_groups = list(request.user.groups.values_list('name', flat=True))
+
+        for account in queryset:
+            if account.username == request.user.username:
+                messages.warning(request, f"You cannot reset your own password: {account.username}")
+                continue
+
+            if not _is_admin_or_super(request.user):
+                messages.error(request, f"You don't have permission to reset staff password: {account.username}")
+                continue
+
+            temp_password = Account.objects.make_random_password()
+            account.set_password(temp_password)
+            account.modified_by = request.user.username
+            account.save()
+
+            AuditLog.create_log(
+                action='password_reset',
+                target_username=account.username,
+                target_type='staff',
+                performed_by=request.user.username,
+                details="Password reset via admin action.",
+                ip_address=request.META.get('REMOTE_ADDR'),
+            )
+
+            messages.success(request, f"Password reset for {account.username}. New password: {temp_password}")
+    reset_password_action.short_description = "Reset password for selected accounts"
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not _is_admin_or_super(request.user):
+            actions.pop('reset_password_action', None)
+        return actions
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        if _is_viewer_or_approver(request.user):
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_and_add_another'] = False
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+
+# ============================================================
+# API KEY INLINE
+# ============================================================
+ 
+class APIKeyInline(admin.StackedInline):
+    """
+    Read-only inline showing API key status on the Company change page.
+    Visible to superadmin and Admin group only.
+    Key generation is handled via the 'Generate API Key' button
+    injected into the change page — superadmin only.
+    """
+    model = APIKey
+    extra = 0
+    can_delete = False
+    show_change_link = False
+    verbose_name = 'API Key'
+    verbose_name_plural = 'API Access'
+ 
+    readonly_fields = [
+        'key_preview',
+        'is_active',
+        'created_by',
+        'created_at',
+        'last_used_at',
+    ]
+    # Exclude key_hash — never show the raw hash in the UI
+    fields = [
+        'key_preview',
+        'is_active',
+        'created_by',
+        'created_at',
+        'last_used_at',
+    ]
+ 
+    def has_add_permission(self, request, obj=None):
+        # Key creation is only done via generate_api_key_view
+        return False
+ 
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser or _is_admin_group(request.user)
+ 
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser or _is_admin_group(request.user)
+ 
+    def has_delete_permission(self, request, obj=None):
+        return False
+ 
+    @admin.display(description='Key Hash Preview')
+    def key_preview(self, obj):
+        if not obj.key_hash:
+            return '—'
+        return f"{obj.key_hash[:12]}…  (full key not recoverable)"
+ 
+ 
+# ============================================================
+# HELPER
+# ============================================================
+ 
+def _is_admin_group(user):
+    """Returns True if user belongs to the Admin group (not superuser check)."""
+    return user.groups.filter(name='Admin').exists()
+ 
+ 
+# ============================================================
+# UPDATED CompanyAdmin
+# ============================================================
+ 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
     form = CompanyAdminForm
-    list_display = ("username", "company_name", "isactive")
-    list_filter = ("isactive",)
-    actions = ['soft_delete_selected']
-    
+    list_display = ('company_name', 'isactive', 'get_account_count')
+    list_filter = ('isactive',)
+    search_fields = ('company_name',)
+    actions = ['soft_delete_selected', 'generate_api_key']
+
+    fieldsets = (
+        ('Company Information', {
+            'fields': (
+                'company_name',
+                'nepali_name',
+                'phone_number',
+                'telephone_number',
+                'email',
+                'isactive',
+                'remarks',
+                'blankcol',
+                'group_ids',
+            ),
+        }),
+        ('Primary Contact', {
+            'fields': (
+                'pan_number',
+                'primary_contact_person',
+                'primary_person_mobile',
+                'primary_person_email',
+            ),
+        }),
+    )
+
     class Media:
         css = {
-            'all': ('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css',)
+            'all': (
+                'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css',
+            )
         }
-        js = ('https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js',)
-    
-    def get_form(self, request, obj=None, **kwargs):
-        """Pass request to form"""
-        FormClass = super().get_form(request, obj, **kwargs)
-        
-        class FormWithRequest(FormClass):
-            def __new__(cls, *args, **kwargs):
-                kwargs['request'] = request
-                return FormClass(*args, **kwargs)
-        
-        return FormWithRequest
-    
-    def group_ids(self, obj):
-        """Display groups as readonly field"""
-        if obj and obj.pk:
-            groups = Group.objects.filter(company_id=obj, isdeleted=False)
-            if groups.exists():
-                return ", ".join([f"{g.group_name} ({g.group_id})" for g in groups])
-        return "-"
-    group_ids.short_description = "Groups"
-    
-    def username(self, obj):
-        """Display username as readonly field"""
-        if obj and obj.username:
-            return obj.username.username
-        return "-"
-    username.short_description = "Username"
-    
-    def password(self, obj):
-        """Display password field (hidden)"""
-        return "••••••••"
-    password.short_description = "Password"
-    
-    def get_readonly_fields(self, request, obj=None):
-        """Viewer and Approver: everything readonly including username, password, group_ids"""
-        readonly = super().get_readonly_fields(request, obj)
-        
+        js = (
+            'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js',
+        )
+
+    def get_inlines(self, request, obj=None):
+        """
+        Only show APIKeyInline on existing companies (not add page)
+        and only to superadmin + Admin group.
+        """
+        inlines = [CompanyDocumentInline]
+        if obj and (request.user.is_superuser or _is_admin_group(request.user)):
+            inlines.append(APIKeyInline)
+        return inlines
+
+    def generate_api_key(self, request, queryset):
+        """
+        Generates a new API key for the selected company.
+        Superadmin only. Works on exactly one company at a time.
+        Raw key is shown once in a success message.
+        """
         if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                # Return all fields as readonly except primary key
-                # Also include username, password, and group_ids from the form
-                model_fields = [field.name for field in self.model._meta.fields if field.name not in ['company_id']]
-                form_fields = ['username', 'password', 'group_ids']
-                return tuple(set(model_fields + form_fields))
-        
-        return readonly
-    
+            self.message_user(
+                request,
+                'Only superadmins can generate API keys.',
+                level=messages.ERROR,
+            )
+            return
+
+        if queryset.count() != 1:
+            self.message_user(
+                request,
+                'Select exactly one company to generate an API key.',
+                level=messages.WARNING,
+            )
+            return
+
+        company = queryset.first()
+
+        try:
+            raw_key = APIKey.generate_key(
+                company=company,
+                created_by=request.user.username,
+            )
+            self.message_user(
+                request,
+                format_html(
+                    '<strong>API key generated for {}.</strong> '
+                    'Copy this key now — it will <strong>never be shown again</strong>:<br><br>'
+                    '<code style="font-size:1.05em; background:#f4f4f4; '
+                    'padding:6px 10px; border-radius:4px; '
+                    'border:1px solid #ddd; display:inline-block;">{}</code>',
+                    company.company_name,
+                    raw_key,
+                ),
+                level=messages.SUCCESS,
+            )
+        except ValueError as e:
+            self.message_user(request, str(e), level=messages.ERROR)
+
+    generate_api_key.short_description = 'Generate API key for selected company'
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        if _is_viewer_or_approver(request.user):
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_and_add_another'] = False
+        return super().change_view(request, object_id, form_url, extra_context)
+
+    def get_form(self, request, obj=None, **kwargs):
+        FormClass = super().get_form(request, obj, **kwargs)
+
+        class FormWithRequest(FormClass):
+            def __init__(self, *args, **kw):
+                kw['request'] = request
+                super().__init__(*args, **kw)
+
+        return FormWithRequest
+
+    def get_account_count(self, obj):
+        return CompanyAccount.objects.filter(company=obj).count()
+    get_account_count.short_description = 'Linked Accounts'
+
+    def get_readonly_fields(self, request, obj=None):
+        if _is_viewer_or_approver(request.user):
+            model_fields = [
+                f.name for f in self.model._meta.fields
+                if f.name != 'company_id'
+            ]
+            return tuple(set(model_fields + ['group_ids']))
+        return super().get_readonly_fields(request, obj)
+
     def has_add_permission(self, request):
-        """Editor and Admin can add"""
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.add_company'))
-    
+        return request.user.is_superuser or request.user.has_perm('main_system.add_company')
+
     def has_change_permission(self, request, obj=None):
-        """Editor and Admin can change, Viewer can view"""
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.change_company') or
-                request.user.has_perm('main_system.view_company'))
-    
+        return (
+            request.user.is_superuser or
+            request.user.has_perm('main_system.change_company') or
+            request.user.has_perm('main_system.view_company')
+        )
+
     def has_delete_permission(self, request, obj=None):
-        """Only superuser can hard delete"""
         return request.user.is_superuser
-    
+
     def soft_delete_selected(self, request, queryset):
-        """Soft delete action - Editor and Admin only"""        
         try:
             for company in queryset:
                 CompanyService.soft_delete_company(company, user=request.user)
             messages.success(request, f"{queryset.count()} companies soft deleted successfully.")
         except PermissionDenied as e:
             messages.error(request, str(e))
-    soft_delete_selected.short_description = "Soft delete selected companies"
-    
+    soft_delete_selected.short_description = 'Soft delete selected companies'
+
     def delete_model(self, request, obj):
-        """Hard delete - Superuser only"""
         CompanyService.hard_delete_company(obj, user=request.user)
-    
+
     def delete_queryset(self, request, queryset):
-        """Hard delete - Superuser only"""
         for company in queryset:
             CompanyService.hard_delete_company(company, user=request.user)
-    
+
     def get_actions(self, request):
-        """Show soft delete only to Editor and Admin"""
         actions = super().get_actions(request)
-        
         if not request.user.has_perm('main_system.soft_delete_company'):
-            if 'soft_delete_selected' in actions:
-                del actions['soft_delete_selected']
-        
+            actions.pop('soft_delete_selected', None)
+        if not request.user.is_superuser:
+            actions.pop('generate_api_key', None)
         return actions
-    
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Customize change view to replace Save button with Back for Viewer/Approver"""
-        extra_context = extra_context or {}
-        
-        if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                extra_context['show_save'] = False
-                extra_context['show_save_and_continue'] = False
-                extra_context['show_save_and_add_another'] = False
-        
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
+# ============================================================
+# COMPANY ACCOUNT ADMIN
+# ============================================================
 
-@admin.register(Individual)
-class IndividualAdmin(admin.ModelAdmin):
-    form = IndividualAdminForm
-    list_display = ("user_full_name", "username", "get_group_name", "get_company_name")
-    actions = ['soft_delete_selected', 'reset_password_action']
-    raw_id_fields = ('group_id',) 
-    autocomplete_fields = ['group_id']
-    
+@admin.register(CompanyAccount)
+class CompanyAccountAdmin(admin.ModelAdmin):
+    form = CompanyAccountAdminForm
+    list_display = (
+        'get_username', 'get_company_name', 'full_name',
+        'is_primary', 'is_approved', 'get_is_active', 'get_totp_status',
+    )
+    list_filter = ('company', 'is_primary', 'is_approved')
+    search_fields = ('account__username', 'company__company_name', 'full_name')
+    actions = ['approve_accounts', 'soft_delete_selected', 'reset_password_action']
+
+    fieldsets = (
+        ('Account', {
+            'fields': ('username', 'password', 'is_active'),
+        }),
+        ('Company Profile', {
+            'fields': (
+                'company', 'full_name', 'mobile',
+                'email', 'designation', 'department', 'is_primary', 'is_approved',
+            ),
+        }),
+    )
+    add_fieldsets = (
+        ('Account', {
+            'classes': ('wide',),
+            'fields': ('username', 'password', 'is_active'),
+        }),
+        ('Company Profile', {
+            'fields': (
+                'company', 'full_name', 'mobile',
+                'email', 'designation', 'department', 'is_primary', 'is_approved',
+            ),
+        }),
+    )
+
+    def get_fieldsets(self, request, obj=None):
+        return self.add_fieldsets if not obj else self.fieldsets
+
     def get_form(self, request, obj=None, **kwargs):
-        """Pass request to form"""
         FormClass = super().get_form(request, obj, **kwargs)
-        
+
         class FormWithRequest(FormClass):
-            def __new__(cls, *args, **kwargs):
-                kwargs['request'] = request
-                return FormClass(*args, **kwargs)
-        
+            def __init__(self, *args, **kw):
+                kw['request'] = request
+                super().__init__(*args, **kw)
+
         return FormWithRequest
-    
-    def get_company_name(self, obj):
-        if obj.group_id and obj.group_id.company_id:
-            return obj.group_id.company_id.company_name
-        return "-"
-    get_company_name.short_description = "Company Name"
-    
-    def get_group_name(self, obj):
-        if obj.group_id:
-            if obj.group_id.group_name:
-                return obj.group_id.group_name
-            elif obj.group_id.group_id:
-                return f"Group {obj.group_id.group_id}"
-        return "-"
-    get_group_name.short_description = "Group Name"
-    
-    def username(self, obj):
-        """Display username as readonly field"""
-        if obj and obj.username:
-            return obj.username.username
-        return "-"
-    username.short_description = "Username"
-    
-    def password(self, obj):
-        """Display password field (hidden)"""
-        return "••••••••"
-    password.short_description = "Password"
-    
-    def get_readonly_fields(self, request, obj=None):
-        """Viewer and Approver: everything readonly including username and password"""
-        readonly = super().get_readonly_fields(request, obj)
-        
+
+    def get_queryset(self, request):
+        qs = CompanyAccount.objects.all().select_related('account', 'company')
+
         if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
+            user_groups = list(request.user.groups.values_list('name', flat=True))
             if 'Viewer' in user_groups or 'Approver' in user_groups:
-                # Return all fields as readonly except primary key
-                # Also include username and password from the form
-                model_fields = [field.name for field in self.model._meta.fields if field.name not in ['user_id']]
-                form_fields = ['username', 'password']
-                return tuple(set(model_fields + form_fields))
-        
+                return qs.filter(account__username=request.user.username)
+
+        return qs
+
+    def get_username(self, obj):
+        return obj.account.username
+    get_username.short_description = 'Username'
+    get_username.admin_order_field = 'account__username'
+
+    def get_company_name(self, obj):
+        return obj.company.company_name
+    get_company_name.short_description = 'Company'
+    get_company_name.admin_order_field = 'company__company_name'
+
+    def get_is_active(self, obj):
+        return obj.account.is_active
+    get_is_active.short_description = 'Active'
+    get_is_active.boolean = True
+
+    def get_totp_status(self, obj):
+        try:
+            return "Enabled" if obj.account.user_verification.is_totp_enabled else "Disabled"
+        except UserVerification.DoesNotExist:
+            return "Not Set Up"
+    get_totp_status.short_description = 'TOTP'
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = []
+        if _is_viewer_or_approver(request.user):
+            return [
+                'password', 'is_active', 'company',
+                'full_name', 'mobile', 'email',
+                'designation', 'department', 'is_primary', 'is_approved',
+            ]
         return readonly
-    
+
     def has_add_permission(self, request):
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.add_individual'))
-    
+        return request.user.is_superuser or request.user.has_perm('main_system.add_companyaccount')
+
     def has_change_permission(self, request, obj=None):
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.change_individual') or
-                request.user.has_perm('main_system.view_individual'))
-    
+        return (
+            request.user.is_superuser or
+            request.user.has_perm('main_system.change_companyaccount') or
+            request.user.has_perm('main_system.view_companyaccount')
+        )
+
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
-    
+
+    def approve_accounts(self, request, queryset):
+        """Approve selected pending company accounts."""
+        if not (request.user.is_superuser or
+                request.user.has_perm('main_system.approve_company_account')):
+            messages.error(request, "You don't have permission to approve accounts.")
+            return
+
+        approved = 0
+        for company_account in queryset:
+            if company_account.is_approved:
+                messages.warning(
+                    request,
+                    f"{company_account.account.username} is already approved."
+                )
+                continue
+            try:
+                CompanyAccountService.approve_company_account(
+                    company_account, user=request.user
+                )
+                approved += 1
+            except Exception as e:
+                messages.error(request, f"Failed to approve {company_account.account.username}: {str(e)}")
+
+        if approved:
+            messages.success(request, f"{approved} account(s) approved successfully.")
+    approve_accounts.short_description = "Approve selected company accounts"
+
     def soft_delete_selected(self, request, queryset):
-        
         try:
-            for individual in queryset:
-                IndividualService.soft_delete_individual(individual, user=request.user)
-            messages.success(request, f"{queryset.count()} individuals soft deleted successfully.")
+            for company_account in queryset:
+                CompanyAccountService.soft_delete_company_account(
+                    company_account, user=request.user
+                )
+            messages.success(request, f"{queryset.count()} company accounts soft deleted successfully.")
         except PermissionDenied as e:
-            messages.error(request, str(e))    
-    soft_delete_selected.short_description = "Soft delete selected individuals"
-    
+            messages.error(request, str(e))
+    soft_delete_selected.short_description = "Soft delete selected company accounts"
+
     def reset_password_action(self, request, queryset):
-        """Reset password for individuals - Editor and Admin only"""
-        
-        if not (request.user.is_superuser or request.user.has_perm('main_system.reset_individual_password')):
+        if not (request.user.is_superuser or
+                request.user.has_perm('main_system.reset_company_account_password')):
             messages.error(request, "You don't have permission to reset passwords.")
             return
-        
-        for individual in queryset:
+
+        for company_account in queryset:
+            if company_account.account.username == request.user.username:
+                messages.warning(request, f"You cannot reset your own password: {company_account.account.username}")
+                continue
+
             temp_password = Account.objects.make_random_password()
-            individual.username.set_password(temp_password)
-            individual.username.save()
-            messages.success(request, f"Password reset for {individual.user_full_name or individual.username.username}. New password: {temp_password}")
-    
-    reset_password_action.short_description = "Reset password for selected individuals"
-    
+            try:
+                CompanyAccountService.reset_password(
+                    company_account, temp_password, user=request.user
+                )
+                messages.success(
+                    request,
+                    f"Password reset for {company_account.account.username}. "
+                    f"New password: {temp_password}"
+                )
+            except PermissionDenied as e:
+                messages.error(request, str(e))
+    reset_password_action.short_description = "Reset password for selected accounts"
+
     def delete_model(self, request, obj):
-        IndividualService.hard_delete_individual(obj, user=request.user)
-    
+        CompanyAccountService.hard_delete_company_account(obj, user=request.user)
+
     def delete_queryset(self, request, queryset):
-        for individual in queryset:
-            IndividualService.hard_delete_individual(individual, user=request.user)
-    
+        for company_account in queryset:
+            CompanyAccountService.hard_delete_company_account(company_account, user=request.user)
+
     def get_actions(self, request):
         actions = super().get_actions(request)
-        
-        if not request.user.has_perm('main_system.soft_delete_individual'):
-            if 'soft_delete_selected' in actions:
-                del actions['soft_delete_selected']
-        
-        if not request.user.has_perm('main_system.reset_individual_password'):
-            if 'reset_password_action' in actions:
-                del actions['reset_password_action']
-        
+        if not request.user.has_perm('main_system.soft_delete_company_account'):
+            actions.pop('soft_delete_selected', None)
+        if not request.user.has_perm('main_system.reset_company_account_password'):
+            actions.pop('reset_password_action', None)
         return actions
-    
+
     def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Customize change view to replace Save button with Back for Viewer/Approver"""
         extra_context = extra_context or {}
-        
-        if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                extra_context['show_save'] = False
-                extra_context['show_save_and_continue'] = False
-                extra_context['show_save_and_add_another'] = False
-        
+        if _is_viewer_or_approver(request.user):
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_and_add_another'] = False
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+
+# ============================================================
+# GROUP ADMIN
+# ============================================================
+
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    list_display = ('group_name', 'company', 'isactive', 'isdeleted')
+    list_filter = ('isactive', 'isdeleted')
+    search_fields = ('group_id', 'group_name')
+    actions = ['soft_delete_selected']
+
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        extra_context['show_refresh_cache_button'] = _is_admin_or_super(request.user)
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_readonly_fields(self, request, obj=None):
+        if _is_viewer_or_approver(request.user):
+            return [f.name for f in self.model._meta.fields if f.name != 'row_id']
+        return super().get_readonly_fields(request, obj)
+
+    def has_add_permission(self, request):
+        return request.user.is_superuser or request.user.has_perm('main_system.add_group')
+
+    def has_change_permission(self, request, obj=None):
+        return (
+            request.user.is_superuser or
+            request.user.has_perm('main_system.change_group') or
+            request.user.has_perm('main_system.view_group')
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def soft_delete_selected(self, request, queryset):
+        if not request.user.has_perm('main_system.soft_delete_group'):
+            messages.error(request, "You don't have permission to soft delete groups.")
+            return
+        queryset.update(isdeleted=True, isactive=False, modified_by=request.user.username)
+        messages.success(request, f"{queryset.count()} groups soft deleted successfully.")
+    soft_delete_selected.short_description = "Soft delete selected groups"
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.has_perm('main_system.soft_delete_group'):
+            actions.pop('soft_delete_selected', None)
+        return actions
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+        if _is_viewer_or_approver(request.user):
+            extra_context['show_save'] = False
+            extra_context['show_save_and_continue'] = False
+            extra_context['show_save_and_add_another'] = False
+        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+
+# ============================================================
+# AUDIT LOG ADMIN
+# ============================================================
 
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'action', 'target_username', 'target_type', 'performed_by')
     list_filter = ('action', 'target_type', 'timestamp')
     search_fields = ('target_username', 'performed_by', 'details')
-    readonly_fields = ('log_id', 'action', 'target_username', 'target_type', 'performed_by', 'timestamp', 'details')
-    
+    readonly_fields = (
+        'log_id', 'action', 'target_username', 'target_type',
+        'performed_by', 'timestamp', 'details',
+    )
+
     def get_queryset(self, request):
-        """Filter audit logs based on user role"""
         qs = super().get_queryset(request)
-        
         if request.user.is_superuser:
             return qs
-        
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        
-        # Admin can see all logs
-        if 'Admin' in user_groups:
+        if request.user.groups.filter(name='Admin').exists():
             return qs
-        
         return qs.none()
-    
+
     def has_add_permission(self, request):
-        return False  # Audit logs should not be manually created
-    
-    def has_delete_permission(self, request, obj=None):
-        return request.user.is_superuser  # Only superuser can delete audit logs
-    
-    def has_change_permission(self, request, obj=None):
-        # Allow viewing but not changing
-        if request.user.is_superuser:
-            return True
-        
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        if any(role in user_groups for role in ['Admin', 'Editor', 'Viewer', 'Approver']):
-            return True
-        
-        return False
-    
-    def has_view_permission(self, request, obj=None):
-        """All staff can view audit logs"""
-        if request.user.is_superuser or request.user.is_staff:
-            return True
         return False
 
-    def has_module_permission(self, request):
-        """Hide from admin index for non-Admin/Superuser"""
-        if request.user.is_superuser:
-            return True
-        
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        if 'Admin' in user_groups:
-            return True
-
-@admin.register(Group)
-class GroupAdmin(admin.ModelAdmin):
-    list_display = ( "group_name", "company_id", "isactive", "isdeleted")
-    list_filter = ("isactive", "isdeleted")
-    actions = ['soft_delete_selected']
-    search_fields = ['group_id', 'group_name']
-    
-    def changelist_view(self, request, extra_context=None):
-        """Add refresh cache button to changelist view"""
-        extra_context = extra_context or {}
-        
-        # Only show button to superuser and Admin
-        show_refresh_button = False
-        if request.user.is_superuser:
-            show_refresh_button = True
-        else:
-            user_groups = list(request.user.groups.values_list('name', flat=True))
-            if 'Admin' in user_groups:
-                show_refresh_button = True
-        
-        extra_context['show_refresh_cache_button'] = show_refresh_button
-        
-        return super().changelist_view(request, extra_context=extra_context)
-
-    def get_readonly_fields(self, request, obj=None):
-        """Viewer and Approver: everything readonly"""
-        readonly = super().get_readonly_fields(request, obj)
-        
-        if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                return [field.name for field in self.model._meta.fields if field.name != 'row_id']
-        
-        return readonly
-    
-    def has_add_permission(self, request):
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.add_group'))
-    
-    def has_change_permission(self, request, obj=None):
-        return (request.user.is_superuser or 
-                request.user.has_perm('main_system.change_group') or
-                request.user.has_perm('main_system.view_group'))
-    
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
-    
-    def soft_delete_selected(self, request, queryset):
-        """Soft delete groups"""
-        
-        if not request.user.has_perm('main_system.soft_delete_group'):
-            messages.error(request, "You don't have permission to soft delete groups.")
-            return
-        
-        queryset.update(isdeleted=True, isactive=False, modified_by=request.user.username)
-        messages.success(request, f"{queryset.count()} groups soft deleted successfully.")
-    soft_delete_selected.short_description = "Soft delete selected groups"
-    
-    def get_actions(self, request):
-        actions = super().get_actions(request)
-        
-        if not request.user.has_perm('main_system.soft_delete_group'):
-            if 'soft_delete_selected' in actions:
-                del actions['soft_delete_selected']
-        
-        return actions
-    
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Customize change view to replace Save button with Back for Viewer/Approver"""
-        extra_context = extra_context or {}
-        
-        if not request.user.is_superuser:
-            user_groups = request.user.groups.values_list('name', flat=True)
-            if 'Viewer' in user_groups or 'Approver' in user_groups:
-                extra_context['show_save'] = False
-                extra_context['show_save_and_continue'] = False
-                extra_context['show_save_and_add_another'] = False
-        
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+
+    def has_change_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        return request.user.groups.filter(
+            name__in=['Admin', 'Editor', 'Viewer', 'Approver']
+        ).exists()
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser or request.user.is_staff
+
+    def has_module_permission(self, request):
+        return _is_admin_or_super(request.user)
+
+
+# ============================================================
+# USER VERIFICATION ADMIN
+# ============================================================
+
+@admin.register(UserVerification)
+class UserVerificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'get_username', 'is_totp_enabled',
+        'failed_attempts', 'timeout_until', 'created_at',
+    )
+    list_filter = ('is_totp_enabled',)
+    search_fields = ('account__username',)
+    readonly_fields = (
+        'account', 'is_totp_enabled', 'failed_attempts',
+        'timeout_until', 'created_at',
+    )
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'account', 'is_totp_enabled',
+                'failed_attempts', 'timeout_until', 'created_at',
+            ),
+        }),
+    )
+
+    def get_username(self, obj):
+        return obj.account.username
+    get_username.short_description = 'Username'
+    get_username.admin_order_field = 'account__username'
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('account')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return _is_admin_or_super(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return _is_admin_or_super(request.user)
+
+    def has_module_permission(self, request):
+        return _is_admin_or_super(request.user)

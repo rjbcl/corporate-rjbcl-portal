@@ -1,11 +1,3 @@
-/**
- * Company Dashboard JavaScript
- * Handles data loading, statistics display, and chart rendering
- */
-
-/**
- * Get status badge HTML based on policy status
- */
 function getStatusBadge(status) {
     const badges = {
         'A': '<span class="badge badge-success">Active</span>',
@@ -14,39 +6,24 @@ function getStatusBadge(status) {
     return badges[status] || '<span class="badge badge-secondary">Inactive</span>';
 }
 
-/**
- * Update statistics cards
- */
-function updateStatistics(data) {
+function updateStatistics(summary) {
     try {
-        // Total Policies
-        document.getElementById('total-policies').textContent = data.count || 0;
-
-        // Active Policies
-        const activePolicies = data.endowments.filter(p => p.policy_status === 'A').length;
-        document.getElementById('active-policies').textContent = activePolicies;
-
-        // Total Premium
-        const totalPremium = data.endowments.reduce((sum, p) => sum + parseFloat(p.premium || 0), 0);
-        document.getElementById('total-premium').textContent = formatCurrency(totalPremium);
-        
-        console.log('Statistics updated successfully');
+        document.getElementById('total-policies').textContent = summary.totalPolicies || 0;
+        document.getElementById('active-policies').textContent = summary.activePolicies || 0;
+        document.getElementById('total-premium').textContent = formatCurrency(summary.totalPremium || 0);
     } catch (error) {
         console.error('Error updating statistics:', error);
     }
 }
 
-/**
- * Populate policies table
- */
 function populatePoliciesTable(policies) {
     const tbody = document.getElementById('policies-tbody');
-    
+
     if (!tbody) {
         console.error('Policies table body not found');
         return;
     }
-    
+
     tbody.innerHTML = '';
 
     if (!policies || policies.length === 0) {
@@ -54,171 +31,147 @@ function populatePoliciesTable(policies) {
         return;
     }
 
-    // Show first 10 policies
-    policies.slice(0, 10).forEach(policy => {
+    policies.forEach(policy => {
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${policy.policy_no || '-'}</td>
-            <td>${policy.name || '-'}</td>
-            <td>${formatCurrency(policy.sum_assured)}</td>
-            <td>${formatCurrency(policy.premium)}</td>
-            <td>${policy.maturity_date || '-'}</td>
-            <td>${getStatusBadge(policy.policy_status)}</td>
+            <td>${policy.policyNo || '-'}</td>
+            <td>${policy.Name || '-'}</td>
+            <td>${policy.sumassured || '-'}</td>
+            <td>${policy.premium || '-'}</td>
+            <td>${policy.DOC || '-'}</td>
+            <td>${policy.maturitydate || '-'}</td>
         `;
         tbody.appendChild(row);
     });
-    
-    console.log(`Populated table with ${Math.min(policies.length, 10)} policies`);
 }
 
-/**
- * Show error state in UI
- */
 function showErrorState(message) {
     const tbody = document.getElementById('policies-tbody');
     if (tbody) {
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${message}</td></tr>`;
     }
-    
-    // Set statistics to error state
-    const errorText = 'Error';
-    const elements = ['total-policies', 'active-policies', 'total-premium'];
-    elements.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.textContent = errorText;
+    ['total-policies', 'active-policies', 'total-premium'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = 'Error';
     });
 }
 
-/**
- * Set loading state
- */
 function setLoadingState(isLoading) {
     const tbody = document.getElementById('policies-tbody');
     if (tbody && isLoading) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading policies...</td></tr>';
     }
-}
 
-// ================================
-// DATA FETCHING
-// ================================
-
-/**
- * Fetch policies from API
- */
-async function fetchPolicies(companyId) {
-    const apiUrl = `/api/corporate/endowments/by_company/?company_id=${companyId}`;
-    console.log('Fetching from API:', apiUrl);
-    
-    try {
-        const response = await fetch(apiUrl);
-        console.log('API Response Status:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('API Response Data:', data);
-        console.log('Number of endowments:', data.endowments ? data.endowments.length : 0);
-        
-        // Validate data structure
-        if (!data.endowments || !Array.isArray(data.endowments)) {
-            throw new Error('Invalid API response structure');
-        }
-        
-        return data;
-    } catch (error) {
-        console.error('ERROR fetching policies:', error);
-        throw error;
+    const timeline = document.getElementById('fup-timeline');  // <-- add this
+    if (timeline && isLoading) {
+        timeline.innerHTML = '<li><div class="timeline-panel text-muted"><span>Loading payment schedule...</span></div></li>';
     }
 }
 
-/**
- * Initialize dashboard data
- */
+async function fetchPolicies(companyId) {
+    const response = await fetch(`/api/corporate/endowments/by_company/?company_id=${companyId}`);
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+}
+
 async function initializeDashboard() {
-    console.log('Initializing dashboard...');
-    
-    // Get company ID from data attribute
     const companyIdElement = document.querySelector('[data-company-id]');
-    console.log('Company ID Element:', companyIdElement);
-    
+
     if (!companyIdElement) {
-        console.error('ERROR: Company ID element not found in DOM');
         showErrorState('Company ID not found in page');
         return;
     }
-    
+
     const companyId = companyIdElement.getAttribute('data-company-id');
-    console.log('Company ID:', companyId);
-    
+
     if (!companyId || companyId === 'None' || companyId === '') {
-        console.error('ERROR: Invalid company ID:', companyId);
         showErrorState('Invalid company ID');
         return;
     }
-    
-    // Set loading state
+
     setLoadingState(true);
-    
+
     try {
-        // Fetch data
         const data = await fetchPolicies(companyId);
-        
-        // Update UI
-        updateStatistics(data);
-        populatePoliciesTable(data.endowments);
-        
-        console.log('Dashboard initialized successfully');
+        updateStatistics(data.summary);
+        populatePoliciesTable(data.latest_policies);
+        populateFupTimeline(data.fup_data);  
+        initializeFupScrollbar();
     } catch (error) {
-        console.error('Failed to initialize dashboard:', error);
         showErrorState('Error loading policies: ' + error.message);
     }
 }
 
-
-/**
- * Initialize perfect scrollbar for todo widget
- */
 function initializeTodoScrollbar() {
     const todoElement = document.querySelector('.widget-todo2');
-    if (!todoElement) {
-        console.log('Todo widget element not found, skipping scrollbar');
-        return;
-    }
-    
+    if (!todoElement) return;
+
     if (typeof PerfectScrollbar !== 'undefined') {
-        const wt2 = new PerfectScrollbar('.widget-todo2');
-        console.log('Todo scrollbar initialized');
-    } else {
-        console.warn('PerfectScrollbar library not loaded, skipping todo scrollbar');
+        new PerfectScrollbar('.widget-todo2');
     }
 }
 
-// ================================
-// MAIN INITIALIZATION
-// ================================
-
-/**
- * Initialize all dashboard components
- */
 function initializeAll() {
-    console.log('Dashboard script loaded');
-    
-    // Initialize data (main priority)
     initializeDashboard();
-    
-    // Initialize charts and widgets (secondary)
-    // initializePieChart();
-    // initializeBarChart();
-    // initializeCalendar();
     initializeTodoScrollbar();
 }
 
-// Run initialization when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeAll);
 } else {
     initializeAll();
+}
+
+
+
+function populateFupTimeline(fupData) {
+    const timeline = document.getElementById('fup-timeline');
+
+    if (!timeline) {
+        console.error('FUP timeline element not found');
+        return;
+    }
+
+    if (!fupData || fupData.length === 0) {
+        timeline.innerHTML = '<li><div class="timeline-panel text-muted"><span>No upcoming premium payments found</span></div></li>';
+        return;
+    }
+
+    // Sort soonest first
+    const sorted = [...fupData].sort((a, b) => a.DaysUntilFUP - b.DaysUntilFUP);
+
+    timeline.innerHTML = sorted.map(item => {
+        // Urgency badge color
+        let badgeClass = 'success';
+        if (item.DaysUntilFUP < 7) badgeClass = 'danger';
+        else if (item.DaysUntilFUP < 30) badgeClass = 'warning';
+
+        // Format the FUP date
+        const fupDate = item.fup ? new Date(item.fup).toLocaleDateString() : '-';
+
+        return `
+            <li>
+                <div class="timeline-badge ${badgeClass}"></div>
+                <a class="timeline-panel text-muted" href="#">
+                    <span>${item.DaysUntilFUP} day(s) left &mdash; Due: ${fupDate}</span>
+                    <h6 class="m-t-5">${item.Name || '-'}</h6>
+                    <p class="mb-0 text-muted" style="font-size:0.85em;">${item.policyNo || '-'}</p>
+                </a>
+            </li>
+        `;
+    }).join('');
+}
+
+
+function initializeFupScrollbar() {
+    const el = document.getElementById('fup-timeline-scroll');
+    if (!el) return;
+
+    if (typeof PerfectScrollbar !== 'undefined') {
+        new PerfectScrollbar('#fup-timeline-scroll');
+    }
 }

@@ -63,7 +63,10 @@ $(document).ready(function () {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCookie('csrftoken')
             },
-            data: JSON.stringify({ policy_no: policyNumber }),
+            data: JSON.stringify({
+                policy_no: policyNumber,
+                claim_date: $('#claim-date').val() || null
+            }),
             success: function (response) {
                 if (!response) {
                     Swal.fire({
@@ -96,12 +99,17 @@ $(document).ready(function () {
 
     function displaySurrenderCalculator(data) {
         const today = formatTodayDate();
-        const surrenderAmount = data.SurrenderValue || 0;
-        const loanAmount = surrenderAmount * 0.9;
-        const hasActiveLoan = data.HasActiveLoan;
+
+        const grossSurrender = parseFloat(data.GrossSurrenderValue) || 0;
+        const netSurrender = parseFloat(data.NetSurrenderValue) || 0;
+        const tax = parseFloat(data.Tax) || 0;
+        const loanDeducted = parseFloat(data.LoanDeducted) || 0;
+        const loanInterest = parseFloat(data.LoanInterest) || 0;
+        const hasActiveLoan = loanDeducted > 0 || loanInterest > 0;
+        const loanEligible = grossSurrender * 0.9;
 
         // Surrender card
-        $('#surrender-value').text(formatCurrency(surrenderAmount));
+        $('#surrender-value').text(formatCurrency(netSurrender));
         $('#surrender-date').text(today);
 
         const subtitlePolicyNumber = data.policyNO || $('#policy-number').val().trim();
@@ -117,15 +125,11 @@ $(document).ready(function () {
             $('#loan-value').closest('p').hide();
         } else {
             $('#loan-value').closest('p').show();
-            $('#loan-value').text(formatCurrency(loanAmount));
+            $('#loan-value').text(formatCurrency(loanEligible));
             $('#loan-date').text(today);
         }
 
-        // Show container 
         $('#surrender-calculator-container').show();
-        setTimeout(function () {
-            const container = $('#surrender-calculator-container');
-        }, 100);
     }
 
     // ── Policy Search Dropdown ───────────────────────────────────────────────

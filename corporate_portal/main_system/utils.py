@@ -1,4 +1,5 @@
 from django.core.cache import cache #type: ignore
+import re
 from django.conf import settings #type: ignore
 from django.db import DatabaseError #type: ignore
 import logging
@@ -75,3 +76,25 @@ class GroupAPIService:
         """Clear the groups cache"""
         cache.delete(cls.CACHE_KEY)
         logger.info("Groups cache cleared")
+
+
+def validate_password_strength(password):
+    """
+    Returns a list of error strings if password is weak, empty list if strong.
+    Respects ENFORCE_PASSWORD_STRENGTH setting.
+    """
+    if not getattr(settings, 'ENFORCE_PASSWORD_STRENGTH', True):
+        return []
+
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not re.search(r'[A-Z]', password):
+        errors.append("at least one uppercase letter")
+    if not re.search(r'[a-z]', password):
+        errors.append("at least one lowercase letter")
+    if not re.search(r'\d', password):
+        errors.append("at least one digit")
+    if not re.search(r'[!@#$%^&*(),.?\":{}|<>]', password):
+        errors.append("at least one special character (!@#$%^&*(),.?\":{}|<>)")
+    return errors

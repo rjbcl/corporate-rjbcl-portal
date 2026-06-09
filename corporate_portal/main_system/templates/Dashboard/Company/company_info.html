@@ -1,0 +1,311 @@
+{% extends 'Dashboard/Company/base.html' %}
+{% load static %}
+
+{% block title %}Company Info — {{ company.company_name }}{% endblock %}
+
+{% block content %}
+<div class="row page-titles mx-0">
+    <div class="col-sm-6 p-md-0">
+        <div class="welcome-text">
+            <h4>Company Information</h4>
+            <p class="mb-0">Manage your company details and documents</p>
+        </div>
+    </div>
+    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'company_dashboard' %}">Home</a></li>
+            <li class="breadcrumb-item active">Company Info</li>
+        </ol>
+    </div>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- ── Company Details Card ────────────────────────────────── -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">
+                    <i class="bi bi-building mr-2"></i>Company Details
+                </h4>
+                <small class="text-muted">
+                    <i class="bi bi-lock mr-1"></i>Fields with existing data cannot be changed. Contact your administrator for corrections.
+                </small>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'company_info' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="company_info">
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">Company Name (English)</label>
+                            <input type="text" class="form-control bg-light"
+                                value="{{ company.company_name }}" readonly disabled>
+                            <small class="text-muted">Contact your administrator to change the company name.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Company Name (Nepali)
+                                {% if company.nepali_name %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.nepali_name %}bg-light{% endif %}"
+                                name="nepali_name"
+                                value="{{ company.nepali_name|default:'' }}"
+                                {% if company.nepali_name %}readonly{% endif %}
+                                placeholder="{% if company.nepali_name %}—{% else %}नेपाली नाम{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Email Address
+                                {% if company.email %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="email"
+                                class="form-control {% if company.email %}bg-light{% endif %}"
+                                name="email"
+                                value="{{ company.email|default:'' }}"
+                                {% if company.email %}readonly{% endif %}
+                                placeholder="{% if company.email %}—{% else %}company@example.com{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Phone Number
+                                {% if company.phone_number %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.phone_number %}bg-light{% endif %}"
+                                name="phone_number"
+                                value="{{ company.phone_number|default:'' }}"
+                                {% if company.phone_number %}readonly{% endif %}
+                                placeholder="{% if company.phone_number %}—{% else %}98XXXXXXXX{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Telephone Number
+                                {% if company.telephone_number %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.telephone_number %}bg-light{% endif %}"
+                                name="telephone_number"
+                                value="{{ company.telephone_number|default:'' }}"
+                                {% if company.telephone_number %}readonly{% endif %}
+                                placeholder="{% if company.telephone_number %}—{% else %}01-XXXXXXX{% endif %}">
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="text-muted mb-3">Primary Contact Information</h6>
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                PAN Number
+                                {% if company.pan_number %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.pan_number %}bg-light{% endif %}"
+                                name="pan_number"
+                                value="{{ company.pan_number|default:'' }}"
+                                {% if company.pan_number %}readonly{% endif %}
+                                placeholder="{% if company.pan_number %}—{% else %}XXXXXXXXX{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Primary Contact Person
+                                {% if company.primary_contact_person %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.primary_contact_person %}bg-light{% endif %}"
+                                name="primary_contact_person"
+                                value="{{ company.primary_contact_person|default:'' }}"
+                                {% if company.primary_contact_person %}readonly{% endif %}
+                                placeholder="{% if company.primary_contact_person %}—{% else %}Full name{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="form-row mb-4">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Primary Contact Mobile
+                                {% if company.primary_person_mobile %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.primary_person_mobile %}bg-light{% endif %}"
+                                name="primary_person_mobile"
+                                value="{{ company.primary_person_mobile|default:'' }}"
+                                {% if company.primary_person_mobile %}readonly{% endif %}
+                                placeholder="{% if company.primary_person_mobile %}—{% else %}98XXXXXXXX{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Primary Contact Email
+                                {% if company.primary_person_email %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="email"
+                                class="form-control {% if company.primary_person_email %}bg-light{% endif %}"
+                                name="primary_person_email"
+                                value="{{ company.primary_person_email|default:'' }}"
+                                {% if company.primary_person_email %}readonly{% endif %}
+                                placeholder="{% if company.primary_person_email %}—{% else %}contact@example.com{% endif %}">
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save mr-1"></i> Save Company Details
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Documents Card ─────────────────────────────────────── -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title">
+                    <i class="bi bi-file-earmark-text mr-2"></i>Company Documents
+                </h4>
+                <small class="text-muted">
+                    <i class="bi bi-lock mr-1"></i>Once submitted, documents and text fields cannot be changed. Contact your administrator for corrections.
+                </small>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'company_info' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_type" value="company_documents">
+
+                    <div class="form-row mb-3">
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Authorized By
+                                {% if document.authorized_by %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if document.authorized_by %}bg-light{% endif %}"
+                                name="authorized_by"
+                                value="{{ document.authorized_by|default:'' }}"
+                                {% if document.authorized_by %}readonly{% endif %}
+                                placeholder="{% if document.authorized_by %}—{% else %}Authorizing person's name{% endif %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="font-weight-bold">
+                                Business Purpose
+                                {% if document.business_purpose %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <textarea
+                                class="form-control {% if document.business_purpose %}bg-light{% endif %}"
+                                name="business_purpose"
+                                rows="2"
+                                {% if document.business_purpose %}readonly{% endif %}
+                                placeholder="{% if document.business_purpose %}—{% else %}Brief description of business purpose{% endif %}">{{ document.business_purpose|default:'' }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-row mb-4">
+                        <!-- Signature -->
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">Signature</label>
+                            {% if document.signature %}
+                            <div class="mb-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle mr-1"></i>Uploaded
+                                </small>
+                                <a href="{{ document.signature.url }}" target="_blank" class="ml-2 small">View</a>
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-lock-fill mr-1"></i>Cannot be replaced.
+                            </small>
+                            {% else %}
+                            <input type="file" class="form-control-file" name="signature" accept="image/*,.pdf">
+                            <small class="text-muted">No file uploaded yet</small>
+                            {% endif %}
+                        </div>
+
+                        <!-- Stamp -->
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">Company Stamp</label>
+                            {% if document.stamp %}
+                            <div class="mb-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle mr-1"></i>Uploaded
+                                </small>
+                                <a href="{{ document.stamp.url }}" target="_blank" class="ml-2 small">View</a>
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-lock-fill mr-1"></i>Cannot be replaced.
+                            </small>
+                            {% else %}
+                            <input type="file" class="form-control-file" name="stamp" accept="image/*,.pdf">
+                            <small class="text-muted">No file uploaded yet</small>
+                            {% endif %}
+                        </div>
+
+                        <!-- Official Request Letter -->
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">Official Request Letter</label>
+                            {% if document.official_request_letter %}
+                            <div class="mb-1">
+                                <small class="text-success">
+                                    <i class="bi bi-check-circle mr-1"></i>Uploaded
+                                </small>
+                                <a href="{{ document.official_request_letter.url }}" target="_blank" class="ml-2 small">View</a>
+                            </div>
+                            <small class="text-muted">
+                                <i class="bi bi-lock-fill mr-1"></i>Cannot be replaced.
+                            </small>
+                            {% else %}
+                            <input type="file" class="form-control-file" name="official_request_letter" accept="image/*,.pdf">
+                            <small class="text-muted">No file uploaded yet</small>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-cloud-upload mr-1"></i> Save Documents
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

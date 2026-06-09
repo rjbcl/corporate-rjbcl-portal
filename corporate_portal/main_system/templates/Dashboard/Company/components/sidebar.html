@@ -8,25 +8,25 @@
                     <span class="nav-text">Dashboard</span>
                 </a>
             </li>
-            <li class="{% if 'policies' in request.path %}mm-active{% endif %}">
+            <li class="{% if request.resolver_match.url_name == 'company_groups' %}mm-active{% endif %}">
                 <a href="{% url 'company_groups' %}">
                     <i class="bi bi-collection"></i>
                     <span class="nav-text">Group</span>
                 </a>
             </li>
-            <li class="{% if 'policies' in request.path %}mm-active{% endif %}">
+            <li class="{% if request.resolver_match.url_name == 'policy_summary' %}mm-active{% endif %}">
                 <a href="{% url 'policy_summary' %}">
                     <i class="bi bi-file-earmark-text"></i>
                     <span class="nav-text">Policy Summary</span>
                 </a>
             </li>
-            <li class="{% if 'calculator' in request.path %}mm-active{% endif %}">
+            <li class="{% if request.resolver_match.url_name == 'surrender_calculator' %}mm-active{% endif %}">
                 <a href="{% url 'surrender_calculator' %}">
                     <i class="bi bi-calculator"></i>
                     <span class="nav-text">Surrender Calculator</span>
                 </a>
             </li>
-            <li class="{% if ' Q' in request.path %}mm-active{% endif %}">
+            <li class="{% if 'reports' in request.path %}mm-active{% endif %}">
                 <a class="has-arrow" href="javascript:void(0);"
                     aria-expanded="{% if 'reports' in request.path %}true{% else %}false{% endif %}">
                     <i class="bi bi-file-earmark-break-fill"></i>
@@ -41,14 +41,31 @@
                             Report</a></li>
                     <li><a href="{% url 'business_detail_report' %}"
                             class="{% if request.resolver_match.url_name == 'business_detail_report' %}active{% endif %}">Business
-                            Detail </a></li>
+                            Detail</a></li>
                     <li><a href="{% url 'transfer_report' %}"
-                            class="{% if request.resolver_match.url_name == 'transfer_report' %}active{% endif %}">Group Transfer</a>
-                    </li>
+                            class="{% if request.resolver_match.url_name == 'transfer_report' %}active{% endif %}">Group
+                            Transfer</a></li>
                     <li><a href="{% url 'loan_repayment_report' %}"
-                            class="{% if request.resolver_match.url_name == 'loan_repayment_report' %}active{% endif %}">Group Loan</a></li>
+                            class="{% if request.resolver_match.url_name == 'loan_repayment_report' %}active{% endif %}">Group
+                            Loan</a></li>
                 </ul>
             </li>
+
+            {% if request.user.company_profile.is_primary %}
+            <li class="nav-label">Account Management</li>
+            <li class="{% if request.resolver_match.url_name == 'company_info' %}mm-active{% endif %}">
+                <a href="{% url 'company_info' %}">
+                    <i class="bi bi-building"></i>
+                    <span class="nav-text">Company Info</span>
+                </a>
+            </li>
+            <li class="{% if request.resolver_match.url_name == 'manage_accounts' %}mm-active{% endif %}">
+                <a href="{% url 'manage_accounts' %}">
+                    <i class="bi bi-people"></i>
+                    <span class="nav-text">Manage Accounts</span>
+                </a>
+            </li>
+            {% endif %}
         </ul>
     </div>
 </div>

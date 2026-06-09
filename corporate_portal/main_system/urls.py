@@ -26,11 +26,20 @@ urlpatterns = [
     path('company/reports/summary/', views.policy_summary, name='policy_summary'),
     path('company/reports/surrender-calculator/', views.surrender_calculator, name='surrender_calculator'),
     path('company/reports/business-detail/', views.business_detail_report, name='business_detail_report'),
-    # Individual routes
-    path('individual/dashboard/', views.individual_dashboard, name='individual_dashboard'),
     
     # Admin routes
     path('admin/refresh-groups-cache/', refresh_groups_cache_view, name='refresh_groups_cache'),
+
+    # 2FA and OTP verification routes
+    path('verify-2fa/', views.verify_2fa, name='verify_2fa'),
+    path('verify-otp/', views.verify_otp, name='verify_otp'),
+
+
+    # Primary company user routes
+    path('company/info/', views.company_info, name='company_info'),
+    path('company/accounts/', views.manage_accounts, name='manage_accounts'),
+    path('company/accounts/<int:account_id>/reset-password/', views.reset_account_password, name='reset_account_password'),
+
 ]
 
 # 
