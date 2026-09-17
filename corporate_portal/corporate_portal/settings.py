@@ -102,7 +102,6 @@ DATABASES = {
         "HOST": config("DB_HOST"),
         "PORT": config("DB_PORT"),
         "OPTIONS": {
-            "sslmode": "require",
             'options': '-c timezone=Asia/Kathmandu'
         },
     },

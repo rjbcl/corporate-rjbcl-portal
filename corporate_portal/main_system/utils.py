@@ -11,32 +11,30 @@ class GroupAPIService:
     
     CACHE_KEY = 'corporate_groups_data'
     CACHE_TTL = 86400  # 24 hours
-    
     @classmethod
     def fetch_groups_from_db(cls):
         """Fetch all groups from the database"""
-        from api_corporate.models import GroupInformation
-        
+        from api_corporate.reports.base import readonly_cursor, dictfetchall
+
         try:
-            # Query all groups from company_external database
-            groups_queryset = GroupInformation.objects.using('company_external').all()
-            
-            # Convert to list of dicts with groupid and groupname
-            all_groups = []
-            for group in groups_queryset:
-                all_groups.append({
-                    'groupid': group.group_id,
-                    'groupname': group.group_name
-                })
-            
+            with readonly_cursor() as cur:
+                cur.execute("""
+                    SELECT GroupId, GroupName
+                    FROM tblGroupInformation
+                    ORDER BY GroupId
+                """)
+                rows = dictfetchall(cur)
+
+            all_groups = [
+                {'groupid': r['GroupId'], 'groupname': r['GroupName']}
+                for r in rows
+            ]
+
             logger.info(f"Successfully fetched {len(all_groups)} groups from database")
             return all_groups
-            
-        except DatabaseError as e:
-            logger.error(f"Failed to fetch groups from database: {str(e)}")
-            raise
+
         except Exception as e:
-            logger.error(f"Unexpected error fetching groups: {str(e)}")
+            logger.error(f"Failed to fetch groups from database: {str(e)}")
             raise
     
     @classmethod
