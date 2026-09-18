@@ -10,13 +10,6 @@ Production:
 https://api.rbs.gov.np:3000/api/corporate
 ```
 
-Local development:
-
-```text
-http://127.0.0.1:8000/api/corporate
-```
-
-Use HTTPS in production. The API key is a bearer credential and must not be sent over plain HTTP outside local development.
 
 ## Authentication
 
@@ -56,41 +49,6 @@ Do not use `Authorization: Bearer ...`; JWT login and refresh endpoints are not 
 - Dates use `YYYY-MM-DD` unless noted otherwise.
 - Response dates and datetimes are returned as JSON strings, generally in ISO 8601 format.
 
-## Quick start
-
-```python
-import requests
-
-BASE_URL = "https://api.rbs.gov.np/api/corporate"
-API_KEY = "copo_your_key_here"
-HEADERS = {
-    "X-API-Key": API_KEY,
-    "Content-Type": "application/json",
-}
-
-# 1. Find the groups available to the company.
-groups = requests.get(f"{BASE_URL}/groups/", headers=HEADERS)
-groups.raise_for_status()
-group_id = groups.json()["group_ids"][0]
-
-# 2. Search for a policy.
-search = requests.post(
-    f"{BASE_URL}/policy-search/",
-    headers=HEADERS,
-    json={"q": "LAXMI"},
-)
-search.raise_for_status()
-policy_no = search.json()[0]["policyNo"]
-
-# 3. Retrieve policy details.
-detail = requests.post(
-    f"{BASE_URL}/policy-detail/",
-    headers=HEADERS,
-    json={"policy_no": policy_no},
-)
-detail.raise_for_status()
-print(detail.json())
-```
 
 ## Endpoints
 
