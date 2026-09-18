@@ -1,528 +1,465 @@
-# Corporate Portal API Documentation
+# Corporate Portal API
 
-## Overview
+REST API for server-to-server access to corporate group insurance data.
 
-This document describes the REST API for accessing corporate group insurance data.
-The API is intended for server-to-server integration only — do not call these endpoints
-from a browser or mobile app directly.
+## Base URL
 
-**Base URL:** `https://api.rbs.gov.np/api/corporate`
+Production:
 
----
+```text
+https://api.rbs.gov.np/api/corporate
+```
+
+Local development:
+
+```text
+http://127.0.0.1:8000/api/corporate
+```
+
+Use HTTPS in production. The API key is a bearer credential and must not be sent over plain HTTP outside local development.
 
 ## Authentication
 
-All requests must include your API key in the request header:
+### Provisioning an API key
 
-```
-X-API-Key: copo_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+There is no public login or token endpoint. A portal superuser issues the key from Django admin:
 
-API keys are issued by the portal administrator. Keep your key secure — treat it like
-a password. If your key is compromised, contact the administrator to revoke and reissue it.
+1. Open **Admin > Companies**.
+2. Select exactly one company.
+3. Choose **Generate API key**.
+4. Copy the key immediately. It is displayed only once.
 
-**If your key is missing or invalid:**
-```json
-HTTP 403
-{ "detail": "Invalid or revoked API key." }
-```
+The company must have an approved primary `CompanyAccount`. Generating a new key revokes the previous key. Only a SHA-256 hash of the key is stored by the server.
 
-**If your company account is inactive:**
-```json
-HTTP 403
-{ "detail": "Company account is inactive." }
+### Request headers
+
+Send the raw key on every request:
+
+```http
+X-API-Key: copo_<64 hexadecimal characters>
 ```
 
----
+For JSON requests also send:
 
-## General Notes
-
-- All request bodies must be JSON with `Content-Type: application/json`
-- All dates are in `YYYY-MM-DD` format unless stated otherwise
-- Datetime fields in responses are ISO 8601 format
-- `null` values indicate the field exists but has no data
-- An empty results array `[]` means the query succeeded but returned no data
-
----
-
-## Endpoints
-
----
-
-### 1. List Groups
-
-Returns all groups belonging to your company.
-
-```
-GET /groups/
+```http
+Content-Type: application/json
 ```
 
-**Request:**
-```
-GET https://api.rbs.gov.np/api/corporate/groups/
-X-API-Key: copo_xxx...
-```
+Do not use `Authorization: Bearer ...`; JWT login and refresh endpoints are not enabled in the current API.
 
-**Response:**
-```json
-{
-    "count": 2,
-    "group_ids": ["052", "071"],
-    "results": [
-        {
-            "group_id": "052",
-            "group_name": "Example Group One",
-            "group_name_nepali": null,
-            "is_active": true,
-            "total_members_count": 120,
-            "total_active_policies": 98,
-            "total_premium": "980000.00",
-            "total_sa": "24500000.00",
-            "death_claim": 2,
-            "surrender_claim": 1,
-            "maturity_claim": 5,
-            "transfer_claim": 0,
-            "terminate_claim": 0,
-            "cancel_claim": 0
-        }
-    ]
-}
-```
+## Access rules
 
----
+- A company can access only its own active, non-deleted groups and related policies.
+- Group-based reports reject groups belonging to another company with `403`.
+- Staff and superusers may access broader data and may use `company_id` where documented.
+- An inactive company or inactive primary account cannot authenticate.
+- Dates use `YYYY-MM-DD` unless noted otherwise.
+- Response dates and datetimes are returned as JSON strings, generally in ISO 8601 format.
 
-### 2. Policy Search
-
-Search for policies by policy number, member name, or employee ID.
-Returns up to 15 matching results.
-
-```
-POST /policy-search/
-```
-
-**Request body:**
-```json
-{
-    "q": "search term"
-}
-```
-
-**Response:**
-```json
-[
-    {
-        "policyNo": "05208090",
-        "name": "LAXMI GIRI",
-        "employeeid": "EMP001"
-    }
-]
-```
-
-**Notes:**
-- `q` is matched against policy number, name, and employee ID simultaneously
-- Returns an empty array if no matches found
-- Use this to look up a `policy_no` before calling the policy detail endpoint
-
----
-
-### 3. Policy Detail
-
-Returns full policy summary and loan details for a single policy.
-
-```
-POST /policy-detail/
-```
-
-**Request body:**
-```json
-{
-    "policy_no": "05208090"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "policy_no": "05208090",
-    "summary": [
-        {
-            "PolicyNo": "05208090",
-            "Branch": "300",
-            "Name": "LAXMI GIRI",
-            "NepName": null,
-            "GroupId": "052",
-            "DOB": "1978-01-08T00:00:00",
-            "Gender": null,
-            "Address": null,
-            "Email": null,
-            "Mobile": null,
-            "FatherName": null,
-            "MotherName": null,
-            "NomineeName": null,
-            "NomineeRelationship": null,
-            "ClaimDate": null,
-            "Sumassured": "176400.0000",
-            "DOC": "2003-11-23",
-            "FUP": "2023-11-23T00:00:00",
-            "Term": 20,
-            "Premium": "8001.5900",
-            "Instalment": 20,
-            "PaidAmount": "160031.8000",
-            "maturitydate": "2023-11-23",
-            "PolicyStatus": "M",
-            "PolicyType": null
-        }
-    ],
-    "loans": [
-        {
-            "PolicyNo": "05208090",
-            "loanID": 1,
-            "LoanDate": "2020-05-01T00:00:00",
-            "LoanAmount": "50000.0000",
-            "InterestRate": "10.00",
-            "Instalment": 12,
-            "Status": "A",
-            "LastPaidDate": "2021-05-01T00:00:00",
-            "VoucherNo": "V001"
-        }
-    ]
-}
-```
-
-**Notes:**
-- `summary` is an array but will contain at most one record per policy number
-- `loans` is an empty array if the policy has no loans
-- Returns `403` if the policy does not belong to your company's groups
-
-**Policy status codes:**
-
-| Code | Meaning |
-|------|---------|
-| `A`  | Active  |
-| `L`  | Lapsed  |
-| `M`  | Matured |
-| `S`  | Surrendered |
-| `D`  | Death Claim |
-
----
-
-### 4. Policy Loans
-
-Returns loan records for a specific policy.
-
-```
-POST /reports/policy-loans/
-```
-
-**Request body:**
-```json
-{
-    "policy_no": "05208090"
-}
-```
-
-**Response:**
-```json
-[
-    {
-        "PolicyNo": "05208090",
-        "loanID": 1,
-        "LoanDate": "2020-05-01T00:00:00",
-        "LoanAmount": "50000.0000",
-        "InterestRate": "10.00",
-        "Instalment": 12,
-        "Status": "A",
-        "LastPaidDate": "2021-05-01T00:00:00",
-        "VoucherNo": "V001"
-    }
-]
-```
-
----
-
-### 5. Policy Summary Report
-
-Returns summary data for a single policy from the reporting view.
-
-```
-POST /policy-summary/
-```
-
-**Request body:**
-```json
-{
-    "policy_no": "05208090"
-}
-```
-
----
-
-### 6. Maturity Forecasting Report
-
-Returns policies approaching maturity within a date range.
-
-```
-POST /reports/maturity-forecasting/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31",
-    "date_type": "ad"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "count": 10,
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31",
-    "date_type": "ad",
-    "policies": [ { ... } ]
-}
-```
-
-**Notes:**
-- `date_type` accepts `"ad"` (Gregorian) or `"bs"` (Bikram Sambat)
-- `group_id` must belong to your company
-
----
-
-### 7. Group Transfer Report
-
-Returns transfer records for a group within a date range.
-
-```
-POST /reports/group-transfer/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "transfer_date_from": "2024-01-01",
-    "transfer_date_to": "2024-12-31",
-    "date_type": "ad"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "count": 3,
-    "group_id": "052",
-    "transfer_date_from": "2024-01-01",
-    "transfer_date_to": "2024-12-31",
-    "date_type": "ad",
-    "transfers": [ { ... } ]
-}
-```
-
----
-
-### 8. Loan Repayment Report
-
-Returns loan repayment records for a group within a date range.
-
-```
-POST /reports/loan-repayment/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31",
-    "date_type": "ad"
-}
-```
-
-**Response:**
-```json
-{
-    "success": true,
-    "count": 5,
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31",
-    "date_type": "ad",
-    "repayments": [ { ... } ]
-}
-```
-
----
-
-### 9. Death Claim Report
-
-Returns death claim records for a group within a date range.
-
-```
-POST /reports/death-claim/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31"
-}
-```
-
----
-
-### 10. Maturity Claim Report
-
-Returns maturity claim records for a group within a date range.
-
-```
-POST /reports/maturity-claim/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31"
-}
-```
-
----
-
-### 11. Surrender Claim Report
-
-Returns surrender claim records for a group within a date range.
-
-```
-POST /reports/surrender-claim/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31"
-}
-```
-
----
-
-### 12. Business Detail Report
-
-Returns new or renewal business detail for a group within a date range.
-
-```
-POST /reports/group-business-detail/
-```
-
-**Request body:**
-```json
-{
-    "group_id": "052",
-    "flag": "NB",
-    "filter_by": "PaidDate",
-    "from_date": "2024-01-01",
-    "to_date": "2024-12-31"
-}
-```
-
-**Parameter values:**
-
-| Field | Options | Meaning |
-|-------|---------|---------|
-| `flag` | `NB` | New Business |
-| `flag` | `RB` | Renewal Business |
-| `filter_by` | `PaidDate` | Filter by payment date |
-| `filter_by` | `ValueDate` | Filter by value date |
-
----
-
-### 13. Surrender Calculator
-
-Calculates the surrender value for a policy.
-
-```
-POST /surrender-calculator/
-```
-
-**Request body:**
-```json
-{
-    "policy_no": "05208090",
-    "claim_date": "2024-06-01"
-}
-```
-
-**Notes:**
-- `claim_date` is optional — omit it to calculate based on today's date
-- Returns `404` if the policy is not found or does not belong to your company
-
----
-
-## Error Reference
-
-| Status | Meaning |
-|--------|---------|
-| `400`  | Missing or invalid request parameters |
-| `403`  | Authentication failed, company inactive, or access to requested data denied |
-| `404`  | Requested record not found |
-| `500`  | Server error — contact the administrator |
-
-All error responses follow this shape:
-```json
-{
-    "error": "Human readable message"
-}
-```
-
----
-
-## Quick Start Example
+## Quick start
 
 ```python
 import requests
 
-API_KEY = "copo_your_key_here"
 BASE_URL = "https://api.rbs.gov.np/api/corporate"
+API_KEY = "copo_your_key_here"
 HEADERS = {
     "X-API-Key": API_KEY,
     "Content-Type": "application/json",
 }
 
-# 1. Get your groups
-groups = requests.get(f"{BASE_URL}/groups/", headers=HEADERS).json()
-group_id = groups["group_ids"][0]
+# 1. Find the groups available to the company.
+groups = requests.get(f"{BASE_URL}/groups/", headers=HEADERS)
+groups.raise_for_status()
+group_id = groups.json()["group_ids"][0]
 
-# 2. Search for a policy
-results = requests.post(
+# 2. Search for a policy.
+search = requests.post(
     f"{BASE_URL}/policy-search/",
     headers=HEADERS,
     json={"q": "LAXMI"},
-).json()
-policy_no = results[0]["policyNo"]
+)
+search.raise_for_status()
+policy_no = search.json()[0]["policyNo"]
 
-# 3. Get full policy detail
+# 3. Retrieve policy details.
 detail = requests.post(
     f"{BASE_URL}/policy-detail/",
     headers=HEADERS,
     json={"policy_no": policy_no},
-).json()
-
-print(detail["summary"])
-print(detail["loans"])
+)
+detail.raise_for_status()
+print(detail.json())
 ```
 
----
+## Endpoints
 
-*For API key provisioning or support, contact your portal administrator.*
+### Groups and dashboards
+
+#### List groups
+
+```http
+GET /groups/
+```
+
+Request body: none.
+
+Optional staff/superuser query parameter:
+
+```text
+/groups/?company_id=1
+```
+
+Response:
+
+```json
+{
+  "count": 2,
+  "group_ids": ["052", "071"],
+  "results": []
+}
+```
+
+#### Company dashboard data
+
+```http
+GET /endowments/by_company/?company_id=1
+```
+
+Request body: none.
+
+Regular company users may provide only their own company ID. Staff and superusers may provide another company ID.
+
+Response fields:
+
+```json
+{
+  "company_id": 1,
+  "group_ids": ["052"],
+  "summary": {},
+  "latest_policies": [],
+  "fup_data": []
+}
+```
+
+### Policy and endowment lists
+
+#### List company policies
+
+```http
+GET /company/policies/
+```
+
+Optional query parameters:
+
+```text
+page
+search
+policy_status
+fiscal_year
+gender
+policy_type
+is_adb
+employee_id
+claim_status
+ordering
+```
+
+Response is paginated:
+
+```json
+{
+  "count": 0,
+  "next": null,
+  "previous": null,
+  "results": []
+}
+```
+
+#### Company policy statistics
+
+```http
+POST /company/policies/statistics/
+```
+
+```json
+{}
+```
+
+#### List endowments
+
+```http
+GET /endowments/
+```
+
+Optional query parameters:
+
+```text
+page
+search
+group_id
+policy_status
+fiscal_year
+gender
+policy_type
+is_adb
+register_no
+employee_id
+claim_status
+ordering
+```
+
+Response is paginated with `count`, `next`, `previous`, and `results`.
+
+### Policy requests
+
+#### Search policies
+
+```http
+POST /policy-search/
+```
+
+```json
+{
+  "q": "LAXMI"
+}
+```
+
+Returns an array of matching `{ "policyNo": ..., "name": ..., "employeeid": ... }` objects. A blank `q` returns `[]`.
+
+#### Policy detail
+
+```http
+POST /policy-detail/
+```
+
+```json
+{
+  "policy_no": "05208090"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "policy_no": "05208090",
+  "summary": [],
+  "loans": []
+}
+```
+
+#### Policy summary
+
+```http
+POST /policy-summary/
+```
+
+```json
+{
+  "policy_no": "05208090"
+}
+```
+
+Returns a JSON array of policy summary records.
+
+#### Policy loans
+
+```http
+POST /reports/policy-loans/
+```
+
+```json
+{
+  "policy_no": "05208090"
+}
+```
+
+Returns a JSON array of loan records.
+
+#### Surrender calculator
+
+```http
+POST /surrender-calculator/
+```
+
+```json
+{
+  "policy_no": "05208090",
+  "claim_date": "2024-06-01"
+}
+```
+
+`claim_date` is optional. The response is one surrender-result object.
+
+### Group reports
+
+#### Maturity forecasting
+
+```http
+POST /reports/maturity-forecasting/
+```
+
+```json
+{
+  "group_id": "052",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31",
+  "date_type": "ad"
+}
+```
+
+`date_type` is optional and defaults to `ad`.
+
+#### Loan repayment
+
+```http
+POST /reports/loan-repayment/
+```
+
+```json
+{
+  "group_id": "052",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31",
+  "date_type": "ad"
+}
+```
+
+`date_type` is optional and defaults to `ad`.
+
+#### Group transfer
+
+```http
+POST /reports/group-transfer/
+```
+
+```json
+{
+  "group_id": "052",
+  "transfer_date_from": "2024-01-01",
+  "transfer_date_to": "2024-12-31",
+  "date_type": "ad"
+}
+```
+
+`date_type` is optional and defaults to `ad`.
+
+#### Group business detail
+
+```http
+POST /reports/group-business-detail/
+```
+
+```json
+{
+  "group_id": "052",
+  "flag": "NB",
+  "filter_by": "PaidDate",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+Valid values:
+
+- `flag`: `NB` (new business) or `RB` (renewal business)
+- `filter_by`: `PaidDate` or `ValueDate`
+
+Returns a JSON array.
+
+#### Death claims
+
+```http
+POST /reports/death-claim/
+```
+
+```json
+{
+  "group_id": "052",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+Returns a JSON array.
+
+#### Maturity claims
+
+```http
+POST /reports/maturity-claim/
+```
+
+```json
+{
+  "group_id": "052",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+Returns a JSON array.
+
+#### Surrender claims
+
+```http
+POST /reports/surrender-claim/
+```
+
+```json
+{
+  "group_id": "052",
+  "from_date": "2024-01-01",
+  "to_date": "2024-12-31"
+}
+```
+
+Returns a JSON array.
+
+## Status codes and errors
+
+Authentication failures from API-key validation normally return `401`:
+
+```json
+{
+  "detail": "Invalid or revoked API key."
+}
+```
+
+Common application responses:
+
+| Status | Meaning |
+|---|---|
+| `200` | Request succeeded; no records may be represented by an empty array or result set |
+| `400` | Missing or invalid request parameters |
+| `401` | Missing, invalid, or revoked API key |
+| `403` | Inactive company or access to another company’s data |
+| `404` | Requested policy/result not found, depending on endpoint |
+| `500` | Server or reporting error |
+
+Most application errors use this shape:
+
+```json
+{
+  "error": "Human-readable error message"
+}
+```
+
+## Testing with cURL
+
+```bash
+curl -i \
+  -H "X-API-Key: copo_your_key_here" \
+  "https://api.rbs.gov.np/api/corporate/groups/"
+```
+
+```bash
+curl -i -X POST \
+  -H "X-API-Key: copo_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"group_id":"052","from_date":"2024-01-01","to_date":"2024-12-31"}' \
+  "https://api.rbs.gov.np/api/corporate/reports/death-claim/"
+```
+
+For key provisioning or revocation, contact a portal superuser.
