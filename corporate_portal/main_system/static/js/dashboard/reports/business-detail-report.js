@@ -131,7 +131,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Table population — hardcoded 9 columns
     // -------------------------------------------------------------------------
     function populateTable(flagKey, data) {
+        const tableId = `${flagKey}-report-table`;
         const tbody = document.getElementById(`${flagKey}-report-tbody`);
+
+        // Destroy existing DataTable FIRST (before touching the DOM)
+        if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
+            $(`#${tableId}`).DataTable().destroy();
+        }
+
+        // Now clear tbody
         tbody.innerHTML = '';
 
         if (!data || data.length === 0) {
@@ -140,23 +148,42 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        data.forEach(item => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${item.PolicyNo || '-'}</td>
-                <td>${item.Name || '-'}</td>
-                <td>${formatCurrency(item.SA ?? 0)}</td>
-                <td>${formatCurrency(parseFloat(item.Premium) || 0)}</td>
-                <td>${item.Term ?? '-'}</td>
-                <td>${item.DOB || '-'}</td>
-                <td>${item.NextDueDate || '-'}</td>
-                <td>${item.MaturityDate || '-'}</td>
-                <td>${item.Status || '-'}</td>
-            `;
-            tbody.appendChild(row);
+        // Initialize DataTable with data as a JS array (NOT pre-rendered DOM rows).
+        // deferRender: true only creates <tr> elements for the current page (10 rows),
+        // not all 82K. This is what prevents the browser from crashing.
+        $(`#${tableId}`).DataTable({
+            data: data,
+            columns: [
+                { data: 'PolicyNo', defaultContent: '-' },
+                { data: 'Name', defaultContent: '-' },
+                { data: 'SA', defaultContent: 0, render: (d) => formatCurrency(d ?? 0) },
+                { data: 'Premium', defaultContent: 0, render: (d) => formatCurrency(parseFloat(d) || 0) },
+                { data: 'Term', defaultContent: '-' },
+                { data: 'DOB', defaultContent: '-' },
+                { data: 'NextDueDate', defaultContent: '-' },
+                { data: 'MaturityDate', defaultContent: '-' },
+                { data: 'Status', defaultContent: '-' },
+            ],
+            deferRender: true,
+            autoWidth: true,
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
+            dom:
+                '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                '<"row"<"col-sm-12"tr>>' +
+                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            language: {
+                lengthMenu: 'Show _MENU_ entries',
+                search: 'Search:',
+                info: 'Showing _START_ to _END_ of _TOTAL_ entries',
+                paginate: {
+                    first: 'First',
+                    last: 'Last',
+                    next: 'Next',
+                    previous: 'Previous',
+                },
+            },
         });
-
-        initializeDataTable(flagKey);
     }
 
     // -------------------------------------------------------------------------

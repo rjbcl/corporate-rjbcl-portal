@@ -30,3 +30,6 @@ sqlparse
 tzdata
 urllib3
 whitenoise
+pyopt
+qrcode
+pillow

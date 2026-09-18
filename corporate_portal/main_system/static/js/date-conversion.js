@@ -136,7 +136,7 @@ $(document).ready(function () {
     /**************************************************
      * Datepicker Binding
      **************************************************/
-    const bsFields = "#from-date-bs,#to-date-bs,#maturity-from-date-bs,#maturity-to-date-bs,#surrender-from-date-bs,#surrender-to-date-bs,#death-from-date-bs,#death-to-date-bs";
+    const bsFields = "#from-date-bs,#to-date-bs,#maturity-from-date-bs,#maturity-to-date-bs,#surrender-from-date-bs,#surrender-to-date-bs,#death-from-date-bs,#death-to-date-bs,#nb-from-date-bs,#nb-to-date-bs,#rb-from-date-bs,#rb-to-date-bs";
 
     $(bsFields).each(function () {
         const input = this;
@@ -203,6 +203,10 @@ $(document).ready(function () {
     bindBsAdSync('#surrender-to-date-bs', '#surrender-to-date-ad');
     bindBsAdSync('#death-from-date-bs', '#death-from-date-ad');
     bindBsAdSync('#death-to-date-bs', '#death-to-date-ad');
+    bindBsAdSync('#nb-from-date-bs', '#nb-from-date-ad');
+    bindBsAdSync('#nb-to-date-bs', '#nb-to-date-ad');
+    bindBsAdSync('#rb-from-date-bs', '#rb-from-date-ad');
+    bindBsAdSync('#rb-to-date-bs', '#rb-to-date-ad');
 
 
     /**************************************************

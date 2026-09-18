@@ -120,7 +120,7 @@ WHERE   c.VoucherCode     = 'RP'
   AND   c.IsReverse       IS NULL
   AND   pd.Instalment    <> '1'
   AND   c.Amount          < 0
-  AND   c.Narration       LIKE 'Renewal Group Endowment Income on%'
+  AND   c.Narration       LIKE 'Renewal Group Endowment Income on%%'
   AND   pd.GroupId        = %s
   AND   CAST({date_filter_col} AS date) BETWEEN %s AND %s;
 """
