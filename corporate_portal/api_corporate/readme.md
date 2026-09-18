@@ -7,7 +7,7 @@ REST API for server-to-server access to corporate group insurance data.
 Production:
 
 ```text
-https://api.rbs.gov.np/api/corporate
+https://api.rbs.gov.np:3000/api/corporate
 ```
 
 Local development:
