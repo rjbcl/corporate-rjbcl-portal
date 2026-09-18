@@ -193,7 +193,7 @@ POST /policy-detail/
 
 ```json
 {
-  "policy_no": "05208090"
+  "policy_no": "POL123"
 }
 ```
 
@@ -202,7 +202,7 @@ Response:
 ```json
 {
   "success": true,
-  "policy_no": "05208090",
+  "policy_no": "POL123",
   "summary": [],
   "loans": []
 }
@@ -216,7 +216,7 @@ POST /policy-summary/
 
 ```json
 {
-  "policy_no": "05208090"
+  "policy_no": "POL123"
 }
 ```
 
@@ -230,7 +230,7 @@ POST /reports/policy-loans/
 
 ```json
 {
-  "policy_no": "05208090"
+  "policy_no": "POL123"
 }
 ```
 
@@ -244,7 +244,7 @@ POST /surrender-calculator/
 
 ```json
 {
-  "policy_no": "05208090",
+  "policy_no": "POL123",
   "claim_date": "2024-06-01"
 }
 ```
