@@ -357,7 +357,7 @@ $(document).ready(function () {
 
             $dropdown.empty().append('<div class="dropdown-item-muted">Searching...</div>').show();
 
-            $.ajax({
+                        $.ajax({
                 url: '/api/corporate/policy-search/',
                 method: 'POST',
                 headers: {
@@ -372,7 +372,9 @@ $(document).ready(function () {
                         $dropdown.append('<div class="dropdown-item-muted">No results found</div>');
                     } else {
                         results.forEach(function (item) {
-                            const $item = $(`<a class="dropdown-item" href="#">${item.policyNo} | ${item.name} | ${item.employeeid || '-'}</a>`);
+                            // Added nominee name to the display string
+                            const $item = $(`<a class="dropdown-item" href="#">${item.policyNo} | ${item.name} | ${item.employeeid || '-'} | ${item.nomineename || '-'}</a>`);
+                            
                             $item.on('click', function (e) {
                                 e.preventDefault();
                                 $('#policy-number').val(item.policyNo);

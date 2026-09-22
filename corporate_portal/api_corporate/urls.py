@@ -14,10 +14,10 @@ from .views import (
     group_business_detail_report,
     surrender_calculator,
     policy_detail,
-    # New function-based view replacements for the two ViewSets:
     company_policies_list,
     company_policies_statistics,
     group_endowment_list,
+    group_summary_report,
 )
 
 urlpatterns = [
@@ -35,6 +35,7 @@ urlpatterns = [
     path('endowments/', group_endowment_list, name='group-endowment-list'),
 
     # Report endpoints
+    path('reports/group-summary/', group_summary_report, name='group-summary-report'),
     path('reports/maturity-forecasting/', maturity_forecasting_report, name='maturity-forecasting'),
     path('reports/loan-repayment/', loan_repayment_report, name='loan-repayment-report'),
     path('reports/policy-loans/', policy_loans, name='policy-loans'),

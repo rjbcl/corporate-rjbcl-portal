@@ -17,13 +17,20 @@ const DISPLAY_COLUMNS = [
     { key: 'Status', label: 'Status' },
 ];
 
-document.addEventListener('DOMContentLoaded', function () {
+// Track which reports have been generated (shared across both script blocks below)
+const generatedReports = {
+    nb: false,
+    rb: false,
+    summary: false,
+};
 
-    // Track which reports have been generated
-    const generatedReports = {
-        nb: false,
-        rb: false,
-    };
+function hideAllReportTables() {
+    document.getElementById('nb-report-results').style.display = 'none';
+    document.getElementById('rb-report-results').style.display = 'none';
+    document.getElementById('summary-report-results').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
 
     // Inject static headers into both tables on page load
     ['nb', 'rb'].forEach(flag => {
@@ -103,6 +110,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 populateTable(flagKey, data);
 
+                hideAllReportTables();
                 reportResults.style.display = 'block';
                 generatedReports[flagKey] = true;
 
@@ -187,42 +195,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // -------------------------------------------------------------------------
-    // DataTable initialisation
-    // -------------------------------------------------------------------------
-    function initializeDataTable(flagKey) {
-        const tableId = `${flagKey}-report-table`;
-
-        if (typeof $ === 'undefined' || typeof $.fn.DataTable === 'undefined') {
-            return;
-        }
-
-        if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
-            $(`#${tableId}`).DataTable().destroy();
-        }
-
-        $(`#${tableId}`).DataTable({
-            responsive: true,
-            pageLength: 10,
-            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
-            dom:
-                '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
-                '<"row"<"col-sm-12"tr>>' +
-                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-            language: {
-                lengthMenu: 'Show _MENU_ entries',
-                search: 'Search:',
-                info: 'Showing _START_ to _END_ of _TOTAL_ entries',
-                paginate: {
-                    first: 'First',
-                    last: 'Last',
-                    next: 'Next',
-                    previous: 'Previous',
-                },
-            },
-        });
-    }
-
-    // -------------------------------------------------------------------------
     // Download handlers — dumps full API response as CSV
     // -------------------------------------------------------------------------
     document.getElementById('nb-download-btn').addEventListener('click', function () {
@@ -244,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function () {
     tabButtons.forEach(button => {
         button.addEventListener('shown.bs.tab', function (event) {
             const targetId = event.target.getAttribute('data-bs-target'); // e.g. '#nb'
-            const flagKey = targetId.replace('#', '');                   // 'nb' or 'rb'
+            const flagKey = targetId.replace('#', '');                   // 'nb', 'rb', or 'summary'
 
             hideAllReportTables();
 
@@ -253,9 +225,177 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+});
 
-    function hideAllReportTables() {
-        document.getElementById('nb-report-results').style.display = 'none';
-        document.getElementById('rb-report-results').style.display = 'none';
+// Group Summary Report Logic
+$(document).ready(function () {
+    let summaryReportTable = null;
+    let summaryReportData = null;
+
+    // Local helper functions so we don't rely on external files
+    function formatSummaryDate(dateString) {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            return date.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        } catch (e) {
+            return dateString;
+        }
     }
+
+    function formatSummaryCurrency(amount) {
+        if (amount === null || amount === undefined || isNaN(amount)) return '-';
+        return new Intl.NumberFormat('en-NP', {
+            style: 'currency',
+            currency: 'NPR',
+            minimumFractionDigits: 2
+        }).format(amount);
+    }
+
+    $('#summary-report-form').on('submit', function (e) {
+        e.preventDefault();
+
+        const group_id = $('#summary-group-id').val();
+        if (!group_id) {
+            Swal.fire('Error', 'Please select a group.', 'error');
+            return;
+        }
+
+        const $generateBtn = $('#summary-generate-btn');
+        const originalBtnText = $generateBtn.html();
+        $generateBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Loading...');
+
+        hideAllReportTables();
+        $('#summary-download-btn').prop('disabled', true);
+
+        // NOTE: payload now sends a single generic date range (from_date/to_date)
+        // plus filter_by ('DOC' or 'FUP') telling the backend which date field
+        // that range applies to, instead of separate doc_*/fup_* ranges.
+        const payload = {
+            group_id: group_id,
+            policystatus: $('#summary-status').val(),
+            filter_by: $('#summary-filter-by').val(),
+            from_date: $('#summary-from-date-ad').val(),
+            to_date: $('#summary-to-date-ad').val()
+        };
+
+        $.ajax({
+            url: '/api/corporate/reports/group-summary/',
+            method: 'POST',
+            timeout: 120000, // 2 minute timeout for large queries
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            data: JSON.stringify(payload),
+            success: function (response) {
+                summaryReportData = response;
+
+                if (summaryReportData && summaryReportData.length > 0) {
+                    displaySummaryTable(summaryReportData);
+                    $('#summary-download-btn').prop('disabled', false);
+                    generatedReports.summary = true;
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No Data',
+                        text: 'No records found for the selected filters.',
+                    });
+                }
+            },
+            error: function (xhr) {
+                let errorMessage = 'Failed to generate report.';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage = xhr.responseJSON.error;
+                } else if (xhr.statusText === 'timeout') {
+                    errorMessage = 'The request timed out. Try narrowing your date filters.';
+                } else {
+                    console.error("Summary Report Error:", xhr.responseText);
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: errorMessage,
+                });
+            },
+            complete: function () {
+                $generateBtn.prop('disabled', false).html(originalBtnText);
+            }
+        });
+    });
+
+    function displaySummaryTable(dataArray) {
+        if (summaryReportTable) {
+            summaryReportTable.destroy();
+            $('#summary-report-tbody').empty();
+            $('#summary-report-table thead tr').empty();
+        }
+
+        if (!dataArray || dataArray.length === 0) return;
+
+        // Generate Columns dynamically from the first object's keys
+        const columns = Object.keys(dataArray[0]).map(key => {
+            let colDef = { data: key, title: key, defaultContent: '-' };
+
+            // Safe string check for formatting
+            if (typeof key === 'string' && (key.toLowerCase().includes('date') || key === 'DOC' || key === 'NextDueDate' || key === 'DOB')) {
+                colDef.render = function(data) { return formatSummaryDate(data); };
+            } else if (key === 'SA' || key === 'Premium') {
+                colDef.render = function(data) { return formatSummaryCurrency(data); };
+            }
+
+            return colDef;
+        });
+
+        // Initialize DataTable using the `data` array directly with `deferRender: true`
+        summaryReportTable = $('#summary-report-table').DataTable({
+            data: dataArray,
+            columns: columns,
+            deferRender: true,
+            dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+                '<"row"<"col-sm-12"B>>' +
+                '<"row"<"col-sm-12"tr>>' +
+                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            buttons: ['copy', 'csv', 'excel', 'pdf', 'print'],
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
+            responsive: true,
+            order: [],
+            language: {
+                lengthMenu: "Show _MENU_ entries",
+                info: "Showing _START_ to _END_ of _TOTAL_ entries",
+                search: "Search:",
+                paginate: {
+                    first: "First", last: "Last", next: "Next", previous: "Previous"
+                }
+            }
+        });
+
+        $('#summary-report-results').show();
+
+        setTimeout(function () {
+            $('html, body').animate({
+                scrollTop: $('#summary-report-results').offset().top - 100
+            }, 500);
+        }, 100);
+    }
+
+    // Summary Download Button
+    $('#summary-download-btn').on('click', function () {
+        if (!summaryReportData || summaryReportData.length === 0) {
+            alert('No data to download. Please generate a report first.');
+            return;
+        }
+
+        const groupId = $('#summary-group-id').val();
+        const timestamp = new Date().toISOString().slice(0, 10);
+        const filename = `group_summary_${groupId}_${timestamp}.csv`;
+
+        downloadCSV(summaryReportData, filename);
+    });
 });

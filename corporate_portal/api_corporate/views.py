@@ -768,6 +768,121 @@ def group_business_detail_report(request):
 
     return Response(results)
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@authentication_classes(_AUTH)
+def group_summary_report(request):
+    """POST /api/corporate/reports/group-summary/"""
+    group_id = request.data.get('group_id')
+    status_filter = request.data.get('policystatus', '').lower()
+
+    # 'DOC' or 'FUP' — tells us which date column the from_date/to_date range applies to
+    filter_by = request.data.get('filter_by', '').upper()
+    from_date = request.data.get('from_date')
+    to_date = request.data.get('to_date')
+
+    if not group_id:
+        return Response({'error': 'group_id is required'}, status=400)
+
+    if (from_date or to_date) and filter_by not in ('DOC', 'FUP'):
+        return Response({'error': 'filter_by must be "DOC" or "FUP" when a date range is provided'}, status=400)
+
+    allowed, error_response = _verify_group_access(request, group_id)
+    if not allowed:
+        return error_response
+
+    # Map UI status names to database codes
+    status_map = {
+        'active': ['A'],
+        'transferred': ['I'],
+        'death': ['D'],
+        'matured': ['M'],
+        'surrender': ['S'],
+        'cancel': ['C', 'cancel'],
+        'terminated': ['T'],
+        'unapproved': ['U', 'H'] # Included as per your instructions
+    }
+
+    # Which SQL column the date range filters against
+    date_column_map = {
+        'DOC': 'CAST(B.DOC AS date)',
+        'FUP': 'CAST(B.FUP AS date)',
+    }
+
+    sql = """
+        SELECT
+            TB2.BranchName,
+            tge.Name,
+            B.RegisterNo,
+            B.PolicyNo,
+            B.GroupId,
+            CAST(B.SumAssured AS INT)               AS SA,
+            CAST(B.Premium AS MONEY)                AS Premium,
+            B.Term,
+            CAST(B.DOC AS date)                     AS DOC,
+            CAST(B.FUP AS date)                     AS NextDueDate,
+            CAST(tge.DOB AS date)                   AS DOB,
+            CASE
+                WHEN tge.Gender = '9'   THEN 'Male'
+                WHEN tge.Gender = '10'  THEN 'Female'
+                WHEN tge.Gender = '126' THEN 'Others'
+                ELSE tge.Gender
+            END                                     AS Gender,
+            CAST(B.MaturityDate AS date)            AS MaturityDate,
+            CASE WHEN tge.IsADB = 'Y' THEN 'ADB' ELSE NULL END AS RiderID,
+            tge.PolicyStatus
+        FROM dbo.tblGroupEndowmentDetails  AS B   WITH (NOLOCK)
+        INNER JOIN dbo.tblGroupEndowment   AS tge WITH (NOLOCK) ON tge.RegisterNo = B.RegisterNo
+        LEFT JOIN dbo.tblBranch            AS TB2 WITH (NOLOCK) ON TB2.Branch = tge.Branch
+        WHERE B.GroupId = %s
+    """
+
+    params = [group_id]
+    where_clauses = []
+
+    # 1. Dynamic Policy Status filter
+    if status_filter and status_filter in status_map:
+        codes = status_map[status_filter]
+        placeholders = ','.join(['%s'] * len(codes))
+        where_clauses.append(f"tge.PolicyStatus IN ({placeholders})")
+        params.extend(codes)
+
+    # 2. Dynamic date filter — applies to whichever column filter_by selects
+    date_column = date_column_map.get(filter_by)
+    if date_column:
+        if from_date and to_date:
+            where_clauses.append(f"{date_column} BETWEEN %s AND %s")
+            params.extend([from_date, to_date])
+        elif from_date:
+            where_clauses.append(f"{date_column} >= %s")
+            params.append(from_date)
+        elif to_date:
+            where_clauses.append(f"{date_column} <= %s")
+            params.append(to_date)
+
+    if where_clauses:
+        sql += " AND " + " AND ".join(where_clauses)
+
+    sql += " ORDER BY B.PolicyNo"
+
+    try:
+        with connections['company_external'].cursor() as cursor:
+            cursor.execute(sql, params)
+            columns = [col[0] for col in cursor.description]
+            results = [
+                dict(zip(columns, row))
+                for row in cursor.fetchall()
+            ]
+
+        return Response(results, status=200)
+
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        return Response({
+            'error': f'Failed to generate group summary report: {str(e)}',
+            'details': error_details if request.user.is_superuser else None,
+        }, status=500)
 
 
 @api_view(['POST'])
@@ -1097,7 +1212,8 @@ def policy_search(request):
             search_fields = (
                 "(ISNULL(policyNo, '') + ' ' + "
                 "ISNULL(name, '') + ' ' + "
-                "ISNULL(employeeid, ''))"
+                "ISNULL(employeeid, '') + ' ' + "
+                "ISNULL(nomineename, ''))"
             )
             like_clauses = " AND ".join(
                 [f"{search_fields} LIKE %s" for _ in words]
@@ -1105,7 +1221,7 @@ def policy_search(request):
             like_params = [f'%{w}%' for w in words]
 
             sql = f"""
-                SELECT DISTINCT TOP 100 policyNo, name, employeeid
+                SELECT DISTINCT TOP 100 policyNo, name, employeeid, nomineename
                 FROM tblGroupEndowment
                 WHERE groupId IN ({placeholders})
                 AND {like_clauses}
@@ -1114,7 +1230,15 @@ def policy_search(request):
             rows = cursor.fetchall()
 
         return Response(
-            [{'policyNo': r[0], 'name': r[1], 'employeeid': r[2]} for r in rows],
+            [
+                {
+                    'policyNo': r[0],
+                    'name': r[1],
+                    'employeeid': r[2],
+                    'nomineename': r[3] if r[3] else ''
+                }
+                for r in rows
+            ],
             status=200,
         )
 
