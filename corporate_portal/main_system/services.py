@@ -440,7 +440,7 @@ class CompanyAccountService(PermissionMixin):
                   is_approved=False, account limit enforced.
     """
 
-    MAX_ACCOUNTS_PER_COMPANY = 5
+    MAX_ACCOUNTS_PER_COMPANY = 15
 
     @staticmethod
     def _validate_password(password):
