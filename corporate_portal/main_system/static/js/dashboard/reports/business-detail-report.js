@@ -108,10 +108,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     };
                 }
 
-                populateTable(flagKey, data);
-
                 hideAllReportTables();
-                reportResults.style.display = 'block';
+                reportResults.style.display = 'block';   // show first
+                populateTable(flagKey, data);            // then init
                 generatedReports[flagKey] = true;
 
                 document.getElementById(`${flagKey}-download-btn`).disabled = false;
