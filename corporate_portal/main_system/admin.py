@@ -319,9 +319,6 @@ class CompanyAccountAdminForm(forms.ModelForm):
             account = self.instance.account
             self.initial['username'] = account.username
             self.initial['is_active'] = account.is_active
-            if 'username' in self.fields:
-                self.fields['username'].disabled = True
-                self.fields['username'].help_text = "Username cannot be changed after creation."
 
     def clean_username(self):
         username = self.cleaned_data.get('username', '').strip()
