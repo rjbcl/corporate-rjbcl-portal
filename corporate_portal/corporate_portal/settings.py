@@ -5,6 +5,8 @@ from decouple import config  # type: ignore
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+SESSION_COOKIE_AGE = 12 * 60 * 60  
+SESSION_SAVE_EVERY_REQUEST = False
 
 ENFORCE_PASSWORD_STRENGTH = False
 HASH_OTP = False
@@ -90,7 +92,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'corporate_portal.wsgi.application'
-
 
 # Database
 DATABASES = {
