@@ -1,6 +1,8 @@
 import base64
+from datetime import timedelta
 import io
 import qrcode
+import re
  
 from django.conf import settings
 from django.shortcuts import render, redirect
@@ -39,10 +41,11 @@ def _get_pending_user(request):
     from django.contrib.auth import get_user_model
     User = get_user_model()
  
-    username = request.session.get('pending_2fa_user')
+    # Changed to use user ID instead of username
+    user_id = request.session.get('pending_2fa_user')
     expiry = request.session.get('pending_2fa_expiry')
  
-    if not username or not expiry:
+    if not user_id or not expiry:
         return None, "Session expired. Please login again."
  
     if timezone.now().timestamp() > expiry:
@@ -51,18 +54,18 @@ def _get_pending_user(request):
         return None, "Session expired. Please login again."
  
     try:
-        user = User.objects.get(username=username)
+        user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         return None, "User not found. Please login again."
  
     return user, None
  
- 
 def _set_pending_user(request, user):
-    """Stores pending 2FA user in session with expiry."""
-    expiry_seconds = getattr(settings, 'TWO_FA_SESSION_EXPIRY', 300)
-    request.session['pending_2fa_user'] = user.username
-    request.session['pending_2fa_expiry'] = timezone.now().timestamp() + expiry_seconds
+    """
+    Stores the user ID in session for 2FA verification.
+    """
+    request.session['pending_2fa_user'] = user.id
+    request.session['pending_2fa_expiry'] = (timezone.now() + timedelta(minutes=5)).timestamp()
  
  
 def _generate_qr_base64(uri: str) -> str:
@@ -96,8 +99,9 @@ def user_login(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        company_code = request.POST.get('company_code') # NEW
  
-        user = authenticate(request, username=username, password=password)
+        user = authenticate(request, username=username, password=password, company_code=company_code)
  
         if user is not None:
             if not user.is_active:
@@ -111,8 +115,7 @@ def user_login(request):
                 if not user.company_profile.is_approved:
                     messages.error(
                         request,
-                        'Your account is pending approval. '
-                        'Please contact your administrator.'
+                        'Your account is pending approval. Please contact your administrator.'
                     )
                     AuditLog.create_log(
                         action='login_failed',
@@ -124,12 +127,10 @@ def user_login(request):
                     )
                     return render(request, 'login.html')
  
-                # Check company is active
                 if not user.company_profile.company.isactive:
                     messages.error(request, 'Your company account is inactive. Please contact support.')
                     return render(request, 'login.html')
  
-                # Verify 2FA record exists
                 try:
                     verification = user.user_verification
                 except UserVerification.DoesNotExist:
@@ -146,7 +147,6 @@ def user_login(request):
                     details='Credentials verified. Redirected to 2FA.',
                     ip_address=request.META.get('REMOTE_ADDR'),
                 )
- 
                 return redirect('verify_2fa')
  
             # Admin and staff bypass 2FA
@@ -160,7 +160,6 @@ def user_login(request):
                 details='Login successful.',
                 ip_address=request.META.get('REMOTE_ADDR'),
             )
- 
             return redirect('dashboard')
  
         else:
@@ -172,7 +171,7 @@ def user_login(request):
                 details='Invalid credentials.',
                 ip_address=request.META.get('REMOTE_ADDR'),
             )
-            messages.error(request, 'Invalid username or password.')
+            messages.error(request, 'Invalid credentials.')
  
     return render(request, 'login.html')
  
@@ -544,8 +543,7 @@ def company_info(request):
         'document': document,
     }
     return render(request, 'Dashboard/Company/company_info.html', context)
- 
- 
+
 @login_required
 @primary_company_required
 def manage_accounts(request):
@@ -583,6 +581,16 @@ def manage_accounts(request):
         if not username or not password:
             messages.error(request, 'Username and password are required.')
             return redirect('manage_accounts')
+
+        # --- BACKEND VALIDATION ---
+        # Only allow lowercase letters and numbers. No spaces or special characters.
+        if not re.match(r'^[a-z0-9]+$', username):
+            messages.error(
+                request,
+                'Username must contain only lowercase letters and numbers. No spaces or special characters allowed.'
+            )
+            return redirect('manage_accounts')
+        # --------------------------
  
         profile_data = {
             'company':     company,

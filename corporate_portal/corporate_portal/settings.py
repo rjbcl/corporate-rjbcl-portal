@@ -134,7 +134,7 @@ CORPORATE_API_TIMEOUT = 30
 
 # Authentication
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
+    'main_system.backends.CompanyCodeBackend',
 ]
 
 AUTH_USER_MODEL = 'main_system.Account'

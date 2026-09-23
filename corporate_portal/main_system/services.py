@@ -2,7 +2,7 @@ import pyotp
 import json
 import hashlib
 import logging
-
+import re
 from datetime import timedelta
 
 from django.db import transaction  # type: ignore
@@ -76,7 +76,7 @@ class CompanyService(PermissionMixin):
     @staticmethod
     @transaction.atomic
     def create_company(company_data, group_ids, groups_lookup, user=None):
-        """Create a new company with its groups."""
+        """Create a new company, including its company code and groups."""
 
         CompanyService.check_permission(user, 'main_system.add_company')
 
@@ -90,11 +90,20 @@ class CompanyService(PermissionMixin):
                 f"The following groups are already assigned to other companies: {', '.join(conflict_msgs)}"
             )
 
+        company_code = company_data.get('company_code')
+        company_fields = dict(company_data)
+        company_fields.pop('company_code', None)
+
         if user:
             company_data['created_by'] = user.username
             company_data['modified_by'] = user.username
+            company_fields['created_by'] = user.username
+            company_fields['modified_by'] = user.username
 
-        company = Company.objects.create(**company_data)
+        company = Company.objects.create(
+            company_code=company_code,
+            **company_fields,
+        )
 
         for gid in group_ids:
             group_name = groups_lookup.get(gid, '')
@@ -143,7 +152,7 @@ class CompanyService(PermissionMixin):
     @staticmethod
     @transaction.atomic
     def update_company(company, company_data=None, group_ids=None, groups_lookup=None, user=None):
-        """Update an existing company and optionally its groups."""
+        """Update company fields, including company code, and its groups."""
 
         CompanyService.check_permission(user, 'main_system.change_company')
 
@@ -183,10 +192,15 @@ class CompanyService(PermissionMixin):
                 elif str(old_value).strip() != str(new_value).strip():
                     changes[field] = {'old': str(old_value), 'new': str(new_value)}
 
+            if 'company_code' in company_data:
+                company.company_code = company_data['company_code']
+
             if user:
                 company_data['modified_by'] = user.username
 
             for field, value in company_data.items():
+                if field == 'company_code':
+                    continue
                 setattr(company, field, value)
             company.save()
 
@@ -495,21 +509,6 @@ class CompanyAccountService(PermissionMixin):
     @staticmethod
     @transaction.atomic
     def create_company_account(username, password, profile_data, user=None, enforce_limit=False):
-        """
-        Creates a company staff account atomically:
-        1. Validates password strength (if enabled)
-        2. Enforces account limit (only when enforce_limit=True — portal path)
-        3. Creates Account (is_active=True always; login blocked via is_approved)
-        4. Creates CompanyAccount (profile)
-        5. Creates UserVerification (2FA row) with TOTP secret
-
-        profile_data must include:
-          - 'company'     : Company instance
-          - 'is_approved' : True  → admin path, immediately usable
-                            False → portal path, pending approval
-        enforce_limit=True  → portal path, limit enforced.
-        enforce_limit=False → admin path, limit bypassed.
-        """
         if not enforce_limit:
             # Admin path — check Django permission
             CompanyAccountService.check_permission(user, 'main_system.add_companyaccount')
@@ -519,12 +518,20 @@ class CompanyAccountService(PermissionMixin):
 
         CompanyAccountService._validate_password(password)
 
-        if Account.objects.filter(username=username).exists():
-            raise ValidationError(f"Username '{username}' is already taken.")
-
         company = profile_data.get('company')
         if not company:
             raise ValidationError("A company must be specified for a company account.")
+
+        # --- RACE CONDITION FIX ---
+        # Lock the company row until the transaction ends.
+        # Concurrent requests for the same company will block here.
+        company = Company.objects.select_for_update().get(pk=company.pk)
+
+        if Account.objects.filter(
+            username=username,
+            company_profile__company=company
+        ).exists():
+            raise ValidationError(f"Username '{username}' is already taken for this company.")
 
         if enforce_limit:
             CompanyAccountService._check_account_limit(company)
@@ -617,8 +624,11 @@ class CompanyAccountService(PermissionMixin):
         changes = {}
 
         if username and username != account.username:
-            if Account.objects.filter(username=username).exclude(id=account.id).exists():
-                raise ValidationError(f"Username '{username}' is already taken.")
+            if Account.objects.filter(
+                username=username,
+                company_profile__company=company_account.company
+            ).exclude(id=account.id).exists():
+                raise ValidationError(f"Username '{username}' is already taken for this company.")
             changes['username'] = {'old': account.username, 'new': username}
             account.username = username
 

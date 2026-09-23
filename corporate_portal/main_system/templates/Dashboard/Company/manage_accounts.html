@@ -20,14 +20,15 @@
 </div>
 
 {% if messages %}
-    {% for message in messages %}
-    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-        </button>
-    </div>
-    {% endfor %}
+{% for message in messages %}
+<div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show"
+    role="alert">
+    {{ message }}
+    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+    </button>
+</div>
+{% endfor %}
 {% endif %}
 
 <!-- ── Account Slot Stats ──────────────────────────────────── -->
@@ -59,7 +60,8 @@
     <div class="col-sm-6 col-lg-3">
         <div class="card text-center">
             <div class="card-body py-3">
-                <div class="h3 mb-1 {% if stats.remaining == 0 %}text-danger{% else %}text-info{% endif %} font-weight-bold">
+                <div
+                    class="h3 mb-1 {% if stats.remaining == 0 %}text-danger{% else %}text-info{% endif %} font-weight-bold">
                     {{ stats.remaining }}
                 </div>
                 <div class="text-muted small">Slots Remaining (max {{ stats.limit }})</div>
@@ -125,8 +127,7 @@
                                 </td>
                                 <td>
                                     {% if not account.is_primary %}
-                                    <button
-                                        class="btn btn-outline-warning btn-sm"
+                                    <button class="btn btn-outline-warning btn-sm"
                                         onclick="openResetModal('{{ account.account.id }}', '{{ account.account.username }}')">
                                         <i class="bi bi-key mr-1"></i>Reset Password
                                     </button>
@@ -151,7 +152,8 @@
 </div>
 
 <!-- ── Create Account Modal ───────────────────────────────── -->
-<div class="modal fade" id="createAccountModal" tabindex="-1" role="dialog" aria-labelledby="createAccountModalLabel" aria-hidden="true">
+<div class="modal fade" id="createAccountModal" tabindex="-1" role="dialog" aria-labelledby="createAccountModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <form method="post" action="{% url 'manage_accounts' %}">
@@ -175,8 +177,11 @@
                     <div class="form-row mb-3">
                         <div class="col-md-6">
                             <label class="font-weight-bold">Username <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="username" required
-                                placeholder="e.g. john.doe">
+                            <input type="text" class="form-control" name="username" id="createUsername" required
+                                pattern="^[a-z0-9]+$"
+                                title="Only lowercase letters and numbers allowed. No spaces or special characters."
+                                placeholder="e.g. johndoe">
+                            <small id="usernameError" class="form-text text-danger d-none"></small>
                         </div>
                         <div class="col-md-6">
                             <label class="font-weight-bold">Password <span class="text-danger">*</span></label>
@@ -195,34 +200,29 @@
                     <div class="form-row mb-3">
                         <div class="col-md-6">
                             <label class="font-weight-bold">Full Name</label>
-                            <input type="text" class="form-control" name="full_name"
-                                placeholder="Full name">
+                            <input type="text" class="form-control" name="full_name" placeholder="Full name">
                         </div>
                         <div class="col-md-6">
                             <label class="font-weight-bold">Mobile</label>
-                            <input type="text" class="form-control" name="mobile"
-                                placeholder="98XXXXXXXX">
+                            <input type="text" class="form-control" name="mobile" placeholder="98XXXXXXXX">
                         </div>
                     </div>
 
                     <div class="form-row mb-3">
                         <div class="col-md-6">
                             <label class="font-weight-bold">Email</label>
-                            <input type="email" class="form-control" name="email"
-                                placeholder="staff@example.com">
+                            <input type="email" class="form-control" name="email" placeholder="staff@example.com">
                         </div>
                         <div class="col-md-6">
                             <label class="font-weight-bold">Designation</label>
-                            <input type="text" class="form-control" name="designation"
-                                placeholder="e.g. Manager">
+                            <input type="text" class="form-control" name="designation" placeholder="e.g. Manager">
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="col-md-6">
                             <label class="font-weight-bold">Department</label>
-                            <input type="text" class="form-control" name="department"
-                                placeholder="e.g. Finance">
+                            <input type="text" class="form-control" name="department" placeholder="e.g. Finance">
                         </div>
                     </div>
 
@@ -239,7 +239,8 @@
 </div>
 
 <!-- ── Reset Password Modal ───────────────────────────────── -->
-<div class="modal fade" id="resetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="resetPasswordModalLabel" aria-hidden="true">
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" role="dialog" aria-labelledby="resetPasswordModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
             <div class="modal-header">
@@ -262,7 +263,8 @@
                 <div class="form-group mb-3">
                     <label class="font-weight-bold">New Password <span class="text-danger">*</span></label>
                     <div class="input-group">
-                        <input type="password" class="form-control" id="resetNewPassword" placeholder="Enter new password">
+                        <input type="password" class="form-control" id="resetNewPassword"
+                            placeholder="Enter new password">
                         <div class="input-group-append">
                             <button class="btn btn-outline-secondary" type="button" id="toggleResetPassword">
                                 <i class="bi bi-eye" id="toggleResetIcon"></i>
@@ -274,7 +276,8 @@
                 <div class="form-group mb-0">
                     <label class="font-weight-bold">Confirm Password <span class="text-danger">*</span></label>
                     <div class="input-group">
-                        <input type="password" class="form-control" id="resetConfirmPassword" placeholder="Confirm new password">
+                        <input type="password" class="form-control" id="resetConfirmPassword"
+                            placeholder="Confirm new password">
                         <div class="input-group-append">
                             <button class="btn btn-outline-secondary" type="button" id="toggleResetConfirm">
                                 <i class="bi bi-eye" id="toggleResetConfirmIcon"></i>
@@ -308,6 +311,37 @@
         } else {
             input.type = 'password';
             icon.classList.replace('bi-eye-slash', 'bi-eye');
+        }
+    });
+
+    // ── Create account modal: username validation ─────────────
+    const usernameInput = document.getElementById('createUsername');
+    const usernameError = document.getElementById('usernameError');
+    const createForm = document.querySelector('#createAccountModal form');
+
+    function validateUsername() {
+        const regex = /^[a-z0-9]+$/;
+        const username = usernameInput.value.trim();
+
+        if (username && !regex.test(username)) {
+            usernameError.textContent = 'Only lowercase letters and numbers allowed. No spaces or special characters.';
+            usernameError.classList.remove('d-none');
+            usernameInput.classList.add('is-invalid');
+            return false;
+        } else {
+            usernameError.classList.add('d-none');
+            usernameInput.classList.remove('is-invalid');
+            return true;
+        }
+    }
+
+    // Live validation as they type
+    usernameInput.addEventListener('input', validateUsername);
+
+    // Final check on form submit
+    createForm.addEventListener('submit', function(e) {
+        if (!validateUsername()) {
+            e.preventDefault(); // Stop form from submitting
         }
     });
 

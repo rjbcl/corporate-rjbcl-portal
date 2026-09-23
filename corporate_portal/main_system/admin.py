@@ -150,6 +150,7 @@ class CompanyAdminForm(forms.ModelForm):
         fields = [
             # Company Information fieldset
             'company_name',
+            'company_code',
             'nepali_name',
             'phone_number',
             'telephone_number',
@@ -227,6 +228,7 @@ class CompanyAdminForm(forms.ModelForm):
         group_ids = self.cleaned_data.get('group_ids', [])
         company_data = {
             'company_name':           self.cleaned_data.get('company_name'),
+            'company_code':            self.cleaned_data.get('company_code'),
             'nepali_name':            self.cleaned_data.get('nepali_name'),
             'phone_number':           self.cleaned_data.get('phone_number'),
             'telephone_number':       self.cleaned_data.get('telephone_number'),
@@ -325,8 +327,12 @@ class CompanyAccountAdminForm(forms.ModelForm):
         username = self.cleaned_data.get('username', '').strip()
         if self.instance and self.instance.pk:
             return self.instance.account.username
-        if Account.objects.filter(username=username).exists():
-            raise forms.ValidationError("This username is already in use.")
+        company = self.cleaned_data.get('company')
+        if company and Account.objects.filter(
+            username=username,
+            company_profile__company=company,
+        ).exists():
+            raise forms.ValidationError("This username is already in use for this company.")
         return username
 
     def clean_password(self):
@@ -393,9 +399,42 @@ class CompanyAccountAdminForm(forms.ModelForm):
 # ============================================================
 # ACCOUNT ADMIN  (staff and admin accounts only)
 # ============================================================
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm
+from django.core.exceptions import ValidationError
+
+class AccountChangeForm(UserChangeForm):
+    class Meta:
+        model = Account
+        fields = '__all__'
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username:
+            # Enforce global uniqueness for staff/admin accounts
+            qs = Account.objects.filter(username=username, is_staff=True)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError("A staff/admin account with this username already exists.")
+        return username
+
+class AccountAddForm(UserCreationForm):
+    class Meta:
+        model = Account
+        fields = ('username',)
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and Account.objects.filter(username=username, is_staff=True).exists():
+            raise ValidationError("A staff/admin account with this username already exists.")
+        return username
+
 
 @admin.register(Account)
 class AccountAdmin(BaseUserAdmin):
+    form = AccountChangeForm
+    add_form = AccountAddForm
+
     list_display = ('username', 'is_active', 'is_staff', 'is_superuser', 'get_groups')
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'groups')
 
@@ -722,6 +761,7 @@ class CompanyAdmin(admin.ModelAdmin):
         ('Company Information', {
             'fields': (
                 'company_name',
+                'company_code',
                 'nepali_name',
                 'phone_number',
                 'telephone_number',

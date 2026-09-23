@@ -37,6 +37,7 @@ class Company(AuditBase):
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     telephone_number = models.CharField(max_length=20, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
+    company_code = models.CharField(max_length=50, unique=True, blank=True, null=True)
 
     # Filled in by the primary company account user after login
     primary_contact_person = models.CharField(max_length=200, blank=True, null=True)
@@ -62,10 +63,18 @@ class Company(AuditBase):
 # ============================================================
 
 class AccountManager(BaseUserManager):
-
     def create_user(self, username, password=None, **extra_fields):
         if not username:
             raise ValueError('The Username field must be set')
+
+        # Enforce global uniqueness for staff/superusers at the manager level
+        is_staff = extra_fields.get('is_staff', False)
+        is_superuser = extra_fields.get('is_superuser', False)
+
+        if is_staff or is_superuser:
+            if self.model.objects.filter(username=username).exists():
+                raise ValueError(f"Username '{username}' is already taken.")
+
         user = self.model(username=username, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -87,11 +96,13 @@ class AccountManager(BaseUserManager):
 class Account(AbstractBaseUser, PermissionsMixin, AuditBase):
     """
     Central auth table for all user types: admin, staff, company.
-    username is unique but NOT the primary key — id is.
+    username is NOT globally unique (uniqueness is enforced per-company
+    for company users, and via the manager for admins/staff).
+    id is the primary key.
     Company-specific profile data lives in CompanyAccount (1:1).
     """
     id = models.AutoField(primary_key=True)
-    username = models.CharField(max_length=100, unique=True)
+    username = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
