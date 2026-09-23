@@ -322,12 +322,12 @@ class CompanyAccountAdminForm(forms.ModelForm):
 
     def clean_username(self):
         username = self.cleaned_data.get('username', '').strip()
-        if self.instance and self.instance.pk:
-            return self.instance.account.username
         company = self.cleaned_data.get('company')
         if company and Account.objects.filter(
             username=username,
             company_profile__company=company,
+        ).exclude(
+            id=self.instance.account_id if self.instance and self.instance.pk else None,
         ).exists():
             raise forms.ValidationError("This username is already in use for this company.")
         return username
@@ -363,6 +363,7 @@ class CompanyAccountAdminForm(forms.ModelForm):
             if self.instance.pk:
                 company_account = CompanyAccountService.update_company_account(
                     company_account=self.instance,
+                    username=self.cleaned_data.get('username'),
                     password=password or None,
                     profile_data=profile_data,
                     user=user,
