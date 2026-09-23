@@ -328,7 +328,7 @@ class AuditLog(models.Model):
         ('logout', 'Logout'),
         ('permission_change', 'Permission Change'),
     ]
-    MAX_LOGS = 20
+    MAX_LOGS = 2000000
 
     log_id = models.AutoField(primary_key=True)
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
