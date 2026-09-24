@@ -17,6 +17,17 @@ const DISPLAY_COLUMNS = [
     { key: 'Status', label: 'Status' },
 ];
 
+const SUMMARY_DISPLAY_COLUMNS = [
+    { key: 'PolicyNo', label: 'Policy No' },
+    { key: 'Name', label: 'Name' },
+    { key: 'SA', label: 'Sum Assured' },
+    { key: 'Premium', label: 'Premium' },
+    { key: 'Term', label: 'Term' },
+    { key: 'DOC', label: 'Date of Commencement' },
+    { key: 'NextDueDate', label: 'Next Due Date' },
+    { key: 'PolicyStatus', label: 'Policy Status' },
+];
+
 // Track which reports have been generated (shared across both script blocks below)
 const generatedReports = {
     nb: false,
@@ -337,9 +348,8 @@ $(document).ready(function () {
 
         if (!dataArray || dataArray.length === 0) return;
 
-        // Generate Columns dynamically from the first object's keys
-        const columns = Object.keys(dataArray[0]).map(key => {
-            let colDef = { data: key, title: key, defaultContent: '-' };
+        const columns = SUMMARY_DISPLAY_COLUMNS.map(({ key, label }) => {
+            let colDef = { data: key, title: label, defaultContent: '-' };
 
             // Safe string check for formatting
             if (typeof key === 'string' && (key.toLowerCase().includes('date') || key === 'DOC' || key === 'NextDueDate' || key === 'DOB')) {
