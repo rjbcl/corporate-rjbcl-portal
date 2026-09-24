@@ -388,10 +388,12 @@ class CompanyService(PermissionMixin):
     @transaction.atomic
     def update_company_info(company, info_data, user=None):
         """
-        Updates the primary contact fields on Company.
+        Updates the primary and technical contact fields on Company.
         Called from the portal by the primary company account user.
         Fields: primary_contact_person, primary_person_mobile,
-                primary_person_email, pan_number.
+                primary_person_email, pan_number, nepali_name, email,
+                phone_number, telephone_number, technical_contact_person,
+                technical_person_mobile, technical_person_email.
         """
         allowed_fields = {
             'primary_contact_person',
@@ -402,6 +404,10 @@ class CompanyService(PermissionMixin):
             'email',
             'phone_number',
             'telephone_number',
+            # New technical contact fields
+            'technical_contact_person',
+            'technical_person_mobile',
+            'technical_person_email',
         }
 
         changes = {}

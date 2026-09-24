@@ -48,13 +48,13 @@
                     <input type="hidden" name="form_type" value="company_info">
 
                     <div class="form-row mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="font-weight-bold">Company Name (English)</label>
                             <input type="text" class="form-control bg-light"
                                 value="{{ company.company_name }}" readonly disabled>
                             <small class="text-muted">Contact your administrator to change the company name.</small>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="font-weight-bold">
                                 Company Name (Nepali)
                                 {% if company.nepali_name %}
@@ -67,6 +67,20 @@
                                 value="{{ company.nepali_name|default:'' }}"
                                 {% if company.nepali_name %}readonly{% endif %}
                                 placeholder="{% if company.nepali_name %}—{% else %}नेपाली नाम{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                PAN Number
+                                {% if company.pan_number %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.pan_number %}bg-light{% endif %}"
+                                name="pan_number"
+                                value="{{ company.pan_number|default:'' }}"
+                                {% if company.pan_number %}readonly{% endif %}
+                                placeholder="{% if company.pan_number %}—{% else %}XXXXXXXXX{% endif %}">
                         </div>
                     </div>
 
@@ -119,21 +133,8 @@
                     <h6 class="text-muted mb-3">Primary Contact Information</h6>
 
                     <div class="form-row mb-3">
-                        <div class="col-md-6">
-                            <label class="font-weight-bold">
-                                PAN Number
-                                {% if company.pan_number %}
-                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
-                                {% endif %}
-                            </label>
-                            <input type="text"
-                                class="form-control {% if company.pan_number %}bg-light{% endif %}"
-                                name="pan_number"
-                                value="{{ company.pan_number|default:'' }}"
-                                {% if company.pan_number %}readonly{% endif %}
-                                placeholder="{% if company.pan_number %}—{% else %}XXXXXXXXX{% endif %}">
-                        </div>
-                        <div class="col-md-6">
+                        
+                        <div class="col-md-4">
                             <label class="font-weight-bold">
                                 Primary Contact Person
                                 {% if company.primary_contact_person %}
@@ -147,10 +148,7 @@
                                 {% if company.primary_contact_person %}readonly{% endif %}
                                 placeholder="{% if company.primary_contact_person %}—{% else %}Full name{% endif %}">
                         </div>
-                    </div>
-
-                    <div class="form-row mb-4">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="font-weight-bold">
                                 Primary Contact Mobile
                                 {% if company.primary_person_mobile %}
@@ -164,7 +162,7 @@
                                 {% if company.primary_person_mobile %}readonly{% endif %}
                                 placeholder="{% if company.primary_person_mobile %}—{% else %}98XXXXXXXX{% endif %}">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="font-weight-bold">
                                 Primary Contact Email
                                 {% if company.primary_person_email %}
@@ -177,6 +175,55 @@
                                 value="{{ company.primary_person_email|default:'' }}"
                                 {% if company.primary_person_email %}readonly{% endif %}
                                 placeholder="{% if company.primary_person_email %}—{% else %}contact@example.com{% endif %}">
+                        </div>
+                    </div>
+
+                    <!-- ── Technical Contact Information ─────────────────── -->
+                    <hr class="my-4">
+                    <h6 class="text-muted mb-3">Technical Contact Information</h6>
+
+                    <div class="form-row mb-4">
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Technical Contact Person
+                                {% if company.technical_contact_person %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.technical_contact_person %}bg-light{% endif %}"
+                                name="technical_contact_person"
+                                value="{{ company.technical_contact_person|default:'' }}"
+                                {% if company.technical_contact_person %}readonly{% endif %}
+                                placeholder="{% if company.technical_contact_person %}—{% else %}Full name{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Technical Contact Mobile
+                                {% if company.technical_person_mobile %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="text"
+                                class="form-control {% if company.technical_person_mobile %}bg-light{% endif %}"
+                                name="technical_person_mobile"
+                                value="{{ company.technical_person_mobile|default:'' }}"
+                                {% if company.technical_person_mobile %}readonly{% endif %}
+                                placeholder="{% if company.technical_person_mobile %}—{% else %}98XXXXXXXX{% endif %}">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="font-weight-bold">
+                                Technical Contact Email
+                                {% if company.technical_person_email %}
+                                <i class="bi bi-lock-fill text-muted ml-1" title="Already set"></i>
+                                {% endif %}
+                            </label>
+                            <input type="email"
+                                class="form-control {% if company.technical_person_email %}bg-light{% endif %}"
+                                name="technical_person_email"
+                                value="{{ company.technical_person_email|default:'' }}"
+                                {% if company.technical_person_email %}readonly{% endif %}
+                                placeholder="{% if company.technical_person_email %}—{% else %}technical@example.com{% endif %}">
                         </div>
                     </div>
 
@@ -209,7 +256,7 @@
                     <input type="hidden" name="form_type" value="company_documents">
 
                     <div class="form-row mb-3">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="font-weight-bold">
                                 Authorized By
                                 {% if document.authorized_by %}
@@ -223,7 +270,7 @@
                                 {% if document.authorized_by %}readonly{% endif %}
                                 placeholder="{% if document.authorized_by %}—{% else %}Authorizing person's name{% endif %}">
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-8">
                             <label class="font-weight-bold">
                                 Business Purpose
                                 {% if document.business_purpose %}

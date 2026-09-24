@@ -163,6 +163,10 @@ class CompanyAdminForm(forms.ModelForm):
             'primary_contact_person',
             'primary_person_mobile',
             'primary_person_email',
+            # Technical Contact fieldset
+            'technical_contact_person',
+            'technical_person_mobile',
+            'technical_person_email',
         ]
 
     def __init__(self, *args, **kwargs):
@@ -227,19 +231,22 @@ class CompanyAdminForm(forms.ModelForm):
     def save(self, commit=True):
         group_ids = self.cleaned_data.get('group_ids', [])
         company_data = {
-            'company_name':           self.cleaned_data.get('company_name'),
-            'company_code':            self.cleaned_data.get('company_code'),
-            'nepali_name':            self.cleaned_data.get('nepali_name'),
-            'phone_number':           self.cleaned_data.get('phone_number'),
-            'telephone_number':       self.cleaned_data.get('telephone_number'),
-            'email':                  self.cleaned_data.get('email'),
-            'isactive':               self.cleaned_data.get('isactive'),
-            'remarks':                self.cleaned_data.get('remarks'),
-            'blankcol':               self.cleaned_data.get('blankcol'),
-            'pan_number':             self.cleaned_data.get('pan_number'),
-            'primary_contact_person': self.cleaned_data.get('primary_contact_person'),
-            'primary_person_mobile':  self.cleaned_data.get('primary_person_mobile'),
-            'primary_person_email':   self.cleaned_data.get('primary_person_email'),
+            'company_name':              self.cleaned_data.get('company_name'),
+            'company_code':              self.cleaned_data.get('company_code'),
+            'nepali_name':               self.cleaned_data.get('nepali_name'),
+            'phone_number':              self.cleaned_data.get('phone_number'),
+            'telephone_number':          self.cleaned_data.get('telephone_number'),
+            'email':                     self.cleaned_data.get('email'),
+            'isactive':                   self.cleaned_data.get('isactive'),
+            'remarks':                   self.cleaned_data.get('remarks'),
+            'blankcol':                   self.cleaned_data.get('blankcol'),
+            'pan_number':                 self.cleaned_data.get('pan_number'),
+            'primary_contact_person':    self.cleaned_data.get('primary_contact_person'),
+            'primary_person_mobile':     self.cleaned_data.get('primary_person_mobile'),
+            'primary_person_email':      self.cleaned_data.get('primary_person_email'),
+            'technical_contact_person':  self.cleaned_data.get('technical_contact_person'),
+            'technical_person_mobile':   self.cleaned_data.get('technical_person_mobile'),
+            'technical_person_email':    self.cleaned_data.get('technical_person_email'),
         }
 
         try:

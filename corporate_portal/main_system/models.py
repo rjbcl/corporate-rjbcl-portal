@@ -44,6 +44,11 @@ class Company(AuditBase):
     primary_person_mobile = models.CharField(max_length=20, blank=True, null=True)
     primary_person_email = models.EmailField(blank=True, null=True)
 
+    # Filled in by the primary company account user after login
+    technical_contact_person = models.CharField(max_length=200, blank=True, null=True)
+    technical_person_mobile = models.CharField(max_length=20, blank=True, null=True)
+    technical_person_email = models.EmailField(blank=True, null=True)
+
     isactive = models.BooleanField(default=True)
     remarks = models.TextField(blank=True, null=True)
     blankcol = models.CharField(max_length=100, blank=True, null=True)  # Placeholder for future use

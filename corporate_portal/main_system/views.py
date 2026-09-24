@@ -464,7 +464,8 @@ def company_info(request):
     """
     Allows the primary company account user to update company contact
     information (pan_number, primary_contact_person, primary_person_mobile,
-    primary_person_email) and manage company documents.
+    primary_person_email, technical_contact_person, technical_person_mobile,
+    technical_person_email) and manage company documents.
  
     GET:  renders the form pre-populated with existing data.
     POST: updates company info or uploads documents.
@@ -483,14 +484,17 @@ def company_info(request):
         # ── Company info update ──────────────────────────────
         if form_type == 'company_info':
             info_data = {
-                'pan_number':             request.POST.get('pan_number', '').strip() or None,
-                'primary_contact_person': request.POST.get('primary_contact_person', '').strip() or None,
-                'primary_person_mobile':  request.POST.get('primary_person_mobile', '').strip() or None,
-                'primary_person_email':   request.POST.get('primary_person_email', '').strip() or None,
-                'nepali_name':            request.POST.get('nepali_name', '').strip() or None,
-                'email':                  request.POST.get('email', '').strip() or None,
-                'phone_number':           request.POST.get('phone_number', '').strip() or None,
-                'telephone_number':       request.POST.get('telephone_number', '').strip() or None,
+                'pan_number':                request.POST.get('pan_number', '').strip() or None,
+                'primary_contact_person':   request.POST.get('primary_contact_person', '').strip() or None,
+                'primary_person_mobile':     request.POST.get('primary_person_mobile', '').strip() or None,
+                'primary_person_email':      request.POST.get('primary_person_email', '').strip() or None,
+                'technical_contact_person': request.POST.get('technical_contact_person', '').strip() or None,
+                'technical_person_mobile':  request.POST.get('technical_person_mobile', '').strip() or None,
+                'technical_person_email':   request.POST.get('technical_person_email', '').strip() or None,
+                'nepali_name':              request.POST.get('nepali_name', '').strip() or None,
+                'email':                    request.POST.get('email', '').strip() or None,
+                'phone_number':             request.POST.get('phone_number', '').strip() or None,
+                'telephone_number':         request.POST.get('telephone_number', '').strip() or None,
             }
  
             try:
