@@ -103,6 +103,20 @@ class CompanyDocumentInline(admin.StackedInline):
             return self.readonly_fields_for_viewer
         return ()
 
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        
+        # If user is an Editor but NOT Admin/Superuser
+        if _is_editor_or_above(request.user) and not _is_admin_or_super(request.user):
+            file_fields = ['signature', 'stamp', 'official_request_letter']
+            
+            for field_name in file_fields:
+                if field_name in formset.form.base_fields:
+                    # Hide the 'Choose File' button, keep the 'Clear' checkbox
+                    formset.form.base_fields[field_name].widget.attrs['style'] = 'display: none;'
+                    
+        return formset
+
     def has_add_permission(self, request, obj=None):
         return _is_editor_or_above(request.user)
 
