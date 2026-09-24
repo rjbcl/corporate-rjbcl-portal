@@ -773,6 +773,7 @@ def group_business_detail_report(request):
 @authentication_classes(_AUTH)
 def group_summary_report(request):
     """POST /api/corporate/reports/group-summary/"""
+    report_type = 'Group Summary Report'
     group_id = request.data.get('group_id')
     status_filter = request.data.get('policystatus', '').lower()
 
@@ -782,13 +783,36 @@ def group_summary_report(request):
     to_date = request.data.get('to_date')
 
     if not group_id:
+        log_report_access(
+            request=request,
+            report_type=report_type,
+            sql_template='',
+            params=[],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+            remarks='group_id is required.',
+        )
         return Response({'error': 'group_id is required'}, status=400)
 
     if (from_date or to_date) and filter_by not in ('DOC', 'FUP'):
+        log_report_access(
+            request=request,
+            report_type=report_type,
+            sql_template='',
+            params=[group_id, from_date, to_date, filter_by],
+            status=ReportAccessLog.Status.INVALID_INPUT,
+            remarks='Invalid filter_by for the supplied date range.',
+        )
         return Response({'error': 'filter_by must be "DOC" or "FUP" when a date range is provided'}, status=400)
 
     allowed, error_response = _verify_group_access(request, group_id)
     if not allowed:
+        log_report_access(
+            request=request,
+            report_type=report_type,
+            sql_template='',
+            params=[group_id],
+            status=ReportAccessLog.Status.FORBIDDEN,
+        )
         return error_response
 
     # Map UI status names to database codes
@@ -807,7 +831,7 @@ def group_summary_report(request):
     date_column_map = {
         'DOC': 'CAST(B.DOC AS date)',
         'FUP': 'CAST(B.FUP AS date)',
-    }
+    }   
 
     sql = """
         SELECT
@@ -877,11 +901,29 @@ def group_summary_report(request):
                 for row in cursor.fetchall()
             ]
 
+        log_report_access(
+            request=request,
+            report_type=report_type,
+            sql_template=sql,
+            params=params,
+            status=(
+                ReportAccessLog.Status.SUCCESS
+                if results else ReportAccessLog.Status.NO_DATA
+            ),
+        )
         return Response(results, status=200)
 
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
+        log_report_access(
+            request=request,
+            report_type=report_type,
+            sql_template=sql,
+            params=params,
+            status=ReportAccessLog.Status.ERROR,
+            exc=e,
+        )
         return Response({
             'error': f'Failed to generate group summary report: {str(e)}',
             'details': error_details if request.user.is_superuser else None,
