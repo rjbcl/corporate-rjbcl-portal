@@ -13,7 +13,7 @@ from django.urls import path, reverse
 from api_corporate.models import APIKey
 from .models import (
     AuditLog, Company, CompanyDocument, Group,
-    Account, CompanyAccount, UserVerification,
+    Account, CompanyAccount, UserVerification, ReportAccessLog
 )
 from .services import CompanyService, CompanyAccountService
 from .utils import GroupAPIService, validate_password_strength
@@ -1208,6 +1208,128 @@ class AuditLogAdmin(admin.ModelAdmin):
         return _is_admin_or_super(request.user)
 
 
+@admin.register(ReportAccessLog)
+class ReportAccessLogAdmin(admin.ModelAdmin):
+    """
+    Read-only admin for the ReportAccessLog audit table.
+
+    These rows are written automatically by report endpoints, so
+    add / edit / delete are disabled — the only management action
+    permitted here is exporting rows to CSV.
+    """
+
+    # ------------------------------------------------------------------ #
+    # List page
+    # ------------------------------------------------------------------ #
+    list_display = (
+        'row_id',
+        'generated_at',
+        'generator',
+        'report_type',
+        'status_colored',
+        'has_error',
+        'short_error',
+    )
+
+    list_display_links = ('row_id', 'generated_at')
+
+    list_filter = (
+        'status',
+        'has_error',
+        'report_type',
+        'generator',
+    )
+
+    search_fields = (
+        'generator',
+        'report_type',
+        'query',
+        'error_message',
+        'remarks',
+    )
+
+    date_hierarchy = 'generated_at'
+
+    ordering = ('-generated_at',)
+
+    list_per_page = 25
+    show_full_result_count = False
+
+    # ------------------------------------------------------------------ #
+    # Detail page
+    # ------------------------------------------------------------------ #
+    fields = (
+        'row_id',
+        'generated_at',
+        'generator',
+        'report_type',
+        'status',
+        'has_error',
+        'query',
+        'error_message',
+        'remarks',
+    )
+
+    readonly_fields = fields  # entire audit log is read-only
+
+    # ------------------------------------------------------------------ #
+    # Permissions — audit logs are system-generated
+    # ------------------------------------------------------------------ #
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    # ------------------------------------------------------------------ #
+    # Display helpers
+    # ------------------------------------------------------------------ #
+    def status_colored(self, obj):
+        color_map = {
+            ReportAccessLog.Status.SUCCESS:       '#1e7e34',  # green
+            ReportAccessLog.Status.NO_DATA:       '#6c757d',  # grey
+            ReportAccessLog.Status.ERROR:         '#bd2130',  # red
+            ReportAccessLog.Status.FORBIDDEN:     '#d39e00',  # amber
+            ReportAccessLog.Status.INVALID_INPUT: '#d39e00',  # amber
+        }
+        color = color_map.get(obj.status, '#495057')
+        return format_html(
+            '<strong style="color: {};">{}</strong>',
+            color,
+            obj.get_status_display(),
+        )
+    status_colored.short_description = 'Status'
+    status_colored.admin_order_field = 'status'
+
+    def short_error(self, obj):
+        if not obj.error_message:
+            return '—'
+        text = obj.error_message
+        return (text[:75] + '…') if len(text) > 75 else text
+    short_error.short_description = 'Error (preview)'
+
+    # ------------------------------------------------------------------ #
+    # Custom actions
+    # ------------------------------------------------------------------ #
+    actions = ('export_as_csv',)
+
+    def export_as_csv(self, request, queryset):
+        meta = ReportAccessLog._meta
+        field_names = [f.name for f in meta.fields]
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = (
+            f'attachment; filename={meta.db_table}.csv'
+        )
+        writer = csv.writer(response)
+        writer.writerow(field_names)
+        for obj in queryset:
+            writer.writerow(getattr(obj, field) for field in field_names)
+        return response
+    export_as_csv.short_description = 'Export selected logs to CSV'
 # ============================================================
 # USER VERIFICATION ADMIN
 # ============================================================
