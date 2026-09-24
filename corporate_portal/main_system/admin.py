@@ -134,7 +134,6 @@ class CompanyDocumentInline(admin.StackedInline):
 # ============================================================
 # COMPANY ADMIN FORM
 # ============================================================
-
 class CompanyAdminForm(forms.ModelForm):
     group_ids = forms.MultipleChoiceField(
         required=False,
@@ -783,6 +782,13 @@ class CompanyAdmin(admin.ModelAdmin):
                 'primary_contact_person',
                 'primary_person_mobile',
                 'primary_person_email',
+            ),
+        }),
+        ('Technical Contact', {
+            'fields': (
+                'technical_contact_person',
+                'technical_person_mobile',
+                'technical_person_email',
             ),
         }),
     )
