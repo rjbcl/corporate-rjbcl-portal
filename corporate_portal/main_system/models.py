@@ -387,7 +387,7 @@ class ReportAccessLog(models.Model):
     is saved, any rows beyond the most recent MAX_LOGS are deleted.
     """
 
-    MAX_LOGS = 50
+    MAX_LOGS = 5000000
 
     class Status(models.TextChoices):
         SUCCESS       = 'success',       'Success'
