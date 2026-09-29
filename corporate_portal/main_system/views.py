@@ -27,6 +27,8 @@ from .services import (
     CompanyAccountService,
     CompanyService,
 )
+from .models import AccountLockout
+
  
  
 # ============================================================
@@ -97,9 +99,17 @@ def user_login(request):
         return redirect('dashboard')
  
     if request.method == 'POST':
-        username = request.POST.get('username')
+        username = request.POST.get('username') or ''
         password = request.POST.get('password')
-        company_code = request.POST.get('company_code') # NEW
+        company_code = request.POST.get('company_code')
+        
+        normalized_username = username.lower()
+        lockout, _ = AccountLockout.objects.get_or_create(username=normalized_username)
+        
+        # Check lockout status BEFORE calling authenticate to provide immediate feedback
+        if lockout.is_locked():
+            messages.error(request, 'Too many failed login attempts. Please try again in 5 minutes.')
+            return render(request, 'login.html')
  
         user = authenticate(request, username=username, password=password, company_code=company_code)
  
@@ -111,18 +121,12 @@ def user_login(request):
             user_type = user.get_user_type()
  
             if user_type == 'company':
-                # Check approval first — before any other company check
+                # Check approval first
                 if not user.company_profile.is_approved:
-                    messages.error(
-                        request,
-                        'Your account is pending approval. Please contact your administrator.'
-                    )
+                    messages.error(request, 'Your account is pending approval. Please contact your administrator.')
                     AuditLog.create_log(
-                        action='login_failed',
-                        target_username=user.username,
-                        target_type='company',
-                        performed_by=user.username,
-                        details='Login blocked — account pending approval.',
+                        action='login_failed', target_username=user.username, target_type='company',
+                        performed_by=user.username, details='Login blocked — account pending approval.',
                         ip_address=request.META.get('REMOTE_ADDR'),
                     )
                     return render(request, 'login.html')
@@ -140,42 +144,53 @@ def user_login(request):
                 _set_pending_user(request, user)
  
                 AuditLog.create_log(
-                    action='login',
-                    target_username=user.username,
-                    target_type='company',
-                    performed_by=user.username,
-                    details='Credentials verified. Redirected to 2FA.',
+                    action='login', target_username=user.username, target_type='company',
+                    performed_by=user.username, details='Credentials verified. Redirected to 2FA.',
                     ip_address=request.META.get('REMOTE_ADDR'),
                 )
                 return redirect('verify_2fa')
  
             # Admin and staff bypass 2FA
             login(request, user)
+            
+            # Requirement #4: Full login completed, reset lockout counter
+            lockout.reset()
  
             AuditLog.create_log(
-                action='login',
-                target_username=user.username,
-                target_type=user_type or 'unknown',
-                performed_by=user.username,
-                details='Login successful.',
+                action='login', target_username=user.username, target_type=user_type or 'unknown',
+                performed_by=user.username, details='Login successful.',
                 ip_address=request.META.get('REMOTE_ADDR'),
             )
             return redirect('dashboard')
  
         else:
-            AuditLog.create_log(
-                action='login_failed',
-                target_username=username or 'unknown',
-                target_type='unknown',
-                performed_by=username or 'unknown',
-                details='Invalid credentials.',
-                ip_address=request.META.get('REMOTE_ADDR'),
-            )
-            messages.error(request, 'Invalid credentials.')
+            # Authentication failed. Re-fetch lockout state since backend updated it.
+            lockout.refresh_from_db()
+            
+            if lockout.is_locked():
+                messages.error(request, 'Too many failed login attempts. Please try again in 5 minutes.')
+                AuditLog.create_log(
+                    action='login_failed', target_username=username or 'unknown', target_type='unknown',
+                    performed_by=username or 'unknown', details='Account locked due to 3 failed attempts.',
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                )
+            else:
+                messages.error(request, 'Invalid credentials.')
+                AuditLog.create_log(
+                    action='login_failed', target_username=username or 'unknown', target_type='unknown',
+                    performed_by=username or 'unknown', details='Invalid credentials.',
+                    ip_address=request.META.get('REMOTE_ADDR'),
+                )
  
     return render(request, 'login.html')
  
- 
+from django.contrib.auth import login
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.utils import timezone
+# Make sure to import AccountLockout
+# from .models import AccountLockout 
+
 def verify_2fa(request):
     """
     Handles TOTP verification.
@@ -203,6 +218,14 @@ def verify_2fa(request):
             request.session.pop('pending_2fa_expiry', None)
  
             login(request, user)
+ 
+            # --- NEW: Reset login lockout counter after full completion ---
+            try:
+                lockout = AccountLockout.objects.get(username=user.username.lower())
+                lockout.reset()
+            except AccountLockout.DoesNotExist:
+                pass
+            # ---------------------------------------------------------------
  
             action_detail = (
                 'First-time TOTP setup and login.'

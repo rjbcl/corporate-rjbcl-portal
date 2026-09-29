@@ -135,7 +135,7 @@ CORPORATE_API_TIMEOUT = 30
 
 # Authentication
 AUTHENTICATION_BACKENDS = [
-    'main_system.backends.CompanyCodeBackend',
+    'main_system.backends.CustomAuthBackend',
 ]
 
 AUTH_USER_MODEL = 'main_system.Account'

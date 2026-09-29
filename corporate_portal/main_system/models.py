@@ -1,5 +1,8 @@
 from django.db import models  # type: ignore
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager  # type: ignore
+from django.utils import timezone
+from datetime import timedelta
+
 
 
 # ============================================================
@@ -315,6 +318,51 @@ class UserVerification(models.Model):
     def __str__(self):
         return f"Verification for {self.account.username}"
 
+class AccountLockout(models.Model):
+    """
+    Tracks failed login attempts and lockouts for all user types.
+    Keyed by username to prevent enumeration and protect non-existent accounts.
+    """
+    username = models.CharField(max_length=150, unique=True, db_index=True)
+    failed_attempts = models.IntegerField(default=0)
+    timeout_until = models.DateTimeField(null=True, blank=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'copo_account_lockout'
+        verbose_name = 'Account Lockout'
+        verbose_name_plural = 'Account Lockouts'
+
+    def is_locked(self):
+        """Returns True if the account is currently in a timeout period."""
+        return self.timeout_until is not None and self.timeout_until > timezone.now()
+
+    def register_failure(self):
+        """
+        Increments failure count and applies a 5-min timeout if >= 3 failures.
+        Per requirements: After timeout expires, the next failure immediately re-blocks.
+        """
+        now = timezone.now()
+        
+        # If currently locked, do nothing (don't extend timer, don't increment)
+        if self.timeout_until and self.timeout_until > now:
+            self.save()
+            return
+
+        self.last_attempt_at = now
+        self.failed_attempts += 1
+
+        # 3 failed attempts -> 5 min timeout
+        if self.failed_attempts >= 3:
+            self.timeout_until = now + timedelta(minutes=5)
+
+        self.save()
+
+    def reset(self):
+        """Clears the lockout counters after full successful login completion."""
+        self.failed_attempts = 0
+        self.timeout_until = None
+        self.save(update_fields=['failed_attempts', 'timeout_until'])
 
 # ============================================================
 # AUDIT LOG
@@ -412,7 +460,7 @@ class ReportAccessLog(models.Model):
     report_type = models.CharField(
         max_length=150,
         db_index=True,
-        help_text="Human-readable report name.",
+        help_text="Report's name.",
     )
     query = models.TextField(
         default='N/A',
