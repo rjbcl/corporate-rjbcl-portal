@@ -53,22 +53,47 @@ def _fetch_all_resultsets(cursor):
     return results
 
 
-def _verify_group_access(request, group_id):
+def _get_user_group_ids(request):
     """
-    Verify the requesting company user owns the given group.
-    Returns (True, None) on success or (False, Response) on failure.
+    Resolves group_ids based on user type.
+    Staff/Admin are restricted to their session-selected company.
+    Returns (group_ids, error_response).
     """
     if request.user.is_superuser or request.user.is_staff:
-        return True, None
+        company_id = request.session.get('selected_company_id')
+        if not company_id:
+            return None, Response(
+                {'error': 'No company selected. Please select a company from the dashboard.'},
+                status=403
+            )
+        group_ids = list(PortalGroup.objects.filter(
+            company_id=company_id, isdeleted=False
+        ).values_list('group_id', flat=True))
+        return group_ids, None
+    
+    # Regular company user
+    try:
+        company = request.user.company_profile.company
+        if not company.isactive:
+            return None, Response({'error': 'Company account is inactive'}, status=403)
+        group_ids = list(PortalGroup.objects.filter(
+            company=company, isdeleted=False
+        ).values_list('group_id', flat=True))
+        return group_ids, None
+    except AttributeError:
+        return None, Response({'error': 'User is not associated with a company'}, status=403)
 
-    company = request.user.company_profile.company
-    exists = PortalGroup.objects.filter(
-        company=company,
-        group_id=group_id,
-        isdeleted=False,
-    ).exists()
 
-    if not exists:
+def _verify_group_access(request, group_id):
+    """
+    Verify the requesting user owns the given group.
+    Returns (True, None) on success or (False, Response) on failure.
+    """
+    group_ids, error = _get_user_group_ids(request)
+    if error:
+        return False, error
+        
+    if str(group_id) not in [str(gid) for gid in group_ids]:
         return False, Response(
             {'error': 'You can only access your own company groups'},
             status=403,
@@ -382,34 +407,9 @@ def policy_detail(request):
     group_ids = request.session.get('company_group_ids')
 
     if not group_ids:
-        if request.user.is_superuser or request.user.is_staff:
-            group_ids = list(PortalGroup.objects.filter(
-                isdeleted=False
-            ).values_list('group_id', flat=True))
-        else:
-            try:
-                company = request.user.company_profile.company
-                if not company.isactive:
-                    log_report_access(
-                        request=request,
-                        report_type='Policy Detail',
-                        sql_template='PolicyDetail',
-                        params=[policy_no],
-                        status=ReportAccessLog.Status.FORBIDDEN,
-                    )
-                    return Response({'error': 'Company account is inactive'}, status=403)
-                group_ids = list(PortalGroup.objects.filter(
-                    company=company, isdeleted=False
-                ).values_list('group_id', flat=True))
-            except AttributeError:
-                log_report_access(
-                    request=request,
-                    report_type='Policy Detail',
-                    sql_template='PolicyDetail',
-                    params=[policy_no],
-                    status=ReportAccessLog.Status.FORBIDDEN,
-                )
-                return Response({'error': 'User is not associated with a company'}, status=403)
+        group_ids, error = _get_user_group_ids(request)
+        if error:
+            return error
 
         if not group_ids:
             log_report_access(
@@ -1027,36 +1027,19 @@ def policy_summary_report(request):
         return Response({'error': 'policy_no is required'}, status=400)
 
     # --- Permission: resolve authorized group_ids ---------------------------
-    if request.user.is_superuser or request.user.is_staff:
-        group_ids = list(PortalGroup.objects.filter(
-            isdeleted=False
-        ).values_list('group_id', flat=True))
-    else:
-        company = request.user.company_profile.company
+    group_ids, error = _get_user_group_ids(request)
+    if error:
+        return error
 
-        if not company.isactive:
-            log_report_access(
-                request=request,
-                report_type='Policy Summary Report',
-                sql_template='PolicySummary',
-                params=[policy_no],
-                status=ReportAccessLog.Status.FORBIDDEN,
-            )
-            return Response({'error': 'Company account is inactive'}, status=403)
-
-        group_ids = list(PortalGroup.objects.filter(
-            company=company, isdeleted=False
-        ).values_list('group_id', flat=True))
-
-        if not group_ids:
-            log_report_access(
-                request=request,
-                report_type='Policy Summary Report',
-                sql_template='PolicySummary',
-                params=[policy_no],
-                status=ReportAccessLog.Status.FORBIDDEN,
-            )
-            return Response({'error': 'No groups found for your company'}, status=404)
+    if not group_ids:
+        log_report_access(
+            request=request,
+            report_type='Policy Summary Report',
+            sql_template='PolicySummary',
+            params=[policy_no],
+            status=ReportAccessLog.Status.FORBIDDEN,
+        )
+        return Response({'error': 'No groups found for your company'}, status=404)
 
     # --- Dispatch to the Python fetcher ------------------------------------
     try:
@@ -1126,36 +1109,19 @@ def surrender_calculator(request):
     # --- Permission: coarse "company has any groups" gate (preserved from
     #     existing view; group_ids not passed to fetch — SP derives GroupId
     #     itself via SELECT TOP 1 GroupId FROM tblGroupEndowment WHERE PolicyNo = ?)
-    if request.user.is_superuser or request.user.is_staff:
-        group_ids = list(PortalGroup.objects.filter(
-            isdeleted=False
-        ).values_list('group_id', flat=True))
-    else:
-        company = request.user.company_profile.company
+    group_ids, error = _get_user_group_ids(request)
+    if error:
+        return error
 
-        if not company.isactive:
-            log_report_access(
-                request=request,
-                report_type='Surrender Calculator',
-                sql_template='SurrenderCalculator',
-                params=[policy_no, claim_date],
-                status=ReportAccessLog.Status.FORBIDDEN,
-            )
-            return Response({'error': 'Company account is inactive'}, status=403)
-
-        group_ids = list(PortalGroup.objects.filter(
-            company=company, isdeleted=False
-        ).values_list('group_id', flat=True))
-
-        if not group_ids:
-            log_report_access(
-                request=request,
-                report_type='Surrender Calculator',
-                sql_template='SurrenderCalculator',
-                params=[policy_no, claim_date],
-                status=ReportAccessLog.Status.FORBIDDEN,
-            )
-            return Response({'error': 'No groups found for your company'}, status=404)
+    if not group_ids:
+        log_report_access(
+            request=request,
+            report_type='Surrender Calculator',
+            sql_template='SurrenderCalculator',
+            params=[policy_no, claim_date],
+            status=ReportAccessLog.Status.FORBIDDEN,
+        )
+        return Response({'error': 'No groups found for your company'}, status=404)
 
     # --- Dispatch to the Python fetcher ------------------------------------
     try:
@@ -1225,20 +1191,9 @@ def policy_search(request):
     group_ids = request.session.get('company_group_ids')
 
     if not group_ids:
-        if request.user.is_superuser or request.user.is_staff:
-            group_ids = list(PortalGroup.objects.filter(
-                isdeleted=False
-            ).values_list('group_id', flat=True))
-        else:
-            try:
-                company = request.user.company_profile.company
-                if not company.isactive:
-                    return Response({'error': 'Company account is inactive'}, status=403)
-                group_ids = list(PortalGroup.objects.filter(
-                    company=company, isdeleted=False
-                ).values_list('group_id', flat=True))
-            except AttributeError:
-                return Response({'error': 'User is not associated with a company'}, status=403)
+        group_ids, error = _get_user_group_ids(request)
+        if error:
+            return error
 
         if not group_ids:
             return Response([], status=200)
@@ -1311,26 +1266,9 @@ def policy_loans(request):
     group_ids = request.session.get('company_group_ids')
 
     if not group_ids:
-        if request.user.is_superuser or request.user.is_staff:
-            group_ids = list(PortalGroup.objects.filter(
-                isdeleted=False
-            ).values_list('group_id', flat=True))
-        else:
-            try:
-                company = request.user.company_profile.company
-                if not company.isactive:
-                    log_report_access(request=request, report_type='Policy Loans Report',
-                                      sql_template='', params=[],
-                                      status=ReportAccessLog.Status.FORBIDDEN)
-                    return Response({'error': 'Company account is inactive'}, status=403)
-                group_ids = list(PortalGroup.objects.filter(
-                    company=company, isdeleted=False
-                ).values_list('group_id', flat=True))
-            except AttributeError:
-                log_report_access(request=request, report_type='Policy Loans Report',
-                                  sql_template='', params=[],
-                                  status=ReportAccessLog.Status.FORBIDDEN)
-                return Response({'error': 'User is not associated with a company'}, status=403)
+        group_ids, error = _get_user_group_ids(request)
+        if error:
+            return error
 
         if not group_ids:
             return Response([], status=200)
@@ -1461,45 +1399,24 @@ def group_information(request):
     """GET /api/corporate/groups/"""
     user = request.user
 
-    if user.is_superuser or user.is_staff:
-        company_id = request.query_params.get('company_id')
-        if company_id:
-            try:
-                company_id = int(company_id)
-                group_ids = list(PortalGroup.objects.filter(
-                    company__company_id=company_id, isdeleted=False
-                ).values_list('group_id', flat=True))
-            except (ValueError, TypeError):
-                log_report_access(
-                    request=request, report_type='Group Information',
-                    sql_template='GroupInformation', params=[],
-                    status=ReportAccessLog.Status.INVALID_INPUT,
-                )
-                return Response({'error': 'Invalid company_id'}, status=400)
-        else:
-            group_ids = list(PortalGroup.objects.filter(
-                isdeleted=False
-            ).values_list('group_id', flat=True))
-    else:
+    company_id = request.query_params.get('company_id')
+    if (user.is_superuser or user.is_staff) and company_id:
         try:
-            company = user.company_profile.company
-            if not company.isactive:
-                log_report_access(
-                    request=request, report_type='Group Information',
-                    sql_template='GroupInformation', params=[],
-                    status=ReportAccessLog.Status.FORBIDDEN,
-                )
-                return Response({'error': 'Company account is inactive'}, status=403)
+            company_id = int(company_id)
             group_ids = list(PortalGroup.objects.filter(
-                company=company, isdeleted=False
+                company__company_id=company_id, isdeleted=False
             ).values_list('group_id', flat=True))
-        except AttributeError:
+        except (ValueError, TypeError):
             log_report_access(
                 request=request, report_type='Group Information',
                 sql_template='GroupInformation', params=[],
-                status=ReportAccessLog.Status.FORBIDDEN,
+                status=ReportAccessLog.Status.INVALID_INPUT,
             )
-            return Response({'error': 'User is not associated with a company'}, status=403)
+            return Response({'error': 'Invalid company_id'}, status=400)
+    else:
+        group_ids, error = _get_user_group_ids(request)
+        if error:
+            return error
 
     if not group_ids:
         log_report_access(
@@ -1546,13 +1463,9 @@ def company_policies_list(request):
     Query params: page, search, policy_status, fiscal_year, gender,
     policy_type, is_adb, employee_id, claim_status, ordering
     """
-    company = request.user.company_profile.company
-    if not company.isactive:
-        return Response({'error': 'Company account is inactive'}, status=403)
-
-    group_ids = list(PortalGroup.objects.filter(
-        company=company, isdeleted=False
-    ).values_list('group_id', flat=True))
+    group_ids, error = _get_user_group_ids(request)
+    if error:
+        return error
 
     if not group_ids:
         return Response(
@@ -1596,13 +1509,9 @@ def company_policies_list(request):
 @api_view(['POST'])
 def company_policies_statistics(request):
     """POST /api/company/policies/statistics/"""
-    company = request.user.company_profile.company
-    if not company.isactive:
-        return Response({'error': 'Company account is inactive'}, status=403)
-
-    group_ids = list(PortalGroup.objects.filter(
-        company=company, isdeleted=False
-    ).values_list('group_id', flat=True))
+    group_ids, error = _get_user_group_ids(request)
+    if error:
+        return error
 
     try:
         data = REPORTS['company_policies_statistics'](group_ids)

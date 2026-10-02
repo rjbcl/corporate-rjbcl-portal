@@ -10,6 +10,7 @@ urlpatterns = [
     
     # Main dashboard (redirect based on user type)
     path('dashboard/', views.dashboard, name='dashboard'),
+    path('select-company/', views.select_company, name='select_company'),
     
     # Company routes
     path('company/dashboard/', views.company_dashboard, name='company_dashboard'),
@@ -34,12 +35,8 @@ urlpatterns = [
     path('verify-2fa/', views.verify_2fa, name='verify_2fa'),
     path('verify-otp/', views.verify_otp, name='verify_otp'),
 
-
     # Primary company user routes
     path('company/info/', views.company_info, name='company_info'),
     path('company/accounts/', views.manage_accounts, name='manage_accounts'),
     path('company/accounts/<int:account_id>/reset-password/', views.reset_account_password, name='reset_account_password'),
-
 ]
-
-# 

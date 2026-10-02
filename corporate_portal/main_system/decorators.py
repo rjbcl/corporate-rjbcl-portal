@@ -4,33 +4,48 @@ from functools import wraps
 
 
 def company_required(view_func):
-    """Restricts access to company users only."""
+    """Restricts access to company users or staff/admin acting on a company."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
-        if request.user.get_user_type() != 'company':
+        
+        user_type = request.user.get_user_type()
+        
+        # Staff and Admin bypass if they have a selected company in session
+        if user_type in ('staff', 'admin'):
+            if not request.session.get('selected_company_id'):
+                messages.info(request, 'Please select a company to access the dashboard.')
+                return redirect('select_company')
+            return view_func(request, *args, **kwargs)
+            
+        if user_type != 'company':
             messages.error(request, 'Access denied. Company account required.')
             return redirect('dashboard')
+            
         return view_func(request, *args, **kwargs)
     return wrapper
 
 
 def primary_company_required(view_func):
     """
-    Restricts access to the primary company account user only.
-    Checks:
-      1. User is authenticated
-      2. User type is 'company'
-      3. Account is approved (is_approved=True)
-      4. Account is the primary contact (is_primary=True)
+    Restricts access to the primary company account user, or staff/admin.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
 
-        if request.user.get_user_type() != 'company':
+        user_type = request.user.get_user_type()
+
+        # Staff and Admin bypass primary checks if they have a selected company
+        if user_type in ('staff', 'admin'):
+            if not request.session.get('selected_company_id'):
+                messages.info(request, 'Please select a company to access the dashboard.')
+                return redirect('select_company')
+            return view_func(request, *args, **kwargs)
+
+        if user_type != 'company':
             messages.error(request, 'Access denied. Company account required.')
             return redirect('dashboard')
 

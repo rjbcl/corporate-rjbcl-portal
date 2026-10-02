@@ -1,0 +1,11 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block branding %}
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:'Django administration' }}</a></h1>
+        <a href="{% url 'dashboard' %}" class="btn btn-primary" style="color: #fff; text-decoration: none; padding: 5px 15px; border-radius: 4px; font-size: 14px; background-color: #4f46e5; border: none;">
+            Go to Dashboard
+        </a>
+    </div>
+{% endblock %}

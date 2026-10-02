@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from django.core.exceptions import ValidationError, PermissionDenied
  
-from main_system.models import Group, AuditLog, UserVerification, CompanyAccount, CompanyDocument
+from main_system.models import Group, AuditLog, UserVerification, CompanyAccount, CompanyDocument, Company
 from .decorators import company_required, primary_company_required
 from .forms import ChangePasswordForm
 from .utils import validate_password_strength
@@ -87,7 +87,42 @@ def _generate_qr_base64(uri: str) -> str:
     buffer.seek(0)
  
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
- 
+
+
+
+def get_active_company(request):
+    """Returns the company context for the current user."""
+    user_type = request.user.get_user_type()
+    
+    if user_type == 'company':
+        return request.user.company_profile.company
+    
+    if user_type in ('staff', 'admin'):
+        company_id = request.session.get('selected_company_id')
+        if company_id:
+            return Company.objects.filter(pk=company_id).first()
+    
+    return None
+
+
+@login_required
+def select_company(request):
+    """Allows staff/admin to select a company to manage via the dashboard."""
+    user_type = request.user.get_user_type()
+    if user_type not in ('staff', 'admin'):
+        return redirect('dashboard')
+    
+    if request.method == 'POST':
+        company_id = request.POST.get('company_id')
+        if company_id:
+            request.session['selected_company_id'] = company_id
+            request.session.pop('company_group_ids', None)  # <-- ADD THIS LINE to clear stale cache
+            return redirect('company_dashboard')
+        else:
+            messages.error(request, 'Please select a valid company.')
+            
+    companies = Company.objects.all().order_by('company_name')
+    return render(request, 'select_company.html', {'companies': companies})
  
 # ============================================================
 # AUTH VIEWS
@@ -151,6 +186,7 @@ def user_login(request):
                 return redirect('verify_2fa')
  
             # Admin and staff bypass 2FA
+                        # Admin and staff bypass 2FA
             login(request, user)
             
             # Requirement #4: Full login completed, reset lockout counter
@@ -161,6 +197,10 @@ def user_login(request):
                 performed_by=user.username, details='Login successful.',
                 ip_address=request.META.get('REMOTE_ADDR'),
             )
+            
+            # Redirect staff/admin to Django admin panel
+            if user_type in ('staff', 'admin'):
+                return redirect('/admin/')
             return redirect('dashboard')
  
         else:
@@ -373,9 +413,11 @@ def dashboard(request):
     """Routes users to the appropriate dashboard based on their role."""
     user = request.user
     user_type = user.get_user_type()
- 
+
     if user_type in ('staff', 'admin'):
-        return redirect('/admin/')
+        if not request.session.get('selected_company_id'):
+            return redirect('select_company')
+        return redirect('company_dashboard')
     elif user_type == 'company':
         return redirect('company_dashboard')
     else:
@@ -391,15 +433,24 @@ def dashboard(request):
 @login_required
 @company_required
 def company_dashboard(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
+        
     total_groups = Group.objects.filter(
         company=company,
         isdeleted=False,
     ).count()
+    
+    # Safely determine if the user is primary (staff/admin act as primary)
+    is_primary = True
+    if request.user.get_user_type() == 'company':
+        is_primary = request.user.company_profile.is_primary
+    
     context = {
         'company': company,
         'total_groups': total_groups,
-        'is_primary': request.user.company_profile.is_primary,
+        'is_primary': is_primary,
     }
     return render(request, 'Dashboard/Company/dashboard.html', context)
  
@@ -407,7 +458,9 @@ def company_dashboard(request):
 @login_required
 @company_required
 def company_groups(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     context = {'company': company}
     return render(request, 'Dashboard/Company/groups.html', context)
  
@@ -419,7 +472,9 @@ def company_groups(request):
 @login_required
 @company_required
 def maturity_forecasting_report(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     groups = Group.objects.filter(company=company, isdeleted=False).values('group_id', 'group_name')
     context = {'company': company, 'groups': groups}
     return render(request, 'Dashboard/Company/reports/maturity_forecasting_report.html', context)
@@ -428,7 +483,9 @@ def maturity_forecasting_report(request):
 @login_required
 @company_required
 def transfer_report(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     groups = Group.objects.filter(company=company, isdeleted=False).values('group_id', 'group_name')
     context = {'company': company, 'groups': groups}
     return render(request, 'Dashboard/Company/reports/Transfer_report.html', context)
@@ -437,7 +494,9 @@ def transfer_report(request):
 @login_required
 @company_required
 def claim_report(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     groups = Group.objects.filter(company=company, isdeleted=False).values('group_id', 'group_name')
     context = {'company': company, 'groups': groups}
     return render(request, 'Dashboard/Company/reports/claim_report.html', context)
@@ -446,7 +505,9 @@ def claim_report(request):
 @login_required
 @company_required
 def business_detail_report(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     groups = Group.objects.filter(company=company, isdeleted=False).values('group_id', 'group_name')
     context = {'company': company, 'groups': groups}
     return render(request, 'Dashboard/Company/reports/Business_detail_report.html', context)
@@ -455,7 +516,9 @@ def business_detail_report(request):
 @login_required
 @company_required
 def loan_repayment_report(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     groups = Group.objects.filter(company=company, isdeleted=False).values('group_id', 'group_name')
     context = {'company': company, 'groups': groups}
     return render(request, 'Dashboard/Company/reports/group_loan_report.html', context)
@@ -464,7 +527,9 @@ def loan_repayment_report(request):
 @login_required
 @company_required
 def policy_summary(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     context = {'company': company}
     return render(request, 'Dashboard/Company/policy_summary_report.html', context)
  
@@ -472,7 +537,9 @@ def policy_summary(request):
 @login_required
 @company_required
 def surrender_calculator(request):
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     context = {'company': company}
     return render(request, 'Dashboard/Company/surrender_calculator.html', context)
  
@@ -493,8 +560,10 @@ def company_info(request):
     GET:  renders the form pre-populated with existing data.
     POST: updates company info or uploads documents.
     """
-    company = request.user.company_profile.company
- 
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
+    
     # Get or prepare document instance (may not exist yet)
     try:
         document = company.documents
@@ -580,7 +649,9 @@ def manage_accounts(request):
             plus account slot stats.
       POST: create a new company account (is_approved=False, enforce_limit=True).
     """
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
     stats = CompanyAccountService.get_account_stats(company)
  
     accounts = CompanyAccount.objects.filter(
@@ -665,7 +736,9 @@ def reset_account_password(request, account_id):
     Allows the primary company user to reset the password of another
     account in the same company. Called from the modal on manage_accounts.
     """
-    company = request.user.company_profile.company
+    company = get_active_company(request)
+    if not company:
+        return redirect('select_company')
 
     try:
         target_profile = CompanyAccount.objects.select_related('account').get(
