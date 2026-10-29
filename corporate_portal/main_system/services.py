@@ -811,6 +811,35 @@ class CompanyAccountService(PermissionMixin):
 
         return target_company_account
 
+    @classmethod
+    def reset_totp(cls, company_account, *, user):
+        """
+        Resets the authenticator app (TOTP) for a company account.
+        Clears totp_secret, is_totp_enabled, and last_used_step.
+        Leaves failed_attempts, timeout_until, and OTP fields alone.
+        """
+        if not (user.is_superuser or user.has_perm('main_system.reset_company_account_password')):
+            raise PermissionDenied("You don't have permission to reset authenticator apps.")
+
+        try:
+            verification = company_account.account.user_verification
+            verification.totp_secret = None
+            verification.is_totp_enabled = False
+            verification.last_used_step = None
+            verification.save(update_fields=['totp_secret', 'is_totp_enabled', 'last_used_step'])
+        except UserVerification.DoesNotExist:
+            # No verification record exists, so nothing to reset.
+            pass
+
+        # Using the exact signature from AuditLog.create_log
+        AuditLog.create_log(
+            action='update',  # or add ('totp_reset', 'TOTP Reset') to ACTION_CHOICES
+            target_username=company_account.account.username,
+            target_type='company_account',
+            performed_by=user.username,
+            details="Authenticator app (TOTP) reset."
+        )
+
 
 # ============================================================
 # VERIFICATION INTERNAL HELPERS

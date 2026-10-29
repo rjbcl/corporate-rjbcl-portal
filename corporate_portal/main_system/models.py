@@ -380,6 +380,7 @@ class AuditLog(models.Model):
         ('login_failed', 'Login Failed'),
         ('logout', 'Logout'),
         ('permission_change', 'Permission Change'),
+        ('totp_reset', 'TOTP Reset')
     ]
     MAX_LOGS = 2000000
 

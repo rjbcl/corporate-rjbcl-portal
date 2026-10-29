@@ -955,7 +955,7 @@ class CompanyAccountAdmin(admin.ModelAdmin):
     )
     list_filter = ('company', 'is_primary', 'is_approved')
     search_fields = ('account__username', 'company__company_name', 'full_name')
-    actions = ['approve_accounts', 'soft_delete_selected', 'reset_password_action']
+    actions = ['approve_accounts', 'soft_delete_selected', 'reset_password_action','reset_totp_action']
 
     fieldsets = (
         ('Account', {
@@ -1135,6 +1135,38 @@ class CompanyAccountAdmin(admin.ModelAdmin):
             extra_context['show_save_and_add_another'] = False
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
+
+    def reset_totp_action(self, request, queryset):
+        if not (request.user.is_superuser or
+                request.user.has_perm('main_system.reset_company_account_password')):
+            messages.error(request, "You don't have permission to reset authenticator apps.")
+            return
+
+        reset_count = 0
+        for company_account in queryset:
+            try:
+                CompanyAccountService.reset_totp(
+                    company_account, user=request.user
+                )
+                reset_count += 1
+            except PermissionDenied as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f"Failed to reset authenticator for {company_account.account.username}: {str(e)}")
+
+        if reset_count:
+            messages.success(request, f"Authenticator app reset for {reset_count} account(s). They will need to set it up again on next login.")
+    reset_totp_action.short_description = "Reset authenticator app for selected accounts"
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if not request.user.has_perm('main_system.soft_delete_company_account'):
+            actions.pop('soft_delete_selected', None)
+        if not request.user.has_perm('main_system.reset_company_account_password'):
+            actions.pop('reset_password_action', None)
+            # Hide the TOTP reset action if they lack the password reset permission
+            actions.pop('reset_totp_action', None)
+        return actions
 
 # ============================================================
 # GROUP ADMIN
