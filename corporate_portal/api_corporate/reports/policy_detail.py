@@ -65,8 +65,7 @@ SELECT  a.PolicyNo,
         b.Instalment,
         b.PaidAmount,
         CAST(b.MaturityDate AS date)   AS maturitydate,
-        b.PolicyStatus,
-        b.PolicyType
+        b.PolicyStatus
 FROM    tblGroupEndowment AS a
         INNER JOIN tblGroupEndowmentDetails AS b
             ON  a.PolicyNo   = b.PolicyNo

@@ -207,7 +207,6 @@ $(document).ready(function () {
                     <td>${formatCurrency(data.PaidAmount)}</td>
                     <td>${formatDate(data.maturitydate)}</td>
                     <td>${getStatusBadge(data.PolicyStatus)}</td>
-                    <td>${data.PolicyType || '-'}</td>
                 </tr>
             `;
         });

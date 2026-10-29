@@ -381,8 +381,7 @@ Returns full summary details for a specific policy.
         "Instalment": 123,
         "PaidAmount": "123.9000",
         "maturitydate": "2009-01-23",
-        "PolicyStatus": "M",
-        "PolicyType": null
+        "PolicyStatus": "M"
     }
 ]
 ```

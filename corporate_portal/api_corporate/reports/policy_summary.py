@@ -62,8 +62,7 @@ SELECT  a.PolicyNo,
         b.Instalment,
         b.PaidAmount,
         CAST(b.MaturityDate AS date)  AS maturitydate,
-        b.PolicyStatus,
-        b.PolicyType
+        b.PolicyStatus
 FROM    tblGroupEndowment AS a
         INNER JOIN tblGroupEndowmentDetails AS b
             ON  a.PolicyNo   = b.PolicyNo
@@ -85,7 +84,7 @@ def fetch(policy_no: str, group_ids: List[str]) -> List[Dict[str, Any]]:
             If empty, returns an empty list (no rows).
 
     Returns:
-        List of dicts with keys matching ``view_copo_policySummary`` columns.
+        List of dicts with keys matching the policy summary report fields.
     """
     if not policy_no:
         raise ReportError("policy_no is required", status=400)
