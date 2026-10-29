@@ -189,6 +189,11 @@ $(document).ready(function () {
             policyDetailsTable.destroy();
         }
 
+        // Remove the column from cached markup that predates the report change.
+        $('#policy-details-table thead th').filter(function () {
+            return $(this).text().trim().toLowerCase() === 'policy type';
+        }).remove();
+
         // Clear existing table body
         $('#policy-details-tbody').empty();
 
